@@ -14,7 +14,11 @@ def es_fp8_blockwise_scaled_grouped_mm(
     expert_offsets,
     workspace,
 ):
-    torch.ops.sgl_kernel.es_fp8_blockwise_scaled_grouped_mm.default(
+    from sgl_kernel.cutedsl_expert_specialization import (
+        cutedsl_es_fp8_blockwise_scaled_grouped_mm,
+    )
+
+    return cutedsl_es_fp8_blockwise_scaled_grouped_mm(
         output,
         a,
         b,
@@ -32,8 +36,12 @@ def es_fp8_blockwise_scaled_grouped_mm(
 def es_sm100_mxfp8_blockscaled_grouped_mm(
     output, a, b, sfa, sfb, problem_sizes, expert_offsets, blockscale_offsets
 ):
-    torch.ops.sgl_kernel.es_sm100_mxfp8_blockscaled_grouped_mm.default(
-        a, b, sfa, sfb, output, problem_sizes, expert_offsets, blockscale_offsets
+    from sgl_kernel.cutedsl_expert_specialization import (
+        cutedsl_es_sm100_mxfp8_blockscaled_grouped_mm,
+    )
+
+    return cutedsl_es_sm100_mxfp8_blockscaled_grouped_mm(
+        output, a, b, sfa, sfb, problem_sizes, expert_offsets, blockscale_offsets
     )
 
 

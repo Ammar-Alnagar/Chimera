@@ -44,13 +44,25 @@ clear_cuda_arches(CMAKE_FLAG)
 
 # Third Party repos
 # cutlass
-FetchContent_Declare(
-    repo-cutlass
-    GIT_REPOSITORY https://github.com/NVIDIA/cutlass
-    GIT_TAG        57e3cfb47a2d9e0d46eb6335c3dc411498efa198
-    GIT_SHALLOW    OFF
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+execute_process(
+    COMMAND ${Python3_EXECUTABLE} -c "import cutlass_library; import os; print(os.path.join(os.path.dirname(cutlass_library.__file__), 'source'))"
+    OUTPUT_VARIABLE CUTLASS_LIBRARY_SOURCE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-FetchContent_Populate(repo-cutlass)
+if (NOT CUTLASS_LIBRARY_SOURCE_DIR STREQUAL "")
+    message(STATUS "Found CUTLASS 4.x in ${CUTLASS_LIBRARY_SOURCE_DIR}")
+    set(repo-cutlass_SOURCE_DIR ${CUTLASS_LIBRARY_SOURCE_DIR})
+else()
+    message(STATUS "CUTLASS 4.x not found in python packages, falling back to FetchContent")
+    FetchContent_Declare(
+        repo-cutlass
+        GIT_REPOSITORY https://github.com/NVIDIA/cutlass
+        GIT_TAG        v3.6.0  # Fallback to a stable 3.x if 4.x not found
+        GIT_SHALLOW    OFF
+    )
+    FetchContent_Populate(repo-cutlass)
+endif()
 
 # DeepGEMM
 FetchContent_Declare(

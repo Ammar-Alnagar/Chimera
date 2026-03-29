@@ -16,6 +16,7 @@ from sgl_kernel.attention import (
     merge_state,
     merge_state_v2,
 )
+from sgl_kernel.cutedsl_attention import cutedsl_mla_decode
 from sgl_kernel.cutlass_moe import cutlass_w4a8_moe_mm, get_cutlass_w4a8_moe_mm_data
 from sgl_kernel.elementwise import (
     FusedSetKVBufferArg,
@@ -47,6 +48,9 @@ from sgl_kernel.gemm import (
     dsv3_fused_a_gemm,
     dsv3_router_gemm,
     fp8_blockwise_scaled_mm,
+)
+from sgl_kernel.cutedsl_gemm import (
+    cutedsl_fp8_blockwise_scaled_mm,
     fp8_scaled_mm,
     gptq_gemm,
     gptq_marlin_gemm,
