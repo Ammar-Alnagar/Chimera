@@ -23,16 +23,16 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from sglang.bench_serving import (
+from chimera.bench_serving import (
     DatasetRow,
     get_dataset,
     get_tokenizer,
     sample_random_requests,
     set_ulimit,
 )
-from sglang.lang.backend.runtime_endpoint import Runtime
-from sglang.srt.entrypoints.engine import Engine
-from sglang.srt.server_args import ServerArgs
+from chimera.lang.backend.runtime_endpoint import Runtime
+from chimera.srt.entrypoints.engine import Engine
+from chimera.srt.server_args import ServerArgs
 
 
 @dataclasses.dataclass

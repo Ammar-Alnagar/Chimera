@@ -303,9 +303,29 @@ def random_uuid() -> str:
 _warned_bool_env_var_keys = set()
 
 
+def _get_env_with_fallback(name: str, default: Optional[str] = None) -> Optional[str]:
+    """
+    Get an environment variable, supporting both CHIMERA_* and SGLANG_* prefixes.
+    CHIMERA_* takes precedence over SGLANG_* if both are set.
+    """
+    # Try the name as-is first
+    value = os.getenv(name)
+    if value is not None:
+        return value
+
+    # If name starts with SGLANG_, also try CHIMERA_ for new naming
+    if name.startswith("SGLANG_"):
+        chimera_name = "CHIMERA_" + name[7:]  # Replace SGLANG_ with CHIMERA_
+        value = os.getenv(chimera_name)
+        if value is not None:
+            return value
+
+    return default
+
+
 def get_bool_env_var(name: str, default: str = "false") -> bool:
     # FIXME: move your environment variable to sglang.srt.environ
-    value = os.getenv(name, default)
+    value = _get_env_with_fallback(name, default)
     value = value.lower()
 
     truthy_values = ("true", "1")
@@ -325,7 +345,7 @@ def get_bool_env_var(name: str, default: str = "false") -> bool:
 
 def get_int_env_var(name: str, default: int = 0) -> int:
     # FIXME: move your environment variable to sglang.srt.environ
-    value = os.getenv(name)
+    value = _get_env_with_fallback(name)
     if value is None or not value.strip():
         return default
     try:
@@ -336,7 +356,7 @@ def get_int_env_var(name: str, default: int = 0) -> int:
 
 def get_float_env_var(name: str, default: float = 0.0) -> float:
     # FIXME: move your environment variable to sglang.srt.environ
-    value = os.getenv(name)
+    value = _get_env_with_fallback(name)
     if value is None or not value.strip():
         return default
     try:

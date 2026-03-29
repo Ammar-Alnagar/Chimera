@@ -63,19 +63,19 @@ import numpy as np
 import torch
 import torch.distributed as dist
 
-from sglang.srt.configs.model_config import ModelConfig
-from sglang.srt.distributed.parallel_state import destroy_distributed_environment
-from sglang.srt.entrypoints.engine import _set_envs_and_config
-from sglang.srt.layers.moe import initialize_moe_config
-from sglang.srt.layers.quantization.fp8_utils import initialize_fp8_gemm_config
-from sglang.srt.managers.schedule_batch import Req, ScheduleBatch
-from sglang.srt.managers.scheduler_dp_attn_mixin import prepare_mlp_sync_batch_raw
-from sglang.srt.model_executor.forward_batch_info import ForwardBatch
-from sglang.srt.model_executor.model_runner import ModelRunner
-from sglang.srt.sampling.sampling_params import SamplingParams
-from sglang.srt.server_args import PortArgs, ServerArgs
-from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
-from sglang.srt.utils import (
+from chimera.srt.configs.model_config import ModelConfig
+from chimera.srt.distributed.parallel_state import destroy_distributed_environment
+from chimera.srt.entrypoints.engine import _set_envs_and_config
+from chimera.srt.layers.moe import initialize_moe_config
+from chimera.srt.layers.quantization.fp8_utils import initialize_fp8_gemm_config
+from chimera.srt.managers.schedule_batch import Req, ScheduleBatch
+from chimera.srt.managers.scheduler_dp_attn_mixin import prepare_mlp_sync_batch_raw
+from chimera.srt.model_executor.forward_batch_info import ForwardBatch
+from chimera.srt.model_executor.model_runner import ModelRunner
+from chimera.srt.sampling.sampling_params import SamplingParams
+from chimera.srt.server_args import PortArgs, ServerArgs
+from chimera.srt.speculative.spec_info import SpeculativeAlgorithm
+from chimera.srt.utils import (
     configure_logger,
     get_bool_env_var,
     is_cuda_alike,
@@ -87,7 +87,7 @@ from sglang.srt.utils import (
     set_gpu_proc_affinity,
     suppress_other_loggers,
 )
-from sglang.srt.utils.hf_transformers_utils import get_tokenizer
+from chimera.srt.utils.hf_transformers_utils import get_tokenizer
 
 profile_activities = [torch.profiler.ProfilerActivity.CPU] + [
     profiler_activity

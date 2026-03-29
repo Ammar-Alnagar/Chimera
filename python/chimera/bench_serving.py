@@ -756,7 +756,7 @@ def get_tokenizer(
     if pretrained_model_name_or_path.endswith(
         ".json"
     ) or pretrained_model_name_or_path.endswith(".model"):
-        from sglang.srt.utils.hf_transformers_utils import get_tokenizer
+        from chimera.srt.utils.hf_transformers_utils import get_tokenizer
 
         return get_tokenizer(pretrained_model_name_or_path)
 
@@ -779,7 +779,7 @@ def get_processor(
     if pretrained_model_name_or_path.endswith(
         ".json"
     ) or pretrained_model_name_or_path.endswith(".model"):
-        from sglang.srt.utils.hf_transformers_utils import get_processor
+        from chimera.srt.utils.hf_transformers_utils import get_processor
 
         return get_processor(pretrained_model_name_or_path)
 

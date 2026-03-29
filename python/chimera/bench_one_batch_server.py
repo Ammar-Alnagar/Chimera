@@ -28,18 +28,18 @@ from pydantic import BaseModel
 from tabulate import tabulate
 from transformers import AutoProcessor, PreTrainedTokenizer
 
-from sglang.bench_serving import (
+from chimera.bench_serving import (
     get_processor,
     get_tokenizer,
     sample_mmmu_requests,
     sample_random_requests,
 )
-from sglang.profiler import run_profile
-from sglang.srt.entrypoints.http_server import launch_server
-from sglang.srt.server_args import ServerArgs
-from sglang.srt.utils import is_blackwell, kill_process_tree
-from sglang.test.nightly_bench_utils import save_results_as_pydantic_models
-from sglang.test.test_utils import is_in_ci, write_github_step_summary
+from chimera.profiler import run_profile
+from chimera.srt.entrypoints.http_server import launch_server
+from chimera.srt.server_args import ServerArgs
+from chimera.srt.utils import is_blackwell, kill_process_tree
+from chimera.test.nightly_bench_utils import save_results_as_pydantic_models
+from chimera.test.test_utils import is_in_ci, write_github_step_summary
 
 
 @dataclasses.dataclass
