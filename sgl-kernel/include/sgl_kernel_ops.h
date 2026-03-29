@@ -107,21 +107,6 @@ void merge_state(
     at::Tensor v_a, at::Tensor s_a, at::Tensor v_b, at::Tensor s_b, at::Tensor v_merged, at::Tensor s_merged);
 void merge_state_v2(
     at::Tensor v_a, at::Tensor s_a, at::Tensor v_b, at::Tensor s_b, at::Tensor v_merged, at::Tensor s_merged);
-void cutlass_mla_decode(
-    torch::Tensor const& out,
-    torch::Tensor const& q_nope,
-    torch::Tensor const& q_pe,
-    torch::Tensor const& kv_c_and_k_pe_cache,
-    torch::Tensor const& seq_lens,
-    torch::Tensor const& page_table,
-    torch::Tensor const& workspace,
-    double sm_scale,
-    int64_t num_kv_splits = 1 /* Set to 1 to avoid cuda_graph issue by default. */);
-int64_t cutlass_mla_get_workspace_size(
-    int64_t max_seq_len,
-    int64_t num_batches,
-    int64_t sm_count = 0,
-    int64_t num_kv_splits = 1 /* Set to 1 to avoid cuda_graph issue by default. */);
 
 /*
  * From csrc/elementwise
@@ -220,12 +205,6 @@ torch::Tensor fp8_scaled_mm(
     const torch::Tensor& scales_b,
     const torch::Dtype& out_dtype,
     const c10::optional<torch::Tensor>& bias);
-torch::Tensor fp8_blockwise_scaled_mm(
-    const torch::Tensor& mat_a,
-    const torch::Tensor& mat_b,
-    const torch::Tensor& scales_a,
-    const torch::Tensor& scales_b,
-    const torch::Dtype& out_dtype);
 void scaled_fp4_quant(
     torch::Tensor& output, torch::Tensor const& input, torch::Tensor& output_scale, torch::Tensor const& input_scale);
 void sgl_per_token_group_quant_8bit(
@@ -905,29 +884,6 @@ void causal_conv1d_fwd(
 /*
  * From csrc/expert_specialization
  */
-void es_fp8_blockwise_scaled_grouped_mm(
-    torch::Tensor& output,
-    const torch::Tensor& a,
-    const torch::Tensor& b,
-    const torch::Tensor& scales_a,
-    const torch::Tensor& scales_b,
-    const torch::Tensor& stride_a,
-    const torch::Tensor& stride_b,
-    const torch::Tensor& stride_d,
-    const torch::Tensor& problem_sizes,
-    const torch::Tensor& expert_offsets,
-    const torch::Tensor& workspace);
-
-void es_sm100_mxfp8_blockscaled_grouped_mm(
-    const torch::Tensor& a,
-    const torch::Tensor& b,
-    const torch::Tensor& sfa,
-    const torch::Tensor& sfb,
-    torch::Tensor& d,
-    const torch::Tensor& problem_sizes,
-    const torch::Tensor& expert_offsets,
-    const torch::Tensor& blockscale_offsets);
-
 void es_sm100_mxfp8_blockscaled_grouped_quant(
     const torch::Tensor& input,
     const torch::Tensor& problem_sizes,

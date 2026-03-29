@@ -48,9 +48,6 @@ from sgl_kernel.gemm import (
     dsv3_fused_a_gemm,
     dsv3_router_gemm,
     fp8_blockwise_scaled_mm,
-)
-from sgl_kernel.cutedsl_gemm import (
-    cutedsl_fp8_blockwise_scaled_mm,
     fp8_scaled_mm,
     gptq_gemm,
     gptq_marlin_gemm,
@@ -69,6 +66,7 @@ from sgl_kernel.cutedsl_gemm import (
     shuffle_rows,
     silu_and_mul_scaled_fp4_grouped_quant,
 )
+from sgl_kernel.cutedsl_gemm import cutedsl_fp8_blockwise_scaled_mm
 from sgl_kernel.grammar import apply_token_bitmask_inplace_cuda
 from sgl_kernel.hadamard import (
     hadamard_transform,

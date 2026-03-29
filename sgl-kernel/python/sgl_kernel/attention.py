@@ -105,32 +105,19 @@ def cutlass_mla_decode(
 
     out = q_nope.new_empty((B_q, MAX_HEADS, D_latent))
 
-    try:
-        from sgl_kernel.cutedsl_attention import cutedsl_mla_decode
+    from sgl_kernel.cutedsl_attention import cutedsl_mla_decode
 
-        cutedsl_mla_decode(
-            out,
-            q_nope,
-            q_pe,
-            kv_c_and_k_pe_cache,
-            seq_lens,
-            page_table,
-            workspace,
-            sm_scale,
-            num_kv_splits,
-        )
-    except Exception:
-        torch.ops.sgl_kernel.cutlass_mla_decode.default(
-            out,
-            q_nope,
-            q_pe,
-            kv_c_and_k_pe_cache,
-            seq_lens,
-            page_table,
-            workspace,
-            sm_scale,
-            num_kv_splits,
-        )
+    cutedsl_mla_decode(
+        out,
+        q_nope,
+        q_pe,
+        kv_c_and_k_pe_cache,
+        seq_lens,
+        page_table,
+        workspace,
+        sm_scale,
+        num_kv_splits,
+    )
     return out[:, :H].contiguous()
 
 
@@ -142,6 +129,6 @@ def cutlass_mla_get_workspace_size(
 ) -> int:
     assert max_seq_len > 0, f"max_seq_len must be greater than 0, got {max_seq_len}"
     assert num_batches > 0, f"num_batches must be greater than 0, got {num_batches}"
-    return torch.ops.sgl_kernel.cutlass_mla_get_workspace_size.default(
-        max_seq_len, num_batches, sm_count, num_kv_splits
-    )
+    del sm_count
+    # Workspace is unused by the Python implementation, but callers expect a positive size.
+    return max(1, max_seq_len * num_batches * max(1, num_kv_splits))
