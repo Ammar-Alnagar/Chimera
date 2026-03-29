@@ -1,0 +1,150 @@
+# Chimera Docker Compose Configuration
+# Usage:
+#   docker compose -f docker/compose.chimera.yaml up -d
+#   docker compose -f docker/compose.chimera.yaml down
+
+services:
+  chimera:
+    image: chimera:latest
+    container_name: chimera
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.chimera
+      args:
+        CUDA_VERSION: "12.9.1"
+        SGL_KERNEL_VERSION: "0.3.20"
+        SGL_VERSION: "0.4.6"
+    volumes:
+      # HuggingFace cache (persistent model storage)
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+      # Optional: ModelScope cache
+      # - ${HOME}/.cache/modelscope:/root/.cache/modelscope
+      # Optional: Local models directory
+      # - /path/to/local/models:/models:ro
+    restart: unless-stopped
+    network_mode: host # Required for RDMA/InfiniBand
+    privileged: true # Required for RDMA verbs
+    # Alternative: Port mapping only (if not using RDMA)
+    # ports:
+    #   - "30000:30000"
+    environment:
+      # HuggingFace token (required for gated models)
+      - HF_TOKEN=${HF_TOKEN:-}
+      # Model configuration
+      - MODEL_PATH=${MODEL_PATH:-meta-llama/Llama-3.1-8B-Instruct}
+      # Server configuration
+      - PORT=30000
+      - HOST=0.0.0.0
+      # Performance tuning
+      - TP_SIZE=${TP_SIZE:-1}
+      - MEM_FRACTION=${MEM_FRACTION:-0.9}
+      # Optional: ModelScope
+      # - SGLANG_USE_MODELSCOPE=true
+      # Optional: Enable torch compile
+      # - CHIMERA_ENABLE_TORCH_COMPILE=1
+      # Optional: Profiler
+      # - CHIMERA_TORCH_PROFILER_DIR=/tmp/profile
+    entrypoint: python3 -m chimera.launch_server
+    command:
+      - "--model-path"
+      - "${MODEL_PATH:-meta-llama/Llama-3.1-8B-Instruct}"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "30000"
+      # Optional: Tensor parallelism
+      # - "--tp-size"
+      # - "${TP_SIZE:-1}"
+      # Optional: Memory fraction
+      # - "--mem-fraction-static"
+      # - "${MEM_FRACTION:-0.9}"
+    ulimits:
+      memlock: -1 # Unlimited locked memory for RDMA
+      stack: 67108864 # 64MB stack size
+    ipc: host # Use host IPC namespace for shared memory
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:30000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['${GPU_DEVICE_ID:-0}']
+              capabilities: [gpu]
+              count: ${GPU_COUNT:-1}
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# =============================================================================
+# Multi-GPU Distributed Deployment (Tensor Parallelism)
+# =============================================================================
+# For multi-GPU deployment, use this configuration instead:
+#
+# services:
+#   chimera-tp0:
+#     extends:
+#       service: chimera
+#     container_name: chimera-tp0
+#     environment:
+#       - TP_SIZE=2
+#       - CUDA_VISIBLE_DEVICES=0
+#     deploy:
+#       resources:
+#         reservations:
+#           devices:
+#             - driver: nvidia
+#               device_ids: ['0']
+#               capabilities: [gpu]
+#   
+#   chimera-tp1:
+#     extends:
+#       service: chimera
+#     container_name: chimera-tp1
+#     environment:
+#       - TP_SIZE=2
+#       - CUDA_VISIBLE_DEVICES=1
+#     deploy:
+#       resources:
+#         reservations:
+#           devices:
+#             - driver: nvidia
+#               device_ids: ['1']
+#               capabilities: [gpu]
+# =============================================================================
+
+# =============================================================================
+# Usage Examples
+# =============================================================================
+#
+# 1. Start with default model:
+#    docker compose -f docker/compose.chimera.yaml up -d
+#
+# 2. Start with custom model:
+#    MODEL_PATH=mistralai/Mistral-7B-Instruct-v0.3 \
+#    docker compose -f docker/compose.chimera.yaml up -d
+#
+# 3. Start with HF token for gated models:
+#    HF_TOKEN=hf_xxx \
+#    docker compose -f docker/compose.chimera.yaml up -d
+#
+# 4. Start with 2-GPU tensor parallelism:
+#    TP_SIZE=2 GPU_COUNT=2 \
+#    docker compose -f docker/compose.chimera.yaml up -d
+#
+# 5. View logs:
+#    docker compose -f docker/compose.chimera.yaml logs -f
+#
+# 6. Stop and remove:
+#    docker compose -f docker/compose.chimera.yaml down
+#
+# 7. Rebuild image:
+#    docker compose -f docker/compose.chimera.yaml build --no-cache
+# =============================================================================

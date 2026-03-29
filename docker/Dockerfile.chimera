@@ -1,0 +1,233 @@
+# Chimera Production Dockerfile
+# Optimized for deployment with JIT compilation support
+# 
+# Usage:
+#   docker build -t chimera:latest -f docker/Dockerfile.chimera .
+#   docker run --gpus all -p 30000:30000 chimera:latest
+#
+# Environment Variables:
+#   MODEL_PATH: Path or HuggingFace model ID (required)
+#   PORT: Server port (default: 30000)
+#   TP_SIZE: Tensor parallelism size (default: 1)
+#   MEM_FRACTION: Memory fraction for model (default: 0.9)
+
+ARG CUDA_VERSION=12.9.1
+
+# =============================================================================
+# Stage 1: Base Image with System Dependencies
+# =============================================================================
+FROM nvidia/cuda:${CUDA_VERSION}-cudnn-devel-ubuntu24.04 AS base
+
+ARG CUDA_VERSION
+ARG GDRCOPY_VERSION=2.5.1
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    CUDA_HOME=/usr/local/cuda \
+    GDRCOPY_HOME=/usr/src/gdrdrv-${GDRCOPY_VERSION}/ \
+    PATH="${PATH}:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/cuda/nvvm/bin" \
+    LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/usr/local/nvidia/lib:/usr/local/nvidia/lib64"
+
+# Install system dependencies
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && apt-get install -y --no-install-recommends \
+    # Python
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa -y \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.12-full \
+    python3.12-dev \
+    # Core utilities
+    wget \
+    curl \
+    git \
+    ca-certificates \
+    tzdata \
+    netcat-openbsd \
+    # Runtime libraries
+    libopenmpi3 \
+    libnuma1 \
+    libibverbs1 \
+    libibumad3 \
+    librdmacm1 \
+    libnl-3-200 \
+    libnl-route-3-200 \
+    ibverbs-providers \
+    libgoogle-glog0v6t64 \
+    libunwind8 \
+    libboost-system1.83.0 \
+    libboost-thread1.83.0 \
+    libboost-filesystem1.83.0 \
+    libgrpc++1.51t64 \
+    libprotobuf32t64 \
+    libhiredis1.1.0 \
+    libcurl4 \
+    libczmq4 \
+    libfabric1 \
+    libssl3 \
+    # RDMA runtime
+    rdma-core \
+    infiniband-diags \
+    perftest \
+    # JIT compilation tools
+    ninja-build \
+    libnccl2 \
+    libnccl-dev \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 2 \
+    && update-alternatives --set python3 /usr/bin/python3.12 \
+    && ln -sf /usr/bin/python3.12 /usr/bin/python \
+    && wget -q https://bootstrap.pypa.io/get-pip.py \
+    && python3 get-pip.py --break-system-packages \
+    && rm get-pip.py \
+    && python3 -m pip config set global.break-system-packages true \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Set up locale
+RUN apt-get update && apt-get install -y --no-install-recommends locales \
+    && locale-gen en_US.UTF-8 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8
+
+# =============================================================================
+# Stage 2: Python Dependencies
+# =============================================================================
+FROM base AS dependencies
+
+ARG CUDA_VERSION
+ARG SGL_KERNEL_VERSION=0.3.20
+ARG SGL_VERSION=0.4.6
+
+WORKDIR /sgl-workspace
+
+# Install core Python packages
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install --upgrade pip setuptools wheel \
+    && case "$CUDA_VERSION" in \
+        12.6.1) CUINDEX=126 ;; \
+        12.8.1) CUINDEX=128 ;; \
+        12.9.1) CUINDEX=129 ;; \
+        13.0.1) CUINDEX=130 ;; \
+        *) echo "Unsupported CUDA version: $CUDA_VERSION" && exit 1 ;; \
+    esac \
+    && if [ "$CUDA_VERSION" = "12.6.1" ]; then \
+        python3 -m pip install https://github.com/sgl-project/whl/releases/download/v${SGL_KERNEL_VERSION}/sgl_kernel-${SGL_KERNEL_VERSION}+cu124-cp310-abi3-manylinux2014_$(uname -m).whl --force-reinstall --no-deps \
+    ; \
+    elif [ "$CUDA_VERSION" = "12.8.1" ] || [ "$CUDA_VERSION" = "12.9.1" ]; then \
+        python3 -m pip install sgl-kernel==${SGL_KERNEL_VERSION} \
+    ; \
+    elif [ "$CUDA_VERSION" = "13.0.1" ]; then \
+        python3 -m pip install https://github.com/sgl-project/whl/releases/download/v${SGL_KERNEL_VERSION}/sgl_kernel-${SGL_KERNEL_VERSION}+cu130-cp310-abi3-manylinux2014_$(uname -m).whl --force-reinstall --no-deps \
+    ; \
+    else \
+        echo "Unsupported CUDA version: $CUDA_VERSION" && exit 1 \
+    ; \
+    && python3 -m pip install "sglang[all]" --extra-index-url https://download.pytorch.org/whl/cu${CUINDEX} \
+    && python3 -m pip install flashinfer-python --index-url https://flashinfer.ai/whl/cu${CUINDEX}
+
+# Install essential runtime packages
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python3 -m pip install \
+    datamodel_code_generator \
+    pytest \
+    pandas \
+    matplotlib \
+    tabulate \
+    termplotlib
+
+# Patching packages for CUDA compatibility
+RUN if [ "${CUDA_VERSION%%.*}" = "12" ]; then \
+        python3 -m pip install nvidia-nccl-cu12==2.28.3 --force-reinstall --no-deps \
+        && python3 -m pip install nvidia-cudnn-cu12==9.16.0.29 --force-reinstall --no-deps \
+        && python3 -m pip install nvidia-cutlass-dsl==4.3.0 --force-reinstall --no-deps \
+    ; \
+    elif [ "${CUDA_VERSION%%.*}" = "13" ]; then \
+        python3 -m pip install nvidia-nccl-cu13==2.28.3 --force-reinstall --no-deps \
+        && python3 -m pip install nvidia-cublas==13.1.0.3 --force-reinstall --no-deps \
+        && python3 -m pip install nvidia-cutlass-dsl==4.3.1 --force-reinstall --no-deps \
+    ; \
+    fi
+
+# =============================================================================
+# Stage 3: Source Code and Build
+# =============================================================================
+FROM dependencies AS builder
+
+ARG CUDA_VERSION
+
+WORKDIR /sgl-workspace
+
+# Copy source code
+COPY . /sgl-workspace/sglang
+
+# Build and install sgl-kernel from source (optional, for custom builds)
+# RUN --mount=type=cache,target=/root/.cache/pip \
+#     cd /sgl-workspace/sglang/sgl-kernel \
+#     && python3 -m pip install scikit-build-core \
+#     && python3 -m pip install .
+
+# =============================================================================
+# Stage 4: Production Runtime Image
+# =============================================================================
+FROM dependencies AS runtime
+
+WORKDIR /sgl-workspace/sglang
+
+# Copy workspace from builder
+COPY --from=builder /sgl-workspace /sgl-workspace
+
+# Fix Triton to use system ptxas for Blackwell support (CUDA 13+)
+RUN if [ "${CUDA_VERSION%%.*}" = "13" ] && [ -d /usr/local/lib/python3.12/dist-packages/triton/backends/nvidia/bin ]; then \
+        rm -f /usr/local/lib/python3.12/dist-packages/triton/backends/nvidia/bin/ptxas && \
+        ln -s /usr/local/cuda/bin/ptxas /usr/local/lib/python3.12/dist-packages/triton/backends/nvidia/bin/ptxas \
+    ; \
+    fi
+
+# Create non-root user for security
+RUN useradd -m -u 1000 chimera \
+    && chown -R chimera:chimera /sgl-workspace
+
+USER chimera
+
+# Expose default port
+ENV PORT=30000
+EXPOSE ${PORT}
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
+
+# Default command
+ENTRYPOINT ["python3", "-m", "chimera.launch_server"]
+CMD ["--model-path", "meta-llama/Llama-3.1-8B-Instruct", "--host", "0.0.0.0", "--port", "30000"]
+
+# =============================================================================
+# Usage Examples
+# =============================================================================
+# Build:
+#   docker build -t chimera:latest -f docker/Dockerfile.chimera .
+#
+# Run with default model:
+#   docker run --gpus all -p 30000:30000 chimera:latest
+#
+# Run with custom model:
+#   docker run --gpus all -p 30000:30000 \
+#     -e MODEL_PATH=mistralai/Mistral-7B-Instruct-v0.3 \
+#     chimera:latest
+#
+# Run with tensor parallelism:
+#   docker run --gpus all -p 30000:30000 \
+#     -e TP_SIZE=2 \
+#     chimera:latest
+#
+# Run with local model:
+#   docker run --gpus all -p 30000:30000 \
+#     -v /path/to/local/model:/models/mymodel \
+#     chimera:latest --model-path /models/mymodel
+#
+# Interactive mode:
+#   docker run --gpus all -it chimera:latest /bin/bash
+#
+# =============================================================================
