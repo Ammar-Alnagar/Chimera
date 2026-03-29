@@ -4,13 +4,13 @@ import sys
 from typing import List, Optional
 
 import setproctitle
-from sglang_router.mini_lb import MiniLoadBalancer
-from sglang_router.router_args import RouterArgs
+from chimera_router.mini_lb import MiniLoadBalancer
+from chimera_router.router_args import RouterArgs
 
 logger = logging.getLogger("router")
 
 try:
-    from sglang_router.router import Router
+    from chimera_router.router import Router
 except ImportError:
     Router = None
     logger.warning(

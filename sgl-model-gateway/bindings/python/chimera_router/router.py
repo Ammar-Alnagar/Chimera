@@ -1,7 +1,7 @@
 from typing import Optional
 
-from sglang_router.router_args import RouterArgs
-from sglang_router.sglang_router_rs import (
+from chimera_router.router_args import RouterArgs
+from chimera_router.sglang_router_rs import (
     BackendType,
     HistoryBackendType,
     PolicyType,
@@ -12,7 +12,7 @@ from sglang_router.sglang_router_rs import (
     PyPostgresConfig,
     PyRole,
 )
-from sglang_router.sglang_router_rs import Router as _Router
+from chimera_router.sglang_router_rs import Router as _Router
 
 
 def policy_from_str(policy_str: Optional[str]) -> PolicyType:

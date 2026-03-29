@@ -15,7 +15,7 @@ import os
 import sys
 from typing import List, Optional
 
-from sglang_router.sglang_router_rs import (
+from chimera_router.sglang_router_rs import (
     get_verbose_version_string,
     get_version_string,
 )
@@ -75,7 +75,7 @@ def main(argv: Optional[List[str]] = None) -> None:
 
     if args.command == "launch":
         # Import and call launch_router functions directly
-        from sglang_router.launch_router import launch_router, parse_router_args
+        from chimera_router.launch_router import launch_router, parse_router_args
 
         # All router args are in unknown
         router_args = parse_router_args(unknown)

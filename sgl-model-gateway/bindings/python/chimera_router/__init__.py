@@ -2,8 +2,8 @@
 # This module provides a renamed interface to SGLang Router for internal use
 # while maintaining full backward compatibility with sglang_router imports
 
-from sglang_router import *
-from sglang_router import (
+from chimera_router import *
+from chimera_router import (
     Router,
     launch_router,
     launch_server,
