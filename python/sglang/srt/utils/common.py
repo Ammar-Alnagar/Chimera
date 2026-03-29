@@ -323,6 +323,16 @@ def _get_env_with_fallback(name: str, default: Optional[str] = None) -> Optional
     return default
 
 
+def getenv(name: str, default: Optional[str] = None) -> Optional[str]:
+    """
+    Get an environment variable, supporting both CHIMERA_* and SGLANG_* prefixes.
+    CHIMERA_* takes precedence over SGLANG_* if both are set.
+
+    This is a convenience wrapper around _get_env_with_fallback.
+    """
+    return _get_env_with_fallback(name, default)
+
+
 def get_bool_env_var(name: str, default: str = "false") -> bool:
     # FIXME: move your environment variable to sglang.srt.environ
     value = _get_env_with_fallback(name, default)
@@ -1697,7 +1707,7 @@ def get_npu_memory_capacity():
 
 def get_cpu_memory_capacity():
     # Per-rank memory capacity cannot be determined for customized core settings
-    if os.environ.get("SGLANG_CPU_OMP_THREADS_BIND", ""):
+    if getenv("SGLANG_CPU_OMP_THREADS_BIND", ""):
         return None
     n_numa_node: int = len(get_cpu_ids_by_node())
     if n_numa_node == 0:
@@ -2596,7 +2606,7 @@ def bind_or_assign(target, source):
 
 
 def get_local_ip_by_nic(interface: str = None) -> Optional[str]:
-    if not (interface := interface or os.environ.get("SGLANG_LOCAL_IP_NIC", None)):
+    if not (interface := interface or getenv("SGLANG_LOCAL_IP_NIC", None)):
         return None
     try:
         import netifaces

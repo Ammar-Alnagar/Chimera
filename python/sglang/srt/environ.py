@@ -10,7 +10,7 @@ from typing import Any
 def temp_set_env(**env_vars: dict[str, Any]):
     """Temporarily set non-sglang environment variables, e.g. OPENAI_API_KEY"""
     for key in env_vars:
-        if key.startswith("SGLANG_") or key.startswith("SGL_"):
+        if key.startswith("SGLANG_") or key.startswith("CHIMERA_") or key.startswith("SGL_"):
             raise ValueError("temp_set_env should not be used for sglang env vars")
 
     backup = {key: os.environ.get(key) for key in env_vars}
@@ -46,7 +46,13 @@ class EnvField:
         raise NotImplementedError()
 
     def get(self) -> Any:
+        # Try the SGLANG_ name first
         value = os.getenv(self.name)
+
+        # If not found and name starts with SGLANG_, also try CHIMERA_ prefix
+        if value is None and self.name.startswith("SGLANG_"):
+            chimera_name = "CHIMERA_" + self.name[7:]  # Replace SGLANG_ with CHIMERA_
+            value = os.getenv(chimera_name)
 
         # Explicitly set to None
         if self._set_to_none:
@@ -66,11 +72,21 @@ class EnvField:
             return self.default
 
     def is_set(self):
-        return self.name in os.environ
+        if self.name in os.environ:
+            return True
+        # Also check CHIMERA_ prefix for SGLANG_ vars
+        if self.name.startswith("SGLANG_"):
+            chimera_name = "CHIMERA_" + self.name[7:]
+            return chimera_name in os.environ
+        return False
 
     def set(self, value: Any):
         self._set_to_none = value is None
+        # Set both SGLANG_ and CHIMERA_ for maximum compatibility
         os.environ[self.name] = str(value)
+        if self.name.startswith("SGLANG_"):
+            chimera_name = "CHIMERA_" + self.name[7:]
+            os.environ[chimera_name] = str(value)
 
     @contextmanager
     def override(self, value: Any):

@@ -5,6 +5,8 @@ from contextlib import nullcontext
 
 import torch
 
+from sglang.srt.utils.common import getenv
+
 
 # NOTE copied and modified from DeepGEMM
 class suppress_stdout_stderr:
@@ -53,7 +55,7 @@ def bench_kineto(
     with_multiple_kernels: bool = False,
 ):
     # Conflict with Nsight Systems
-    using_nsys = int(os.environ.get("SGLANG_NSYS_PROFILING", 0))
+    using_nsys = int(getenv("SGLANG_NSYS_PROFILING", "0"))
 
     # By default, flush L2 with an excessive 8GB memset to give the GPU some (literal) chill time without full idle
     flush_l2_size = int(8e9 // 4)
