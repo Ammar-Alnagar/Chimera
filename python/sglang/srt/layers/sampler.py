@@ -34,6 +34,24 @@ SYNC_TOKEN_IDS_ACROSS_TP = get_bool_env_var("SYNC_TOKEN_IDS_ACROSS_TP")
 SGLANG_RETURN_ORIGINAL_LOGPROB = get_bool_env_var("SGLANG_RETURN_ORIGINAL_LOGPROB")
 _CUSTOM_SAMPLER_FACTORIES: Dict[str, Callable[[], "Sampler"]] = {}
 _BUILT_IN_SAMPLING_BACKENDS = {"flashinfer", "pytorch", "ascend"}
+_FLASHINFER_KERNEL_FALLBACK_WARNED = False
+
+
+def _has_sgl_kernel_op(op_name: str) -> bool:
+    return hasattr(torch.ops, "sgl_kernel") and hasattr(torch.ops.sgl_kernel, op_name)
+
+
+def _flashinfer_sampling_ops_available(need_min_p_sampling: bool) -> bool:
+    if need_min_p_sampling:
+        return all(
+            _has_sgl_kernel_op(op)
+            for op in (
+                "top_k_renorm_probs",
+                "top_p_renorm_probs",
+                "min_p_sampling_from_probs",
+            )
+        )
+    return _has_sgl_kernel_op("top_k_top_p_sampling_from_probs")
 
 
 class Sampler(nn.Module):
@@ -135,19 +153,39 @@ class Sampler(nn.Module):
                 )
             else:
                 if get_global_server_args().sampling_backend == "flashinfer":
-                    if sampling_info.need_min_p_sampling:
-                        probs = top_k_renorm_prob(probs, sampling_info.top_ks)
-                        probs = top_p_renorm_prob(probs, sampling_info.top_ps)
-                        batch_next_token_ids = min_p_sampling_from_probs(
-                            probs, sampling_info.min_ps
-                        )
+                    if _flashinfer_sampling_ops_available(
+                        need_min_p_sampling=sampling_info.need_min_p_sampling
+                    ):
+                        if sampling_info.need_min_p_sampling:
+                            probs = top_k_renorm_prob(probs, sampling_info.top_ks)
+                            probs = top_p_renorm_prob(probs, sampling_info.top_ps)
+                            batch_next_token_ids = min_p_sampling_from_probs(
+                                probs, sampling_info.min_ps
+                            )
+                        else:
+                            batch_next_token_ids = top_k_top_p_sampling_from_probs(
+                                probs.contiguous(),
+                                sampling_info.top_ks,
+                                sampling_info.top_ps,
+                                filter_apply_order="joint",
+                                check_nan=self.use_nan_detection,
+                            )
                     else:
-                        batch_next_token_ids = top_k_top_p_sampling_from_probs(
-                            probs.contiguous(),
+                        global _FLASHINFER_KERNEL_FALLBACK_WARNED
+                        if not _FLASHINFER_KERNEL_FALLBACK_WARNED:
+                            logger.warning(
+                                "FlashInfer sampling kernels are unavailable in sgl_kernel. "
+                                "Falling back to PyTorch sampling backend."
+                            )
+                            _FLASHINFER_KERNEL_FALLBACK_WARNED = True
+                        batch_next_token_ids = top_k_top_p_min_p_sampling_from_probs_torch(
+                            probs,
                             sampling_info.top_ks,
                             sampling_info.top_ps,
-                            filter_apply_order="joint",
-                            check_nan=self.use_nan_detection,
+                            sampling_info.min_ps,
+                            sampling_info.need_min_p_sampling,
+                            sampling_info.sampling_seed,
+                            positions,
                         )
                 elif get_global_server_args().sampling_backend == "pytorch":
                     # A slower fallback implementation with torch native operations.

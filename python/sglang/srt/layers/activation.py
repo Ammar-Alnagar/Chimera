@@ -59,6 +59,10 @@ if is_npu():
 logger = logging.getLogger(__name__)
 
 
+def _has_sgl_kernel_op(op_name: str) -> bool:
+    return hasattr(torch.ops, "sgl_kernel") and hasattr(torch.ops.sgl_kernel, op_name)
+
+
 class SiluAndMul(MultiPlatformOp):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -70,6 +74,8 @@ class SiluAndMul(MultiPlatformOp):
         return F.silu(x[..., :d]) * x[..., d:]
 
     def forward_cuda(self, x: torch.Tensor) -> torch.Tensor:
+        if not _has_sgl_kernel_op("silu_and_mul"):
+            return self.forward_native(x)
         d = x.shape[-1] // 2
         output_shape = x.shape[:-1] + (d,)
         out = torch.empty(output_shape, dtype=x.dtype, device=x.device)
@@ -88,6 +94,8 @@ class SiluAndMul(MultiPlatformOp):
         return out
 
     def forward_xpu(self, x: torch.Tensor) -> torch.Tensor:
+        if not _has_sgl_kernel_op("silu_and_mul"):
+            return self.forward_native(x)
         d = x.shape[-1] // 2
         output_shape = x.shape[:-1] + (d,)
         out = torch.empty(output_shape, dtype=x.dtype, device=x.device)
@@ -101,6 +109,10 @@ class GeluAndMul(MultiPlatformOp):
         self.approximate = approximate
 
     def _forward_impl(self, x: torch.Tensor) -> torch.Tensor:
+        if self.approximate == "tanh" and not _has_sgl_kernel_op("gelu_tanh_and_mul"):
+            return self.forward_native(x)
+        if self.approximate == "none" and not _has_sgl_kernel_op("gelu_and_mul"):
+            return self.forward_native(x)
         d = x.shape[-1] // 2
         output_shape = x.shape[:-1] + (d,)
         out = torch.empty(output_shape, dtype=x.dtype, device=x.device)
