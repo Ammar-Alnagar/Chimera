@@ -23,9 +23,23 @@ def int8_scaled_mm(mat_a, mat_b, scales_a, scales_b, out_dtype, bias=None):
 
 
 def fp8_blockwise_scaled_mm(mat_a, mat_b, scales_a, scales_b, out_dtype):
-    from sgl_kernel.cutedsl_gemm import cutedsl_fp8_blockwise_scaled_mm
+    try:
+        from sgl_kernel.cutedsl_gemm import cutedsl_fp8_blockwise_scaled_mm
 
-    return cutedsl_fp8_blockwise_scaled_mm(
+        out = cutedsl_fp8_blockwise_scaled_mm(
+            mat_a,
+            mat_b,
+            scales_a,
+            scales_b,
+            out_dtype,
+        )
+        if out is not None:
+            return out
+    except Exception:
+        # Keep runtime behavior stable when CuteDSL is unavailable or not ready.
+        pass
+
+    return torch.ops.sgl_kernel.fp8_blockwise_scaled_mm.default(
         mat_a,
         mat_b,
         scales_a,

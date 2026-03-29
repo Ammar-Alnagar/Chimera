@@ -405,9 +405,8 @@ set_target_properties(common_ops_sm100_build PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/sm100"
 )
 
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
 execute_process(
-    COMMAND ${Python3_EXECUTABLE} -c "import torch; print(int(torch._C._GLIBCXX_USE_CXX11_ABI))"
+    COMMAND ${Python_EXECUTABLE} -c "import torch; print(int(torch._C._GLIBCXX_USE_CXX11_ABI))"
     OUTPUT_VARIABLE TORCH_CXX11_ABI
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )

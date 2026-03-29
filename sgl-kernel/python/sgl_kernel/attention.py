@@ -105,19 +105,32 @@ def cutlass_mla_decode(
 
     out = q_nope.new_empty((B_q, MAX_HEADS, D_latent))
 
-    from sgl_kernel.cutedsl_attention import cutedsl_mla_decode
+    try:
+        from sgl_kernel.cutedsl_attention import cutedsl_mla_decode
 
-    cutedsl_mla_decode(
-        out,
-        q_nope,
-        q_pe,
-        kv_c_and_k_pe_cache,
-        seq_lens,
-        page_table,
-        workspace,
-        sm_scale,
-        num_kv_splits,
-    )
+        cutedsl_mla_decode(
+            out,
+            q_nope,
+            q_pe,
+            kv_c_and_k_pe_cache,
+            seq_lens,
+            page_table,
+            workspace,
+            sm_scale,
+            num_kv_splits,
+        )
+    except Exception:
+        torch.ops.sgl_kernel.cutlass_mla_decode.default(
+            out,
+            q_nope,
+            q_pe,
+            kv_c_and_k_pe_cache,
+            seq_lens,
+            page_table,
+            workspace,
+            sm_scale,
+            num_kv_splits,
+        )
     return out[:, :H].contiguous()
 
 
