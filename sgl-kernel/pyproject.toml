@@ -1,10 +1,9 @@
 [build-system]
 requires = [
-  "scikit-build-core>=0.10",
-  "torch>=2.8.0",
-  "wheel",
+  "setuptools>=61.0",
+  "wheel"
 ]
-build-backend = "scikit_build_core.build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "sgl-kernel"
@@ -29,16 +28,9 @@ dependencies = [
 "Homepage" = "https://github.com/sgl-project/sglang/tree/main/sgl-kernel"
 "Bug Tracker" = "https://github.com/sgl-project/sglang/issues"
 
-[tool.wheel]
-exclude = [
-  "dist*",
-  "tests*",
-]
+[tool.setuptools]
+package-dir = {"" = "python"}
 
-[tool.scikit-build]
-cmake.build-type = "Release"
-minimum-version = "build-system.requires"
-
-wheel.py-api = "cp310"
-wheel.license-files = []
-wheel.packages = ["python/sgl_kernel"]
+[tool.setuptools.packages.find]
+where = ["python"]
+include = ["sgl_kernel*"]

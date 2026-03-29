@@ -1,12 +1,17 @@
+import os
+
 import torch
 from sgl_kernel.load_utils import _load_architecture_specific_ops, _preload_cuda_library
 
-# Initialize the ops library based on current GPU
-common_ops = _load_architecture_specific_ops()
-
-# Preload the CUDA library to avoid the issue of libcudart.so.12 not found
-if torch.version.cuda is not None:
-    _preload_cuda_library()
+# Pure-Python mode is the default in Chimera.
+# Set SGL_KERNEL_USE_CPP_OPS=1 to opt into loading compiled extension ops.
+common_ops = None
+if os.environ.get("SGL_KERNEL_USE_CPP_OPS", "0") == "1":
+    # Initialize the ops library based on current GPU.
+    common_ops = _load_architecture_specific_ops()
+    # Preload the CUDA runtime library to avoid libcudart.so.12 not found.
+    if torch.version.cuda is not None:
+        _preload_cuda_library()
 
 
 from sgl_kernel.allreduce import *
