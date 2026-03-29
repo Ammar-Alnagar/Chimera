@@ -23,7 +23,9 @@ def int8_scaled_mm(mat_a, mat_b, scales_a, scales_b, out_dtype, bias=None):
 
 
 def fp8_blockwise_scaled_mm(mat_a, mat_b, scales_a, scales_b, out_dtype):
-    return torch.ops.sgl_kernel.fp8_blockwise_scaled_mm.default(
+    from sgl_kernel.cutedsl_gemm import cutedsl_fp8_blockwise_scaled_mm
+
+    return cutedsl_fp8_blockwise_scaled_mm(
         mat_a,
         mat_b,
         scales_a,

@@ -21,7 +21,9 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Environment :: GPU :: NVIDIA CUDA"
 ]
-dependencies = []
+dependencies = [
+  "nvidia-cutlass-dsl==4.4.2",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/sgl-project/sglang/tree/main/sgl-kernel"

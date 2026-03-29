@@ -105,7 +105,9 @@ def cutlass_mla_decode(
 
     out = q_nope.new_empty((B_q, MAX_HEADS, D_latent))
 
-    torch.ops.sgl_kernel.cutlass_mla_decode.default(
+    from sgl_kernel.cutedsl_attention import cutedsl_mla_decode
+
+    cutedsl_mla_decode(
         out,
         q_nope,
         q_pe,
