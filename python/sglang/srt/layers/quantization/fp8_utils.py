@@ -46,6 +46,7 @@ from sglang.srt.utils import (
     is_sm90_supported,
     offloader,
 )
+from sglang.srt.utils.patch_torch import register_fake_if_exists
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ if _use_aiter:
 if _is_cuda:
     from sgl_kernel import fp8_blockwise_scaled_mm, fp8_scaled_mm
 
-    @torch.library.register_fake("sgl_kernel::fp8_scaled_mm")
+    @register_fake_if_exists("sgl_kernel::fp8_scaled_mm")
     def _fp8_scaled_mm_abstract(mat_a, mat_b, scales_a, scales_b, out_dtype, bias=None):
         # mat_a: [M, K], mat_b: [K, N] or [N, K] depending on callsite layout; output is [M, N].
         M = mat_a.shape[-2]

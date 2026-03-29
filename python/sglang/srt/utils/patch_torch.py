@@ -133,7 +133,12 @@ def register_fake_if_exists(op_name):
         namespace, bare_op = op_name.split("::")
         ops_namespace = getattr(torch.ops, namespace, None)
         if ops_namespace and hasattr(ops_namespace, bare_op):
-            torch.library.register_fake(op_name, func)
+            try:
+                torch.library.register_fake(op_name, func)
+            except RuntimeError:
+                # Some torch/extension combinations expose the namespace symbol
+                # before the dispatcher schema is fully available.
+                pass
         return func
 
     return decorator
