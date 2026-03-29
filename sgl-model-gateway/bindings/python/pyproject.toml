@@ -45,6 +45,7 @@ dev = [
 smg = "sglang_router.cli:main"
 amg = "sglang_router.cli:main"
 sglang-router = "sglang_router.cli:main"
+chimera-router = "sglang_router.cli:main"
 
 
 [tool.maturin]
