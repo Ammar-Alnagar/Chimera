@@ -8,7 +8,7 @@
 #include <string>
 
 #include "cute/tensor.hpp"
-#include "cutlass/cutlass.h"
+#include "tilelang/tilelang.h"
 #include "es_fp8_blockwise_functor.cuh"
 
 namespace expert_specialization {
@@ -52,15 +52,15 @@ void es_sm90_fp8_blockwise_scaled_group_mm_pre_compute(
   int num_experts = (int)expert_offsets.size(0);
   TORCH_CHECK(num_experts <= 1024, "Expert more than 1024");  // Max threads per block is 1024
 
-  struct Fp8BlockwiseGroupedGemmOffsetFunctor<cutlass::float_e4m3_t, float, T> of(
+  struct Fp8BlockwiseGroupedGemmOffsetFunctor<tilelang::float_e4m3_t, float, T> of(
       static_cast<int*>(expert_offsets.data_ptr()),
-      static_cast<cutlass::float_e4m3_t*>(a_tensors.data_ptr()),
-      static_cast<cutlass::float_e4m3_t*>(b_tensors.data_ptr()),
+      static_cast<tilelang::float_e4m3_t*>(a_tensors.data_ptr()),
+      static_cast<tilelang::float_e4m3_t*>(b_tensors.data_ptr()),
       static_cast<T*>(out_tensors.data_ptr()),
       static_cast<float*>(a_scales.data_ptr()),
       static_cast<float*>(b_scales.data_ptr()),
-      static_cast<cutlass::float_e4m3_t**>(a_ptrs.data_ptr()),
-      static_cast<cutlass::float_e4m3_t**>(b_ptrs.data_ptr()),
+      static_cast<tilelang::float_e4m3_t**>(a_ptrs.data_ptr()),
+      static_cast<tilelang::float_e4m3_t**>(b_ptrs.data_ptr()),
       static_cast<float**>(a_scales_ptrs.data_ptr()),
       static_cast<float**>(b_scales_ptrs.data_ptr()),
       static_cast<T**>(out_ptrs.data_ptr()));
@@ -126,7 +126,7 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
       static_cast<const ElementAccumulator**>(b_scales_ptrs.data_ptr()),
       reinterpret_cast<LayoutSFB*>(layout_sfb.data_ptr())};
 
-  cutlass::KernelHardwareInfo hw_info;
+  tilelang::KernelHardwareInfo hw_info;
   hw_info.device_id = c10::cuda::current_device();
   hw_info.sm_count = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
 
@@ -135,20 +135,20 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
 
   UnderlyingProblemShape* problem_sizes_as_shapes = static_cast<UnderlyingProblemShape*>(problem_sizes.data_ptr());
   typename GemmKernel::Arguments args{
-      cutlass::gemm::GemmUniversalMode::kGrouped,
+      tilelang::gemm::GemmUniversalMode::kGrouped,
       {num_experts, problem_sizes_as_shapes, nullptr},
       mainloop_args,
       epilogue_args,
       hw_info};
 
   auto can_implement_status = gemm_op.can_implement(args);
-  TORCH_CHECK(can_implement_status == cutlass::Status::kSuccess, "Failed to implement GEMM");
+  TORCH_CHECK(can_implement_status == tilelang::Status::kSuccess, "Failed to implement GEMM");
 
   auto status = gemm_op.initialize(args, workspace.data_ptr(), stream);
-  TORCH_CHECK(status == cutlass::Status::kSuccess, "Failed to initialize GEMM");
+  TORCH_CHECK(status == tilelang::Status::kSuccess, "Failed to initialize GEMM");
 
   status = gemm_op.run(stream, nullptr, true);  // Enable PDL
-  TORCH_CHECK(status == cutlass::Status::kSuccess, "Failed to run GEMM");
+  TORCH_CHECK(status == tilelang::Status::kSuccess, "Failed to run GEMM");
 }
 
 template <typename OutType>
@@ -170,19 +170,19 @@ void es_sm90_fp8_blockwise_scaled_group_mm_distpatch_out_dtype(
     bool is_h20_device,
     cudaStream_t stream) {
   using LowMGemmH20Traits =
-      ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, cutlass::layout::ColumnMajor, PerfConfigLowMH20>;
+      ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, tilelang::layout::ColumnMajor, PerfConfigLowMH20>;
   using LowMGemmHx00Traits =
-      ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, cutlass::layout::ColumnMajor, PerfConfigLowMHx00>;
+      ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, tilelang::layout::ColumnMajor, PerfConfigLowMHx00>;
   using MiddleMGemmH20Traits =
-      ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, cutlass::layout::RowMajor, PerfConfigMiddleMH20>;
+      ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, tilelang::layout::RowMajor, PerfConfigMiddleMH20>;
   using MiddleMGemmHx00Traits = ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<
       OutType,
-      cutlass::layout::ColumnMajor,
+      tilelang::layout::ColumnMajor,
       PerfConfigMiddleMHx00>;
   using HighMGemmH20Traits =
-      ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, cutlass::layout::RowMajor, PerfConfigHighMH20>;
+      ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, tilelang::layout::RowMajor, PerfConfigHighMH20>;
   using HighMGemmHx00Traits =
-      ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, cutlass::layout::RowMajor, PerfConfigHighMHx00>;
+      ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, tilelang::layout::RowMajor, PerfConfigHighMHx00>;
 
   if (!is_h20_device) {
     launch_sm90_fp8_blockwise_scaled_group_mm<LowMGemmHx00Traits>(

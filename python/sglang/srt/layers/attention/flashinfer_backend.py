@@ -239,16 +239,16 @@ class FlashInferAttnBackend(AttentionBackend):
 
         fmha_backend = "auto"
         if is_sm100_supported():
-            # Disable CUTLASS backend when piecewise cuda graph is enabled
+            # Disable TILELANG backend when piecewise cuda graph is enabled
             # due to TMA descriptor initialization issues on B200
             if model_runner.server_args.enable_piecewise_cuda_graph:
                 logger.warning(
-                    "CUTLASS backend is disabled when piecewise cuda graph is enabled "
+                    "TILELANG backend is disabled when piecewise cuda graph is enabled "
                     "due to TMA descriptor initialization issues on B200. "
                     "Using auto backend instead for stability."
                 )
             else:
-                fmha_backend = "cutlass"
+                fmha_backend = "tilelang"
         self.prefill_wrapper_ragged = BatchPrefillWithRaggedKVCacheWrapper(
             self.workspace_buffer, "NHD", backend=fmha_backend
         )

@@ -135,7 +135,7 @@ def bench_es(
     )
     workspace = torch.empty((1024 * 1024 * 1024), device=device, dtype=torch.uint8)
 
-    def run_cutlass():
+    def run_tilelang():
         es_fp8_blockwise_scaled_grouped_mm(
             c_out,
             a_stack,
@@ -150,10 +150,10 @@ def bench_es(
             workspace,
         )
 
-    run_cutlass()
+    run_tilelang()
     # warmup
     for _ in range(num_warmup):
-        run_cutlass()
+        run_tilelang()
     torch.cuda.synchronize()
 
     # run
@@ -161,7 +161,7 @@ def bench_es(
     end_event = torch.cuda.Event(enable_timing=True)
     start_event.record()
     for _ in range(num_run):
-        run_cutlass()
+        run_tilelang()
     end_event.record()
     end_event.synchronize()
     torch.cuda.synchronize()
@@ -243,7 +243,7 @@ def bench_sgl(
     a_scales_ptrs = torch.empty((num_groups,), device=device, dtype=torch.int64)
     b_scales_ptrs = torch.empty((num_groups,), device=device, dtype=torch.int64)
 
-    def run_cutlass():
+    def run_tilelang():
         fp8_blockwise_scaled_grouped_mm(
             c_out,
             a_ptrs,
@@ -267,7 +267,7 @@ def bench_sgl(
 
     # warmup
     for _ in range(num_warmup):
-        run_cutlass()
+        run_tilelang()
     torch.cuda.synchronize()
 
     # run
@@ -275,7 +275,7 @@ def bench_sgl(
     end_event = torch.cuda.Event(enable_timing=True)
     start_event.record()
     for _ in range(num_run):
-        run_cutlass()
+        run_tilelang()
     end_event.record()
     end_event.synchronize()
     torch.cuda.synchronize()

@@ -21,7 +21,7 @@ from sglang.srt.layers.quantization.fp8_kernel import (
 )
 from sglang.srt.layers.quantization.fp8_utils import (
     apply_fp8_linear,
-    cutlass_fp8_supported,
+    tilelang_fp8_supported,
     input_to_float8,
     normalize_e4m3fn_to_e4m3fnuz,
 )
@@ -51,8 +51,8 @@ class W8A8Fp8Config(QuantizationConfig):
 
     Note:
     - For models without offline quantization, weights will be quantized during model loading
-    - If CUTLASS is supported: Per-channel weight quantization is used
-    - If CUTLASS is not supported: Falls back to per-tensor weight quantization
+    - If TILELANG is supported: Per-channel weight quantization is used
+    - If TILELANG is not supported: Falls back to per-tensor weight quantization
     """
 
     def __init__(self, is_checkpoint_fp8_serialized: bool = False):
@@ -103,7 +103,7 @@ class W8A8Fp8Config(QuantizationConfig):
 class W8A8Fp8LinearMethod(LinearMethodBase):
 
     def __init__(self, quantization_config: W8A8Fp8Config):
-        self.cutlass_fp8_supported = cutlass_fp8_supported()
+        self.tilelang_fp8_supported = tilelang_fp8_supported()
         self.quantization_config = quantization_config
 
     def process_weights_after_loading(self, layer: torch.nn.Module) -> None:
@@ -121,15 +121,15 @@ class W8A8Fp8LinearMethod(LinearMethodBase):
             layer.weight_scale = Parameter(weight_scale, requires_grad=False)
         else:
             # If checkpoint not offline quantized, quantize the weights with per-channel quantization.
-            if self.cutlass_fp8_supported:
-                # if cutlass supported, we use cutlass_scaled_mm
+            if self.tilelang_fp8_supported:
+                # if tilelang supported, we use tilelang_scaled_mm
                 # which requires per-channel quantization on weight
                 qweight, weight_scale = per_token_group_quant_fp8(
                     layer.weight, layer.weight.shape[-1]
                 )
                 weight_scale = weight_scale.t().contiguous()
             else:
-                # if cutlass not supported, we fall back to use torch._scaled_mm
+                # if tilelang not supported, we fall back to use torch._scaled_mm
                 # which requires per tensor quantization on weight
                 qweight, weight_scale = input_to_float8(layer.weight, dtype=fp8_dtype)
 
@@ -190,7 +190,7 @@ class W8A8Fp8LinearMethod(LinearMethodBase):
             layer.weight,
             layer.weight_scale,
             bias=bias,
-            cutlass_fp8_supported=self.cutlass_fp8_supported,
+            tilelang_fp8_supported=self.tilelang_fp8_supported,
         )
 
 

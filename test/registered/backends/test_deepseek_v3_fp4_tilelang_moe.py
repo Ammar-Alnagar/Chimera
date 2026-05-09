@@ -18,7 +18,7 @@ FULL_DEEPSEEK_V3_FP4_MODEL_PATH = "nvidia/DeepSeek-V3-0324-FP4"
 SERVER_LAUNCH_TIMEOUT = 1000
 
 
-class TestDeepseekV3FP4CutlassMoE(CustomTestCase):
+class TestDeepseekV3FP4TileLangMoE(CustomTestCase):
     @classmethod
     def setUpClass(cls):
         cls.model = FULL_DEEPSEEK_V3_FP4_MODEL_PATH
@@ -31,7 +31,7 @@ class TestDeepseekV3FP4CutlassMoE(CustomTestCase):
             "--attention-backend",
             "trtllm_mla",
             "--moe-runner-backend",
-            "flashinfer_cutlass",
+            "flashinfer_tilelang",
             "--quantization",
             "modelopt_fp4",
             "--model-loader-extra-config",
@@ -65,7 +65,7 @@ class TestDeepseekV3FP4CutlassMoE(CustomTestCase):
 
         if is_in_ci():
             write_github_step_summary(
-                f"### test_gsm8k (deepseek-v3-fp4-cutlass-moe)\n"
+                f"### test_gsm8k (deepseek-v3-fp4-tilelang-moe)\n"
                 f'{metrics["accuracy"]=:.3f}\n'
             )
             self.assertGreater(metrics["accuracy"], 0.935)

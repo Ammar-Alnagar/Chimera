@@ -1,17 +1,17 @@
-"""CUTLASS based Fused MoE kernels."""
+"""TILELANG based Fused MoE kernels."""
 
 from typing import Optional, Tuple
 
 import torch
 
-from sglang.srt.layers.moe.cutlass_moe_params import CutlassMoEParams
+from sglang.srt.layers.moe.tilelang_moe_params import TileLangMoEParams
 from sglang.srt.utils import is_cuda, is_sm90_supported
 
 _is_cuda = is_cuda()
 if _is_cuda:
     from sgl_kernel import (
         apply_shuffle_mul_sum,
-        cutlass_fp4_group_mm,
+        tilelang_fp4_group_mm,
         es_fp8_blockwise_scaled_grouped_mm,
         fp8_blockwise_scaled_grouped_mm,
         prepare_moe_input,
@@ -21,7 +21,7 @@ if _is_cuda:
     )
 
 
-def cutlass_fused_experts_fp8(
+def tilelang_fused_experts_fp8(
     a: torch.Tensor,
     w1_q: torch.Tensor,
     w2_q: torch.Tensor,
@@ -46,10 +46,10 @@ def cutlass_fused_experts_fp8(
     output: Optional[torch.Tensor] = None,
     enable_es: Tuple[bool, bool] = (False, False),
 ) -> torch.Tensor:
-    """Performs Fused MoE computation using CUTLASS-like kernels with FP8 weights and activations.
+    """Performs Fused MoE computation using TILELANG-like kernels with FP8 weights and activations.
 
     This function implements a Mixture of Experts (MoE) layer with a SwiGLU/SiLU
-    activation, leveraging custom kernels likely derived from CUTLASS principles
+    activation, leveraging custom kernels likely derived from TILELANG principles
     for grouped matrix multiplication (`fp8_blockwise_scaled_grouped_mm`) and
     data preparation (`prepare_moe_input`, `silu_and_mul`).
 
@@ -247,7 +247,7 @@ FLOAT4_E2M1_MAX = 6.0
 FLOAT8_E4M3_MAX = 448.0
 
 
-def cutlass_moe_fp4(
+def tilelang_moe_fp4(
     a: torch.Tensor,
     a1_gscale: torch.Tensor,
     w1_fp4: torch.Tensor,
@@ -259,7 +259,7 @@ def cutlass_moe_fp4(
     w2_alphas: torch.Tensor,
     topk_weights: torch.Tensor,
     topk_ids: torch.Tensor,
-    params: CutlassMoEParams,
+    params: TileLangMoEParams,
     apply_router_weight_on_input: bool = False,
 ):
     """
@@ -268,7 +268,7 @@ def cutlass_moe_fp4(
     # Gemm 1
     a: Input tensor: [m, k] (half/bfloat16)
     a1_gscale: Activation scale per expert: [e]  (float32)
-    w1(gate up) (not an argument to cutlass_moe_fp4): [e, 2 * n, k]
+    w1(gate up) (not an argument to tilelang_moe_fp4): [e, 2 * n, k]
     w1_fp4: [e, 2 * n, k // 2], dtype: torch.uint8 (stacked fp4: E2M1)
     (Note: `n` is the up projection output dim, `k` is the input dim in
      full precision)
@@ -277,7 +277,7 @@ def cutlass_moe_fp4(
 
     # Gemm 2
     a2_gscale: Activation scale per expert: [e]
-    w2(down projection) (not an argument to cutlass_moe_fp4): [e, k, n]
+    w2(down projection) (not an argument to tilelang_moe_fp4): [e, k, n]
     w2_fp4: [e, k, n // 2], dtype: torch.uint8 (stacked E2M1)
     w2_blockscale: [e, k, n // block_size], dtype: float8_e4m3
 
@@ -290,7 +290,7 @@ def cutlass_moe_fp4(
     Similarly for output, if the output is [m, n], then the c_stride is a
     tensor of shape [e] with each element being k.
 
-    Note: cutlass_fp4_group_mm is designed to accept the strides of
+    Note: tilelang_fp4_group_mm is designed to accept the strides of
     activations and weights to be the same, so it is passed in as a single
     tensor.
     ab_strides_13: [e] dtype: int64 [Gemm 1: Activation / Weight strides]
@@ -313,7 +313,7 @@ def cutlass_moe_fp4(
         and w2_fp4.ndim == 3
         and w1_blockscale.ndim == 3
         and w2_blockscale.ndim == 3
-    ), "All Weights must be of rank 3 for cutlass_moe_fp4"
+    ), "All Weights must be of rank 3 for tilelang_moe_fp4"
     m_a, k_a = a.shape
     e_w1, nx2_w1, half_k_w1 = w1_fp4.shape
     e_w2, k_w2, half_n_w2 = w2_fp4.shape
@@ -358,7 +358,7 @@ def cutlass_moe_fp4(
         num_topk,
         expert_map=a_map,
     )
-    c1 = cutlass_fp4_group_mm(
+    c1 = tilelang_fp4_group_mm(
         rep_a_fp4,
         w1_fp4,
         rep_a_blockscale,
@@ -383,7 +383,7 @@ def cutlass_moe_fp4(
         params.blockscale_offsets,
         num_topk,
     )
-    c2 = cutlass_fp4_group_mm(
+    c2 = tilelang_fp4_group_mm(
         int_fp4,
         w2_fp4,
         int_blockscale,

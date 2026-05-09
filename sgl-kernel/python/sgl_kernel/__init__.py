@@ -16,14 +16,14 @@ if os.environ.get("SGL_KERNEL_USE_CPP_OPS", "0") == "1":
 
 from sgl_kernel.allreduce import *
 from sgl_kernel.attention import (
-    cutlass_mla_decode,
-    cutlass_mla_get_workspace_size,
+    tilelang_mla_decode,
+    tilelang_mla_get_workspace_size,
     merge_state,
     merge_state_v2,
 )
 from sgl_kernel.tilelang_attention import tilelang_mla_decode
-from sgl_kernel.tilelang_attention import cutedsl_mla_decode  # backward compat
-from sgl_kernel.cutlass_moe import cutlass_w4a8_moe_mm, get_cutlass_w4a8_moe_mm_data
+from sgl_kernel.tilelang_attention import tilelang_mla_decode  # backward compat
+from sgl_kernel.tilelang_moe import tilelang_w4a8_moe_mm, get_tilelang_w4a8_moe_mm_data
 from sgl_kernel.elementwise import (
     FusedSetKVBufferArg,
     apply_rope_with_cos_sin_cache_inplace,
@@ -50,7 +50,7 @@ from sgl_kernel.fused_moe import moe_wna16_marlin_gemm
 from sgl_kernel.gemm import (
     awq_dequantize,
     bmm_fp8,
-    cutlass_scaled_fp4_mm,
+    tilelang_scaled_fp4_mm,
     dsv3_fused_a_gemm,
     dsv3_router_gemm,
     fp8_blockwise_scaled_mm,
@@ -73,7 +73,7 @@ from sgl_kernel.gemm import (
     silu_and_mul_scaled_fp4_grouped_quant,
 )
 from sgl_kernel.tilelang_gemm import tilelang_fp8_blockwise_scaled_mm
-from sgl_kernel.tilelang_gemm import cutedsl_fp8_blockwise_scaled_mm  # backward compat
+from sgl_kernel.tilelang_gemm import tilelang_fp8_blockwise_scaled_mm  # backward compat
 from sgl_kernel.grammar import apply_token_bitmask_inplace_cuda
 from sgl_kernel.hadamard import (
     hadamard_transform,
@@ -97,7 +97,7 @@ from sgl_kernel.marlin import (
 from sgl_kernel.memory import set_kv_buffer_kernel, weak_ref_tensor
 from sgl_kernel.moe import (
     apply_shuffle_mul_sum,
-    cutlass_fp4_group_mm,
+    tilelang_fp4_group_mm,
     fp8_blockwise_scaled_grouped_mm,
     fused_qk_norm_rope,
     kimi_k2_moe_fused_gate,

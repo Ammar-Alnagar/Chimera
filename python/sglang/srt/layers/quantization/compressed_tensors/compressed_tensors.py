@@ -571,7 +571,7 @@ class CompressedTensorsConfig(QuantizationConfig):
             )
             sparsity_scheme = self.sparsity_scheme_map[matched_target]
 
-        if self.supports_cutlass_24(
+        if self.supports_tilelang_24(
             weight_quant=weight_quant,
             input_quant=input_quant,
             sparsity_scheme=sparsity_scheme,
@@ -615,13 +615,13 @@ class CompressedTensorsConfig(QuantizationConfig):
         return None
 
     @staticmethod
-    def supports_cutlass_24(
+    def supports_tilelang_24(
         weight_quant: Optional[QuantizationArgs],
         input_quant: Optional[QuantizationArgs],
         sparsity_scheme: Optional[SparsityCompressionConfig] = None,
     ) -> bool:
         """
-        Check if the layer is supported by the Cutlass 2:4 Kernel
+        Check if the layer is supported by the TileLang 2:4 Kernel
         Conditions:
             - Overarching condition: Sparsity Structure is 2:4
             - Unquantized cases are supported
@@ -630,7 +630,7 @@ class CompressedTensorsConfig(QuantizationConfig):
             - Supported input quantization strategies are TENSOR and TOKEN
             - Only 8 bit quantization is supported
 
-        :return: True if the layer is supported by the Cutlass 2:4 Kernel
+        :return: True if the layer is supported by the TileLang 2:4 Kernel
             False otherwise
         """
         if sparsity_scheme is None:

@@ -164,13 +164,13 @@ Chimera automatically selects optimal kernels, but you can influence selection:
 
 ```python
 # Force TileLang kernels (Hopper/Blackwell)
-os.environ["SGL_KERNEL_FORCE_CUTEDSL"] = "1"
+os.environ["SGL_KERNEL_FORCE_TILELANG"] = "1"
 
 # Enable FlashInfer attention
 os.environ["SGL_KERNEL_USE_FLASHINFER"] = "1"
 
-# Enable CUTLASS GEMM
-os.environ["SGL_KERNEL_USE_CUTLASS"] = "1"
+# Enable TILELANG GEMM
+os.environ["SGL_KERNEL_USE_TILELANG"] = "1"
 ```
 
 ### 2. Tensor Core Optimization
@@ -644,7 +644,7 @@ config_qa = {
 ## Resources
 
 - [NVIDIA Performance Guide](https://docs.nvidia.com/deeplearning/performance/)
-- [CUTLASS Optimization Guide](https://github.com/NVIDIA/cutlass)
+- [TILELANG Optimization Guide](https://github.com/NVIDIA/tilelang)
 - [PyTorch Performance Tips](https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html)
 - [Chimera Kernel Documentation](tilelang_integration.md)
 

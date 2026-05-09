@@ -5,7 +5,7 @@ import os
 import torch
 import triton
 from flashinfer import mm_fp4
-from sgl_kernel import cutlass_scaled_fp4_mm, scaled_fp4_quant
+from sgl_kernel import tilelang_scaled_fp4_mm, scaled_fp4_quant
 
 from sglang.srt.utils import get_device_capability, is_sm100_supported
 
@@ -70,13 +70,13 @@ else:
         # x_vals = [64],
         x_log=False,
         line_arg="provider",
-        line_vals=["sglang_cutlass", "cutlass", "cudnn", "trtllm", "auto"],
+        line_vals=["sglang_tilelang", "tilelang", "cudnn", "trtllm", "auto"],
         line_names=[
-            "sglang cutlass fp4",
-            "flashinfer cutlass fp4",
+            "sglang tilelang fp4",
+            "flashinfer tilelang fp4",
             "cudnn fp4",
             "trtllm fp4",
-            "auto fp4 (cudnn/cutlass)",
+            "auto fp4 (cudnn/tilelang)",
         ],
         styles=[
             ("red", "solid"),
@@ -110,14 +110,14 @@ def benchmark(batch_size, provider, N, K, dtype, correctness, csv_file):
     res_fi = torch.empty((M, N), dtype=dtype, device="cuda")
 
     quantiles = [0.5, 0.2, 0.8]
-    if provider == "sglang_cutlass":
+    if provider == "sglang_tilelang":
         ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
-            lambda: cutlass_scaled_fp4_mm(
+            lambda: tilelang_scaled_fp4_mm(
                 a_fp4, b_fp4, a_scale_interleaved, b_scale_interleaved, alpha, dtype
             ),
             quantiles=quantiles,
         )
-    if provider == "cutlass":
+    if provider == "tilelang":
         ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
             lambda: mm_fp4(
                 a_fp4,
@@ -127,7 +127,7 @@ def benchmark(batch_size, provider, N, K, dtype, correctness, csv_file):
                 alpha,
                 dtype,
                 res_fi,
-                backend="cutlass",
+                backend="tilelang",
             ),
             quantiles=quantiles,
         )
@@ -175,7 +175,7 @@ def benchmark(batch_size, provider, N, K, dtype, correctness, csv_file):
             quantiles=quantiles,
         )
     if correctness:
-        res_cutlass = cutlass_scaled_fp4_mm(
+        res_tilelang = tilelang_scaled_fp4_mm(
             a_fp4, b_fp4, a_scale_interleaved, b_scale_interleaved, alpha, dtype
         )
         mm_fp4(
@@ -189,8 +189,8 @@ def benchmark(batch_size, provider, N, K, dtype, correctness, csv_file):
             backend="cudnn",
         )
         assert torch.allclose(
-            res_fi, res_cutlass, atol=1e-3, rtol=1e-3
-        ), "cudnn fp4 doesn't match cutlass fp4"
+            res_fi, res_tilelang, atol=1e-3, rtol=1e-3
+        ), "cudnn fp4 doesn't match tilelang fp4"
         mm_fp4(
             a_fp4,
             b_fp4.T,
@@ -202,8 +202,8 @@ def benchmark(batch_size, provider, N, K, dtype, correctness, csv_file):
             backend="trtllm",
         )
         assert torch.allclose(
-            res_fi, res_cutlass, atol=1e-3, rtol=1e-3
-        ), "trtllm fp4 doesn't match cutlass fp4"
+            res_fi, res_tilelang, atol=1e-3, rtol=1e-3
+        ), "trtllm fp4 doesn't match tilelang fp4"
 
     if csv_file:
         with open(csv_file, "a", newline="") as f:
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--csv",
         type=str,
-        default="results_cutlass_cudnn.csv",
+        default="results_tilelang_cudnn.csv",
         help="CSV file to save results",
     )
     args = parser.parse_args()

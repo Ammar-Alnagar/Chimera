@@ -94,13 +94,13 @@ class CompressedTensorsW8A8Int8(CompressedTensorsScheme):
         # azp_adj is the AZP adjustment term, used to account for weights.
         # It does not depend on scales or azp, so it is the same for
         # static and dynamic quantization.
-        # For more details, see csrc/quantization/cutlass_w8a8/Epilogues.md
-        # https://github.com/vllm-project/vllm/blob/8d59dbb00044a588cab96bcdc028006ed922eb06/csrc/quantization/cutlass_w8a8/Epilogues.md
+        # For more details, see csrc/quantization/tilelang_w8a8/Epilogues.md
+        # https://github.com/vllm-project/vllm/blob/8d59dbb00044a588cab96bcdc028006ed922eb06/csrc/quantization/tilelang_w8a8/Epilogues.md
         if not self.input_symmetric:
             weight = layer.weight
             azp_adj = weight.sum(dim=0, keepdim=True, dtype=torch.int32)
             if self.is_static_input_scheme:
-                # cutlass_w8a8 requires azp to be folded into azp_adj
+                # tilelang_w8a8 requires azp to be folded into azp_adj
                 # in the per-tensor case
                 azp_adj = layer.input_zero_point * azp_adj
             layer.azp_adj = Parameter(azp_adj, requires_grad=False)
@@ -165,7 +165,7 @@ class CompressedTensorsW8A8Int8(CompressedTensorsScheme):
     def apply_weights(
         self, layer: torch.nn.Module, x: torch.Tensor, bias: Optional[torch.Tensor]
     ) -> torch.Tensor:
-        # TODO: add cutlass_scaled_mm_azp support
+        # TODO: add tilelang_scaled_mm_azp support
         x_q, x_scale = per_token_quant_int8(x)
 
         return int8_scaled_mm(

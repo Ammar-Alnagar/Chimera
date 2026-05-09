@@ -5,7 +5,7 @@ import triton  # Added import
 import triton.testing  # Added import
 from transformers import AutoConfig
 
-from sglang.srt.layers.moe.cutlass_moe import cutlass_fused_experts_fp8
+from sglang.srt.layers.moe.tilelang_moe import tilelang_fused_experts_fp8
 from sglang.srt.layers.moe.fused_moe_triton.fused_moe import fused_experts
 from sglang.srt.layers.moe.moe_runner.base import MoeRunnerConfig
 from sglang.srt.layers.moe.topk import StandardTopKOutput
@@ -135,7 +135,7 @@ def run_test(tp_size, batch_size, model_config, check=False):
         enable_es = (True, True)
 
     # --- Lambdas for Benchmarking ---
-    cutlass_lambda = lambda: cutlass_fused_experts_fp8(
+    tilelang_lambda = lambda: tilelang_fused_experts_fp8(
         x,
         w1.transpose(1, 2),  # Transposed
         w2.transpose(1, 2),  # Transposed
@@ -193,15 +193,15 @@ def run_test(tp_size, batch_size, model_config, check=False):
     # --- Warmup ---
     print("Warming up...")
     for _ in range(10):
-        _ = cutlass_lambda()
+        _ = tilelang_lambda()
         _ = triton_lambda()
     torch.cuda.synchronize()
 
     # --- Benchmarking ---
     quantiles = [0.5, 0.2, 0.8]
-    print(f"Benchmarking Cutlass fused_experts...")
-    cutlass_ms, cutlass_min, cutlass_max = triton.testing.do_bench_cudagraph(
-        cutlass_lambda, rep=1000, quantiles=quantiles
+    print(f"Benchmarking TileLang fused_experts...")
+    tilelang_ms, tilelang_min, tilelang_max = triton.testing.do_bench_cudagraph(
+        tilelang_lambda, rep=1000, quantiles=quantiles
     )
 
     print(f"Benchmarking Triton fused_experts...")
@@ -209,7 +209,7 @@ def run_test(tp_size, batch_size, model_config, check=False):
         triton_lambda, rep=1000, quantiles=quantiles
     )
     print(
-        f"Cutlass fused_experts time: {cutlass_ms:.3f} ms (median) [{cutlass_min:.3f} - {cutlass_max:.3f}]"
+        f"TileLang fused_experts time: {tilelang_ms:.3f} ms (median) [{tilelang_min:.3f} - {tilelang_max:.3f}]"
     )
     print(
         f"Triton  fused_experts time: {triton_ms:.3f} ms (median) [{triton_min:.3f} - {triton_max:.3f}]"
@@ -219,8 +219,8 @@ def run_test(tp_size, batch_size, model_config, check=False):
     if check:
         print("Running correctness check...")
         with torch.no_grad():
-            # Run CUTLASS version (requires transposed weights)
-            y_cutlass = cutlass_fused_experts_fp8(
+            # Run TILELANG version (requires transposed weights)
+            y_tilelang = tilelang_fused_experts_fp8(
                 x,
                 w1.transpose(1, 2),  # Transposed
                 w2.transpose(1, 2),  # Transposed
@@ -257,7 +257,7 @@ def run_test(tp_size, batch_size, model_config, check=False):
                 block_shape=block_shape,
             )
 
-        diff = calc_diff(y_cutlass, y_triton)
+        diff = calc_diff(y_tilelang, y_triton)
         print(f"Diff: {diff:.6f}")
 
         # Tolerance might need adjustment based on FP8 specifics and kernel differences

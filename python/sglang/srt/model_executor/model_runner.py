@@ -191,7 +191,7 @@ MLA_ATTENTION_BACKENDS = [
     "fa4",
     "triton",
     "flashmla",
-    "cutlass_mla",
+    "tilelang_mla",
     "trtllm_mla",
     "ascend",
     "nsa",
@@ -202,7 +202,7 @@ CHUNKED_PREFIX_CACHE_SUPPORTED_ATTENTION_BACKENDS = [
     "fa3",
     "fa4",
     "flashmla",
-    "cutlass_mla",
+    "tilelang_mla",
     "trtllm_mla",
 ]
 
@@ -1694,8 +1694,8 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         if backend_str not in [
             "flashinfer_trtllm",
             "flashinfer_mxfp4",
-            # TODO: flashinfer_cutlass will cause some flashinfer compilation errors. To be fixed.
-            # "flashinfer_cutlass",
+            # TODO: flashinfer_tilelang will cause some flashinfer compilation errors. To be fixed.
+            # "flashinfer_tilelang",
         ]:
             return False
 

@@ -196,7 +196,7 @@ def compute_seg_indptr_triton_kernel(reorder_topk_ids, seg_indptr, num_toks):
     tl.store(seg_indptr + expert_id_minus_1 + 1, target_location + 1)
 
 
-def cutlass_w4_run_moe_ep_preproess(topk_ids: torch.Tensor):
+def tilelang_w4_run_moe_ep_preproess(topk_ids: torch.Tensor):
     _, reorder_ids = torch.sort(topk_ids.view(-1), stable=True)
 
     BLOCK_SIZE = 512
@@ -210,7 +210,7 @@ def cutlass_w4_run_moe_ep_preproess(topk_ids: torch.Tensor):
 
 
 @triton.jit
-def pre_reorder_triton_kernel_for_cutlass_moe(
+def pre_reorder_triton_kernel_for_tilelang_moe(
     input_ptr,
     gateup_input_ptr,
     src2dst_ptr,
@@ -254,7 +254,7 @@ def pre_reorder_triton_kernel_for_cutlass_moe(
                 tl.store(dst_ptr_offs + dst_idx * hidden_size, out_data, mask=mask)
 
 
-def pre_reorder_for_cutlass_moe(
+def pre_reorder_for_tilelang_moe(
     input,
     gateup_input,
     src2dst,
@@ -267,7 +267,7 @@ def pre_reorder_for_cutlass_moe(
 ):
     grid, block_dim = _get_launch_config_2d(input.device, num_tokens, hidden_size)
 
-    pre_reorder_triton_kernel_for_cutlass_moe[grid](
+    pre_reorder_triton_kernel_for_tilelang_moe[grid](
         input_ptr=input,
         gateup_input_ptr=gateup_input,
         src2dst_ptr=src2dst,
@@ -430,7 +430,7 @@ def silu_and_mul_masked_post_quant_fwd(
 
 
 @triton.jit
-def silu_mul_static_tensorwise_quant_triton_kernel_for_cutlass_moe(
+def silu_mul_static_tensorwise_quant_triton_kernel_for_tilelang_moe(
     input_ptr,
     output_ptr,
     scale_ptr,
@@ -462,7 +462,7 @@ def silu_mul_static_tensorwise_quant_triton_kernel_for_cutlass_moe(
         tl.store(output_ptr + ids, output.to(OutDtype), mask=mask)
 
 
-def silu_mul_static_tensorwise_quant_for_cutlass_moe(
+def silu_mul_static_tensorwise_quant_for_tilelang_moe(
     input: torch.Tensor,
     output: torch.Tensor,
     scale: torch.Tensor,
@@ -474,7 +474,7 @@ def silu_mul_static_tensorwise_quant_for_cutlass_moe(
         input.device, expected_num_tokens * intermediate_size
     )
 
-    silu_mul_static_tensorwise_quant_triton_kernel_for_cutlass_moe[grid](
+    silu_mul_static_tensorwise_quant_triton_kernel_for_tilelang_moe[grid](
         input_ptr=input,
         output_ptr=output,
         scale_ptr=scale,
@@ -486,7 +486,7 @@ def silu_mul_static_tensorwise_quant_for_cutlass_moe(
 
 
 @triton.jit
-def post_reorder_triton_kernel_for_cutlass_moe(
+def post_reorder_triton_kernel_for_tilelang_moe(
     down_output_ptr,
     output_ptr,
     src2dst_ptr,
@@ -535,7 +535,7 @@ def post_reorder_triton_kernel_for_cutlass_moe(
         tl.store(store_ptr_offs, sum_vec.to(OutDtype), mask=mask)
 
 
-def post_reorder_for_cutlass_moe(
+def post_reorder_for_tilelang_moe(
     down_output,
     output,
     src2dst,
@@ -549,7 +549,7 @@ def post_reorder_for_cutlass_moe(
 ):
     grid, block_dim = _get_launch_config_2d(down_output.device, num_tokens, hidden_size)
 
-    post_reorder_triton_kernel_for_cutlass_moe[grid](
+    post_reorder_triton_kernel_for_tilelang_moe[grid](
         down_output_ptr=down_output,
         output_ptr=output,
         src2dst_ptr=src2dst,
@@ -1244,7 +1244,7 @@ def compute_problem_sizes_w4a8(
     return problem_sizes1, problem_sizes2
 
 
-def deepep_ll_get_cutlass_w4a8_moe_mm_data(
+def deepep_ll_get_tilelang_w4a8_moe_mm_data(
     masked_m,
     problem_sizes1,
     problem_sizes2,

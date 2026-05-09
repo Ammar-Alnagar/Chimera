@@ -126,7 +126,7 @@ def bench_deepgemm(
     return avg, m
 
 
-def bench_cutlass(
+def bench_tilelang(
     expected_m_per_group: int,
     n: int,
     k: int,
@@ -205,7 +205,7 @@ def bench_cutlass(
     a_scales_ptrs = torch.empty((num_groups,), device=device, dtype=torch.int64)
     b_scales_ptrs = torch.empty((num_groups,), device=device, dtype=torch.int64)
 
-    def run_cutlass():
+    def run_tilelang():
         fp8_blockwise_scaled_grouped_mm(
             c_out,
             a_ptrs,
@@ -229,7 +229,7 @@ def bench_cutlass(
 
     # warmup
     for _ in range(num_warmup):
-        run_cutlass()
+        run_tilelang()
     torch.cuda.synchronize()
 
     # run
@@ -237,7 +237,7 @@ def bench_cutlass(
     end_event = torch.cuda.Event(enable_timing=True)
     start_event.record()
     for _ in range(num_run):
-        run_cutlass()
+        run_tilelang()
     end_event.record()
     end_event.synchronize()
     torch.cuda.synchronize()
@@ -259,7 +259,7 @@ def bench_sglang_triton(
 
 benchmark_kernels = {
     "deepgemm": bench_deepgemm,
-    "cutlass": bench_cutlass,
+    "tilelang": bench_tilelang,
     # "triton": bench_sglang_triton,
 }
 

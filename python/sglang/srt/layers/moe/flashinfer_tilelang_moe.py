@@ -1,6 +1,6 @@
 """TileLang-based masked MoE implementation.
 
-Replaces the former flashinfer_cutedsl_moe module. Uses TileLang's
+Replaces the former flashinfer_tilelang_moe module. Uses TileLang's
 @tilelang.jit kernel for the grouped GEMM operations in MoE layers.
 Falls back to the flashinfer.cute_dsl path when available as a
 compatibility bridge during migration.
@@ -31,12 +31,12 @@ try:
 except ImportError:
     _FLASHINFER_QUANT_AVAILABLE = False
 
-# Try importing FlashInfer's CuteDSL grouped GEMM as fallback bridge
+# Try importing FlashInfer's TileLang grouped GEMM as fallback bridge
 try:
     from flashinfer.cute_dsl.blockscaled_gemm import grouped_gemm_nt_masked
-    _FLASHINFER_CUTEDSL_AVAILABLE = True
+    _FLASHINFER_TILELANG_AVAILABLE = True
 except ImportError:
-    _FLASHINFER_CUTEDSL_AVAILABLE = False
+    _FLASHINFER_TILELANG_AVAILABLE = False
     grouped_gemm_nt_masked = None
 
 
@@ -69,7 +69,7 @@ def flashinfer_tilelang_moe_masked(
     """
     Perform masked Mixture-of-Experts computation with TileLang kernels.
 
-    This function replaces the former flashinfer_cutedsl_moe_masked.
+    This function replaces the former flashinfer_tilelang_moe_masked.
     Currently bridges through flashinfer.cute_dsl.blockscaled_gemm while
     the native TileLang grouped GEMM is being developed.
 
@@ -87,9 +87,9 @@ def flashinfer_tilelang_moe_masked(
         w2_alpha (torch.Tensor): (l,)
         masked_m (torch.Tensor): Masked dimension indices
     """
-    assert _FLASHINFER_CUTEDSL_AVAILABLE, (
+    assert _FLASHINFER_TILELANG_AVAILABLE, (
         "flashinfer.cute_dsl.blockscaled_gemm is required for TileLang MoE "
-        "bridge. Install flashinfer with CuteDSL support."
+        "bridge. Install flashinfer with TileLang support."
     )
     assert _FLASHINFER_QUANT_AVAILABLE, (
         "flashinfer quantization helpers required for TileLang MoE."
@@ -211,4 +211,4 @@ def flashinfer_tilelang_moe_masked(
 
 
 # Backward-compat alias
-flashinfer_cutedsl_moe_masked = flashinfer_tilelang_moe_masked
+flashinfer_tilelang_moe_masked = flashinfer_tilelang_moe_masked

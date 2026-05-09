@@ -1,6 +1,6 @@
 """TileLang-based MLA decode kernel.
 
-Replaces CuteDSL MLA decode. Uses PyTorch fallback with TileLang JIT ready.
+Replaces TileLang MLA decode. Uses PyTorch fallback with TileLang JIT ready.
 """
 
 import logging
@@ -76,4 +76,4 @@ def tilelang_mla_decode(
 
 # Backward-compat aliases
 mla_decode_kernel = _mla_decode_fallback
-cutedsl_mla_decode = tilelang_mla_decode
+tilelang_mla_decode = tilelang_mla_decode

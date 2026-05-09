@@ -54,11 +54,9 @@ class MoeRunnerBackend(Enum):
     TRITON = "triton"
     TRITON_KERNELS = "triton_kernel"
     FLASHINFER_TRTLLM = "flashinfer_trtllm"
-    FLASHINFER_CUTLASS = "flashinfer_cutlass"
     FLASHINFER_MXFP4 = "flashinfer_mxfp4"
     FLASHINFER_TILELANG = "flashinfer_tilelang"
-    FLASHINFER_CUTEDSL = "flashinfer_cutedsl"  # deprecated alias for FLASHINFER_TILELANG
-    CUTLASS = "cutlass"
+    TILELANG = "tilelang"
     MARLIN = "marlin"
 
     def is_auto(self):
@@ -76,21 +74,14 @@ class MoeRunnerBackend(Enum):
     def is_flashinfer_trtllm(self):
         return self == MoeRunnerBackend.FLASHINFER_TRTLLM
 
-    def is_flashinfer_cutlass(self):
-        return self == MoeRunnerBackend.FLASHINFER_CUTLASS
-
     def is_flashinfer_tilelang(self):
-        return self in (MoeRunnerBackend.FLASHINFER_TILELANG, MoeRunnerBackend.FLASHINFER_CUTEDSL)
-
-    def is_flashinfer_cutedsl(self):
-        # Deprecated: use is_flashinfer_tilelang() instead
-        return self.is_flashinfer_tilelang()
+        return self == MoeRunnerBackend.FLASHINFER_TILELANG
 
     def is_flashinfer_mxfp4(self):
         return self == MoeRunnerBackend.FLASHINFER_MXFP4
 
-    def is_cutlass(self):
-        return self == MoeRunnerBackend.CUTLASS
+    def is_tilelang(self):
+        return self == MoeRunnerBackend.TILELANG
 
     def is_marlin(self):
         return self == MoeRunnerBackend.MARLIN
@@ -136,7 +127,7 @@ IS_TBO_ENABLED: Optional[bool] = None
 IS_SBO_ENABLED: Optional[bool] = None
 TBO_TOKEN_DISTRIBUTION_THRESHOLD: Optional[float] = None
 DEEPEP_CONFIG: Optional[str] = None
-DISABLE_FLASHINFER_CUTLASS_MOE_FP4_ALLGATHER: Optional[bool] = None
+DISABLE_FLASHINFER_TILELANG_MOE_FP4_ALLGATHER: Optional[bool] = None
 MOE_QUANTIZATION: Optional[str] = None
 
 
@@ -150,7 +141,7 @@ def initialize_moe_config(server_args: ServerArgs):
     global IS_TBO_ENABLED
     global IS_SBO_ENABLED
     global TBO_TOKEN_DISTRIBUTION_THRESHOLD
-    global DISABLE_FLASHINFER_CUTLASS_MOE_FP4_ALLGATHER
+    global DISABLE_FLASHINFER_TILELANG_MOE_FP4_ALLGATHER
     global MOE_QUANTIZATION
 
     MOE_A2A_BACKEND = MoeA2ABackend(server_args.moe_a2a_backend)
@@ -170,8 +161,8 @@ def initialize_moe_config(server_args: ServerArgs):
     IS_TBO_ENABLED = server_args.enable_two_batch_overlap
     IS_SBO_ENABLED = server_args.enable_single_batch_overlap
     TBO_TOKEN_DISTRIBUTION_THRESHOLD = server_args.tbo_token_distribution_threshold
-    DISABLE_FLASHINFER_CUTLASS_MOE_FP4_ALLGATHER = (
-        server_args.disable_flashinfer_cutlass_moe_fp4_allgather
+    DISABLE_FLASHINFER_TILELANG_MOE_FP4_ALLGATHER = (
+        server_args.disable_flashinfer_tilelang_moe_fp4_allgather
     )
     MOE_QUANTIZATION = server_args.quantization
 
@@ -254,13 +245,13 @@ def get_tbo_token_distribution_threshold() -> float:
     return TBO_TOKEN_DISTRIBUTION_THRESHOLD
 
 
-def should_use_flashinfer_cutlass_moe_fp4_allgather():
+def should_use_flashinfer_tilelang_moe_fp4_allgather():
     """
-    Perform FP4 quantize before all-gather for flashinfer cutlass moe to reduce communication cost for high-throughput serving.
+    Perform FP4 quantize before all-gather for flashinfer tilelang moe to reduce communication cost for high-throughput serving.
     """
     return (
-        not DISABLE_FLASHINFER_CUTLASS_MOE_FP4_ALLGATHER
-        and get_moe_runner_backend().is_flashinfer_cutlass()
+        not DISABLE_FLASHINFER_TILELANG_MOE_FP4_ALLGATHER
+        and get_moe_runner_backend().is_flashinfer_tilelang()
         and is_dp_attention_enabled()
         and MOE_QUANTIZATION == "modelopt_fp4"
         and get_moe_expert_parallel_world_size() == get_attention_dp_size()
@@ -289,20 +280,20 @@ def speculative_moe_a2a_backend_context():
     This ensures that draft models in speculative decoding use the configured speculative A2A backend.
     """
     global MOE_A2A_BACKEND
-    global DISABLE_FLASHINFER_CUTLASS_MOE_FP4_ALLGATHER
+    global DISABLE_FLASHINFER_TILELANG_MOE_FP4_ALLGATHER
     original_backend = MOE_A2A_BACKEND
-    original_disable_flashinfer_cutlass_moe_fp4_allgather = (
-        DISABLE_FLASHINFER_CUTLASS_MOE_FP4_ALLGATHER
+    original_disable_flashinfer_tilelang_moe_fp4_allgather = (
+        DISABLE_FLASHINFER_TILELANG_MOE_FP4_ALLGATHER
     )
     try:
         MOE_A2A_BACKEND = get_speculative_moe_a2a_backend()
         # Disable FP4 allgather for spec decode since MTP layers are unquantized
-        DISABLE_FLASHINFER_CUTLASS_MOE_FP4_ALLGATHER = True
+        DISABLE_FLASHINFER_TILELANG_MOE_FP4_ALLGATHER = True
         yield
     finally:
         MOE_A2A_BACKEND = original_backend
-        DISABLE_FLASHINFER_CUTLASS_MOE_FP4_ALLGATHER = (
-            original_disable_flashinfer_cutlass_moe_fp4_allgather
+        DISABLE_FLASHINFER_TILELANG_MOE_FP4_ALLGATHER = (
+            original_disable_flashinfer_tilelang_moe_fp4_allgather
         )
 
 

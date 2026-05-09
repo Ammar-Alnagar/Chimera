@@ -289,7 +289,7 @@ def fused_qk_norm_rope(
     )
 
 
-def cutlass_fp4_group_mm(
+def tilelang_fp4_group_mm(
     a_fp4,
     b_fp4,
     a_blockscale,
@@ -320,7 +320,7 @@ def cutlass_fp4_group_mm(
     n = b_fp4.shape[1]
     c_shape = (m_topk, n)
     c = torch.empty(c_shape, device=device, dtype=out_dtype)
-    torch.ops.sgl_kernel.cutlass_fp4_group_mm.default(
+    torch.ops.sgl_kernel.tilelang_fp4_group_mm.default(
         c,
         a_fp4,
         b_fp4,

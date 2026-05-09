@@ -295,14 +295,14 @@ class W4AFp8MoEMethod(FusedMoEMethodBase):
         dispatch_output: StandardDispatchOutput,
     ) -> CombineInput:
 
-        from sglang.srt.layers.moe.cutlass_w4a8_moe import cutlass_w4a8_moe
+        from sglang.srt.layers.moe.tilelang_w4a8_moe import tilelang_w4a8_moe
         from sglang.srt.layers.moe.token_dispatcher import StandardCombineInput
 
         x = dispatch_output.hidden_states
         topk_output = dispatch_output.topk_output
         topk_weights, topk_ids, _ = topk_output
 
-        output = cutlass_w4a8_moe(
+        output = tilelang_w4a8_moe(
             x,
             layer.w13_weight,
             layer.w2_weight,
@@ -333,11 +333,11 @@ class W4AFp8MoEMethod(FusedMoEMethodBase):
         dispatch_output: DeepEPLLDispatchOutput,
     ) -> torch.Tensor:
 
-        from sglang.srt.layers.moe.cutlass_w4a8_moe import cutlass_w4a8_moe_deepep_ll
+        from sglang.srt.layers.moe.tilelang_w4a8_moe import tilelang_w4a8_moe_deepep_ll
 
         hidden_states, _, topk_ids, _, masked_m, _ = dispatch_output
 
-        output = cutlass_w4a8_moe_deepep_ll(
+        output = tilelang_w4a8_moe_deepep_ll(
             hidden_states,
             layer.w13_weight,
             layer.w2_weight,
@@ -367,8 +367,8 @@ class W4AFp8MoEMethod(FusedMoEMethodBase):
         layer: DeepEPMoE,
         dispatch_output: DeepEPNormalDispatchOutput,
     ) -> torch.Tensor:
-        from sglang.srt.layers.moe.cutlass_w4a8_moe import (
-            cutlass_w4a8_moe_deepep_normal,
+        from sglang.srt.layers.moe.tilelang_w4a8_moe import (
+            tilelang_w4a8_moe_deepep_normal,
         )
 
         hidden_states, topk_idx, topk_weights = (
@@ -381,7 +381,7 @@ class W4AFp8MoEMethod(FusedMoEMethodBase):
 
         num_tokens = hidden_states.shape[0]
         if num_tokens > 0:
-            return cutlass_w4a8_moe_deepep_normal(
+            return tilelang_w4a8_moe_deepep_normal(
                 hidden_states,
                 layer.w13_weight,
                 layer.w2_weight,

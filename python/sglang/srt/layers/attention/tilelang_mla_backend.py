@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 """
-Support attention backend for Cutlass MLA.
+Support attention backend for TileLang MLA.
 
 """
 
@@ -24,15 +24,15 @@ if TYPE_CHECKING:
 
 _is_cuda = is_cuda()
 if _is_cuda:
-    from sgl_kernel import cutlass_mla_decode, cutlass_mla_get_workspace_size
+    from sgl_kernel import tilelang_mla_decode, tilelang_mla_get_workspace_size
 
 
-# Cutlass MLA only supports pagesize=128
+# TileLang MLA only supports pagesize=128
 PAGE_SIZE = 128
 
 
 @dataclass
-class CutlassMLADecodeMetadata:
+class TileLangMLADecodeMetadata:
     workspace: Optional[torch.Tensor] = None
     block_kv_indices: Optional[torch.Tensor] = None
 
@@ -45,8 +45,8 @@ class CutlassMLADecodeMetadata:
         self.block_kv_indices = block_kv_indices
 
 
-class CutlassMLABackend(FlashInferMLAAttnBackend):
-    """Cutlass attention kernels."""
+class TileLangMLABackend(FlashInferMLAAttnBackend):
+    """TileLang attention kernels."""
 
     def __init__(
         self,
@@ -69,7 +69,7 @@ class CutlassMLABackend(FlashInferMLAAttnBackend):
         self.num_local_heads = (
             model_runner.model_config.num_attention_heads // get_attention_tp_size()
         )
-        self.forward_metadata: Union[CutlassMLADecodeMetadata] = None
+        self.forward_metadata: Union[TileLangMLADecodeMetadata] = None
         self.kv_lora_rank = model_runner.model_config.kv_lora_rank
         self.qk_nope_head_dim = model_runner.model_config.qk_nope_head_dim
         self.qk_rope_head_dim = model_runner.model_config.qk_rope_head_dim
@@ -104,13 +104,13 @@ class CutlassMLABackend(FlashInferMLAAttnBackend):
                     max_seqlen_pad,
                     PAGED_SIZE=PAGE_SIZE,
                 )
-                workspace_size = cutlass_mla_get_workspace_size(
+                workspace_size = tilelang_mla_get_workspace_size(
                     max_seqlen_pad * PAGE_SIZE, bs, num_kv_splits=1
                 )
                 workspace = torch.empty(
                     workspace_size, device="cuda", dtype=torch.uint8
                 )
-                self.forward_metadata = CutlassMLADecodeMetadata(
+                self.forward_metadata = TileLangMLADecodeMetadata(
                     workspace,
                     block_kv_indices,
                 )
@@ -135,7 +135,7 @@ class CutlassMLABackend(FlashInferMLAAttnBackend):
         else:
             cuda_graph_kv_indices = block_kv_indices
 
-        workspace_size = cutlass_mla_get_workspace_size(
+        workspace_size = tilelang_mla_get_workspace_size(
             cuda_graph_kv_indices.shape[1] * PAGE_SIZE, max_bs, num_kv_splits=1
         )
         self.cuda_graph_mla_workspace = torch.empty(
@@ -167,7 +167,7 @@ class CutlassMLABackend(FlashInferMLAAttnBackend):
                     self.cuda_graph_kv_indices.stride(0),
                     PAGED_SIZE=PAGE_SIZE,
                 )
-                self.forward_metadata = CutlassMLADecodeMetadata(
+                self.forward_metadata = TileLangMLADecodeMetadata(
                     self.cuda_graph_mla_workspace,
                     self.cuda_graph_kv_indices[:bs, :max_seqlen_pad],
                 )
@@ -271,7 +271,7 @@ class CutlassMLABackend(FlashInferMLAAttnBackend):
 
         k_cache = forward_batch.token_to_kv_pool.get_key_buffer(layer.layer_id)
 
-        o = cutlass_mla_decode(
+        o = tilelang_mla_decode(
             q_nope=q_nope,
             q_pe=q_rope,
             kv_c_and_k_pe_cache=k_cache.view(-1, PAGE_SIZE, self.kv_cache_dim),

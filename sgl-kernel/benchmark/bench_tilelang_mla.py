@@ -5,7 +5,7 @@ import os
 
 import torch
 import triton
-from sgl_kernel import cutlass_mla_decode, cutlass_mla_get_workspace_size
+from sgl_kernel import tilelang_mla_decode, tilelang_mla_get_workspace_size
 
 from sglang.srt.utils import get_device_capability
 
@@ -46,7 +46,7 @@ configs = list(itertools.product(bs_range, qlen_range))
         ],
         styles=[("green", "-"), ("green", "--"), ("blue", "-"), ("blue", "--")],
         ylabel="GB/s",
-        plot_name="cutlass mla",
+        plot_name="tilelang mla",
         args={},
     )
 )
@@ -73,7 +73,7 @@ def benchmark(batch_size, seq_len, provider, block_size, num_kv_splits):
     max_seq_len = seq_lens.max().item()
     block_num = (max_seq_len + block_size - 1) // block_size
 
-    # Pad block_num so that small blocks can be packed into full 128-sized CUTLASS tiles.
+    # Pad block_num so that small blocks can be packed into full 128-sized TILELANG tiles.
     # One 128-wide tile can hold (128 // block_size) small blocks.
     pack_factor = 128 // block_size
     block_num = ((block_num + pack_factor - 1) // pack_factor) * pack_factor
@@ -95,14 +95,14 @@ def benchmark(batch_size, seq_len, provider, block_size, num_kv_splits):
         block_table.numel(), block_size, d, dtype=torch.bfloat16, device="cuda"
     )
 
-    workspace_size = cutlass_mla_get_workspace_size(
+    workspace_size = tilelang_mla_get_workspace_size(
         block_num * block_size, batch_size, num_kv_splits=num_kv_splits
     )
     workspace = torch.empty(workspace_size, device="cuda", dtype=torch.uint8)
 
     quantiles = [0.5, 0.2, 0.8]
     ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
-        lambda: cutlass_mla_decode(
+        lambda: tilelang_mla_decode(
             qn.transpose(0, 1),
             qr,
             kv_cache,
@@ -149,10 +149,10 @@ if __name__ == "__main__":
     if IS_CI:
         major, minor = get_device_capability()
         if major is None or major < 10:  # Requires compute capability 10.0+
-            print("Skipping Cutlass MLA benchmark in CI environment")
+            print("Skipping TileLang MLA benchmark in CI environment")
             if major is not None:
                 print(
-                    f"Cutlass MLA requires compute capability 10.0+, but found {major}.{minor}"
+                    f"TileLang MLA requires compute capability 10.0+, but found {major}.{minor}"
                 )
             else:
                 print("Could not determine device capability")

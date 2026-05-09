@@ -11,7 +11,7 @@ from sgl_kernel import sgl_per_tensor_quant_fp8
 
 # Optional vLLM import
 try:
-    from vllm._custom_ops import cutlass_scaled_mm as vllm_scaled_mm
+    from vllm._custom_ops import tilelang_scaled_mm as vllm_scaled_mm
     from vllm._custom_ops import scaled_fp8_quant as vllm_scaled_fp8_quant
 
     VLLM_AVAILABLE = True

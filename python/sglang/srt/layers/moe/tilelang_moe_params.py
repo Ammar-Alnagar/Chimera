@@ -5,9 +5,9 @@ from typing import Optional
 import torch
 
 
-class CutlassMoEType(Enum):
+class TileLangMoEType(Enum):
     """
-    Enum for the different types of cutlass moe operations
+    Enum for the different types of tilelang moe operations
     that are currently supported in SGLang.
     """
 
@@ -16,13 +16,13 @@ class CutlassMoEType(Enum):
 
 
 @dataclass
-class CutlassMoEParams:
+class TileLangMoEParams:
     """
-    Parameters for the cutlass moe operation.
+    Parameters for the tilelang moe operation.
     """
 
     #  Type as defined above
-    cutlass_moe_type: CutlassMoEType
+    tilelang_moe_type: TileLangMoEType
 
     # Strides for activations, weights and output in logical number of elements.
     # The activations & output stride is the number of elements to the next row.
@@ -33,7 +33,7 @@ class CutlassMoEParams:
     # Similarly for output, if the output is [m, n], then the c_stride is a
     # tensor of shape [e] with each element being k.
 
-    # Note: cutlass_fp4_group_mm is designed to accept the strides of
+    # Note: tilelang_fp4_group_mm is designed to accept the strides of
     # activations and weights to be the same, so it is passed in as a single
     # tensor.
     # ab_strides_13: [e] dtype: int64 [Gemm 1: Activation / Weight strides]
@@ -89,13 +89,13 @@ class CutlassMoEParams:
 
     def __init__(
         self,
-        cutlass_moe_type: CutlassMoEType,
+        tilelang_moe_type: TileLangMoEType,
         device: torch.device,
         num_experts: int,
         intermediate_size_per_partition: int,
         hidden_size: int,
     ):
-        self.cutlass_moe_type = cutlass_moe_type
+        self.tilelang_moe_type = tilelang_moe_type
         self.device = device
         self.num_experts = num_experts
         self.intermediate_size_per_partition = intermediate_size_per_partition
@@ -124,7 +124,7 @@ class CutlassMoEParams:
         self.problem_sizes2 = torch.empty(
             (self.e, 3), dtype=torch.int32, device=self.device
         )
-        if self.cutlass_moe_type == CutlassMoEType.BlockscaledFP4:
+        if self.tilelang_moe_type == TileLangMoEType.BlockscaledFP4:
             self.blockscale_offsets = torch.empty(
                 (self.e + 1,), dtype=torch.int32, device=self.device
             )

@@ -8,12 +8,12 @@ from flashinfer import fp4_quantize, scaled_fp4_grouped_quantize
 from sglang.test.ci.ci_register import register_cuda_ci
 
 register_cuda_ci(est_time=300, suite="nightly-4-gpu-b200", nightly=True)
-from flashinfer.fused_moe import cutlass_fused_moe as flashinfer_cutlass_fused_moe
+from flashinfer.fused_moe import tilelang_fused_moe as flashinfer_tilelang_fused_moe
 from sgl_kernel import scaled_fp4_quant, silu_and_mul
 from torch.nn import functional as F
 
-from sglang.srt.layers.moe.cutlass_moe import cutlass_moe_fp4
-from sglang.srt.layers.moe.cutlass_moe_params import CutlassMoEParams, CutlassMoEType
+from sglang.srt.layers.moe.tilelang_moe import tilelang_moe_fp4
+from sglang.srt.layers.moe.tilelang_moe_params import TileLangMoEParams, TileLangMoEType
 from sglang.srt.layers.moe.topk import TopKConfig, select_experts
 
 if torch.cuda.get_device_capability() < (10, 0):
@@ -370,10 +370,10 @@ def check_moe(
 @pytest.mark.parametrize("topk", [1, 6, 8])
 @pytest.mark.parametrize("dtype", [torch.half, torch.bfloat16])
 @torch.inference_mode()
-def test_cutlass_fp4_moe_no_graph(
+def test_tilelang_fp4_moe_no_graph(
     m: int, n: int, k: int, e: int, topk: int, dtype: torch.dtype
 ):
-    def cutlass_moe_impl(
+    def tilelang_moe_impl(
         a,
         topk_weights,
         topk_ids,
@@ -386,14 +386,14 @@ def test_cutlass_fp4_moe_no_graph(
         w2_blockscale,
         w2_alphas,
     ):
-        params = CutlassMoEParams(
-            CutlassMoEType.BlockscaledFP4,
+        params = TileLangMoEParams(
+            TileLangMoEType.BlockscaledFP4,
             device=a.device,
             num_experts=e,
             intermediate_size_per_partition=n,  # n
             hidden_size=k,
         )  # k
-        return cutlass_moe_fp4(
+        return tilelang_moe_fp4(
             a=a,
             a1_gscale=a1_gs,
             w1_fp4=w1_q,
@@ -409,7 +409,7 @@ def test_cutlass_fp4_moe_no_graph(
             apply_router_weight_on_input=False,
         )
 
-    check_moe(m, n, k, e, topk, dtype, cutlass_moe_impl, flip_w13=False)
+    check_moe(m, n, k, e, topk, dtype, tilelang_moe_impl, flip_w13=False)
 
 
 @pytest.mark.parametrize("m,n,k", MNK_FACTORS)
@@ -433,7 +433,7 @@ def test_flashinfer_fp4_moe_no_graph(
         w2_blockscale,
         w2_alphas,
     ):
-        return flashinfer_cutlass_fused_moe(
+        return flashinfer_tilelang_fused_moe(
             a,
             topk_ids.to(torch.int),
             topk_weights,
@@ -454,5 +454,5 @@ def test_flashinfer_fp4_moe_no_graph(
 
 
 if __name__ == "__main__":
-    test_cutlass_fp4_moe_no_graph(224, 1024, 1024, 256, 8, torch.half)
+    test_tilelang_fp4_moe_no_graph(224, 1024, 1024, 256, 8, torch.half)
     test_flashinfer_fp4_moe_no_graph(224, 1024, 1024, 256, 8, torch.half)

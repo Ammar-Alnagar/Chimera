@@ -20,9 +20,9 @@ from sglang.srt.layers.moe import (
     MoeRunnerConfig,
     get_moe_runner_backend,
 )
-from sglang.srt.layers.moe.cutlass_moe_params import CutlassMoEParams, CutlassMoEType
+from sglang.srt.layers.moe.tilelang_moe_params import TileLangMoEParams, TileLangMoEType
 from sglang.srt.layers.moe.moe_runner.triton import TritonMoeQuantInfo
-from sglang.srt.layers.moe.utils import should_use_flashinfer_cutlass_moe_fp4_allgather
+from sglang.srt.layers.moe.utils import should_use_flashinfer_tilelang_moe_fp4_allgather
 from sglang.srt.layers.parameter import ModelWeightParameter, PerTensorScaleParameter
 from sglang.srt.layers.quantization.base_config import (
     FusedMoEMethodBase,
@@ -33,7 +33,7 @@ from sglang.srt.layers.quantization.base_config import (
 from sglang.srt.layers.quantization.fp8_kernel import scaled_fp8_quant
 from sglang.srt.layers.quantization.fp8_utils import (
     apply_fp8_linear,
-    cutlass_fp8_supported,
+    tilelang_fp8_supported,
     is_blackwell_supported,
 )
 from sglang.srt.layers.quantization.kv_cache import BaseKVCacheMethod
@@ -80,17 +80,17 @@ try:
     enable_flashinfer_fp4_gemm = True
 except ImportError:
     if is_cuda():
-        from sgl_kernel import cutlass_scaled_fp4_mm as cutlass_fp4_gemm
+        from sgl_kernel import tilelang_scaled_fp4_mm as tilelang_fp4_gemm
     enable_flashinfer_fp4_gemm = False
     reorder_rows_for_gated_act_gemm = None
     shuffle_matrix_a = None
     shuffle_matrix_sf_a = None
 
 try:
-    from flashinfer.fused_moe import cutlass_fused_moe as flashinfer_cutlass_fused_moe
+    from flashinfer.fused_moe import tilelang_fused_moe as flashinfer_tilelang_fused_moe
     from flashinfer.fused_moe.core import ActivationType
 except ImportError:
-    flashinfer_cutlass_fused_moe = None
+    flashinfer_tilelang_fused_moe = None
 
     # Define a minimal ActivationType enum if flashinfer is not available
     class ActivationType(IntEnum):
@@ -126,13 +126,13 @@ def fp4_gemm(
     out_dtype: torch.dtype,
     out_features: int,
 ) -> torch.Tensor:
-    backend = FLASHINFER_FP4_GEMM_BACKEND if FLASHINFER_FP4_GEMM_BACKEND else "cutlass"
+    backend = FLASHINFER_FP4_GEMM_BACKEND if FLASHINFER_FP4_GEMM_BACKEND else "tilelang"
     if enable_flashinfer_fp4_gemm:
         return flashinfer_fp4_gemm(
             input, weight, input_sf, weight_sf, alpha, out_dtype, backend=backend
         )
     else:
-        return cutlass_fp4_gemm(input, weight, input_sf, weight_sf, alpha, out_dtype)
+        return tilelang_fp4_gemm(input, weight, input_sf, weight_sf, alpha, out_dtype)
 
 
 if is_cuda() and (not is_sm120_supported()) and (fp4_quantize is not None):
@@ -146,7 +146,7 @@ if is_cuda() and (not is_sm120_supported()) and (fp4_quantize is not None):
 
 TILELANG_MOE_SCALAR_INPUT_SCALE = get_bool_env_var(
     "SGLANG_TILELANG_MOE_SCALAR_INPUT_SCALE",
-    get_bool_env_var("SGLANG_CUTEDSL_MOE_SCALAR_INPUT_SCALE", "true"),
+    get_bool_env_var("SGLANG_TILELANG_MOE_SCALAR_INPUT_SCALE", "true"),
 )
 
 # TODO make it true by default when the DeepEP PR is merged
@@ -336,7 +336,7 @@ class ModelOptFp8LinearMethod(LinearMethodBase):
     def __init__(self, quant_config: ModelOptFp8Config):
         super().__init__()
         self.quant_config = quant_config
-        self.cutlass_fp8_supported = cutlass_fp8_supported()
+        self.tilelang_fp8_supported = tilelang_fp8_supported()
 
     def create_weights(
         self,
@@ -396,8 +396,8 @@ class ModelOptFp8LinearMethod(LinearMethodBase):
             layer.weight, layer.weight_scale, layer.logical_widths
         )
         layer.weight = Parameter(quantized_weight.t(), requires_grad=False)
-        # cutlass sgl-kernel only supports per-channel scale
-        if self.cutlass_fp8_supported:
+        # tilelang sgl-kernel only supports per-channel scale
+        if self.tilelang_fp8_supported:
             max_w_scale = convert_to_channelwise(max_w_scale, layer.logical_widths)
         layer.weight_scale = Parameter(max_w_scale, requires_grad=False)
         layer.input_scale = Parameter(layer.input_scale.max(), requires_grad=False)
@@ -415,7 +415,7 @@ class ModelOptFp8LinearMethod(LinearMethodBase):
             weight_scale=layer.weight_scale,
             input_scale=layer.input_scale,
             bias=bias,
-            cutlass_fp8_supported=self.cutlass_fp8_supported,
+            tilelang_fp8_supported=self.tilelang_fp8_supported,
         )
 
 
@@ -438,7 +438,7 @@ class ModelOptFp8MoEMethod(FusedMoEMethodBase):
 
     def __init__(self, quant_config: ModelOptFp8Config):
         self.quant_config = quant_config
-        self.cutlass_fp8_supported = cutlass_fp8_supported()
+        self.tilelang_fp8_supported = tilelang_fp8_supported()
 
     def create_weights(
         self,
@@ -666,7 +666,7 @@ class ModelOptFp8MoEMethod(FusedMoEMethodBase):
             layer.output2_scales_scalar = Parameter(
                 output2_scales_scalar, requires_grad=False
             )
-        elif get_moe_runner_backend().is_flashinfer_cutlass():
+        elif get_moe_runner_backend().is_flashinfer_tilelang():
             assert (
                 hasattr(layer, "w13_input_scale") and layer.w13_input_scale is not None
             )
@@ -793,7 +793,7 @@ class ModelOptFp8MoEMethod(FusedMoEMethodBase):
 
             return StandardCombineInput(hidden_states=output)
 
-        if get_moe_runner_backend().is_flashinfer_cutlass():
+        if get_moe_runner_backend().is_flashinfer_tilelang():
             activation = ACT_STR_TO_TYPE_MAP[self.moe_runner_config.activation]
             assert (
                 (
@@ -802,7 +802,7 @@ class ModelOptFp8MoEMethod(FusedMoEMethodBase):
                 )
                 or activation is ActivationType.Swiglu
                 and self.moe_runner_config.is_gated
-            ), "Only Relu2 non-gated or Swiglu gated are supported for flashinfer cutlass fp8 moe"
+            ), "Only Relu2 non-gated or Swiglu gated are supported for flashinfer tilelang fp8 moe"
             topk_weights, topk_ids = topk_output.topk_weights, topk_output.topk_ids
             x_fp8, _ = scaled_fp8_quant(x, layer.w13_input_scale)
             output_dtype = x.dtype
@@ -815,7 +815,7 @@ class ModelOptFp8MoEMethod(FusedMoEMethodBase):
                 symm_output = torch.empty(
                     x.shape[0], original_col, dtype=output_dtype, device=x.device
                 )
-            output = flashinfer_cutlass_fused_moe(
+            output = flashinfer_tilelang_fused_moe(
                 output=symm_output,
                 input=x_fp8,
                 token_selected_experts=topk_ids.to(torch.int),
@@ -1226,7 +1226,7 @@ class ModelOptFp4LinearMethod(LinearMethodBase):
         # TODO(shuw@nvidia.com)
         # Remove the default after flashinfer bumped to 0.5.1
         backend = (
-            FLASHINFER_FP4_GEMM_BACKEND if FLASHINFER_FP4_GEMM_BACKEND else "cutlass"
+            FLASHINFER_FP4_GEMM_BACKEND if FLASHINFER_FP4_GEMM_BACKEND else "tilelang"
         )
         out = fp4_gemm(
             x_fp4,
@@ -1263,11 +1263,11 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
         self._cache_permute_indices = {}
 
     @property
-    def enable_flashinfer_cutlass_moe(self) -> bool:
+    def enable_flashinfer_tilelang_moe(self) -> bool:
         from sglang.srt.layers.moe import get_moe_runner_backend
 
-        """Access the global enable_flashinfer_cutlass_moe setting."""
-        return get_moe_runner_backend().is_flashinfer_cutlass()
+        """Access the global enable_flashinfer_tilelang_moe setting."""
+        return get_moe_runner_backend().is_flashinfer_tilelang()
 
     @property
     def enable_flashinfer_tilelang_moe(self) -> bool:
@@ -1277,7 +1277,7 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
         return get_moe_runner_backend().is_flashinfer_tilelang()
 
     @property
-    def enable_flashinfer_cutedsl_moe(self) -> bool:
+    def enable_flashinfer_tilelang_moe(self) -> bool:
         # Deprecated: use enable_flashinfer_tilelang_moe instead
         return self.enable_flashinfer_tilelang_moe
 
@@ -1435,7 +1435,7 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
         layer.w13_weight_scale_2 = Parameter(w13_weight_scale_2, requires_grad=False)
 
         # Calculate input scales based on strategy
-        if self.enable_flashinfer_cutlass_moe or self.enable_flashinfer_trtllm_moe:
+        if self.enable_flashinfer_tilelang_moe or self.enable_flashinfer_trtllm_moe:
             w13_input_scale = layer.w13_input_scale.max().to(torch.float32)
             w2_input_scale = layer.w2_input_scale.max().to(torch.float32)
         elif self.enable_flashinfer_tilelang_moe:
@@ -1494,7 +1494,7 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
                 "input_global_scale": (
                     layer.w13_input_scale_quant
                     if MOE_NVFP4_DISPATCH
-                    or should_use_flashinfer_cutlass_moe_fp4_allgather()
+                    or should_use_flashinfer_tilelang_moe_fp4_allgather()
                     else None
                 )
             }
@@ -1575,7 +1575,7 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
             )
 
         else:
-            # CUTLASS processing - handle w13 and w2 separately
+            # TILELANG processing - handle w13 and w2 separately
 
             # Process w13 weights
             w13_blockscale_swizzled = swizzle_blockscale(layer.w13_weight_scale)
@@ -1621,12 +1621,12 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
             del layer.w2_weight_scale
             layer.w2_blockscale_swizzled.data.copy_(w2_blockscale_swizzled)
 
-            # Both flashinfer cutlass and regular cutlass use same processing for w2
+            # Both flashinfer tilelang and regular tilelang use same processing for w2
 
-            # Set up CUTLASS MoE parameters
+            # Set up TILELANG MoE parameters
             device = layer.w13_weight.device
-            layer.cutlass_moe_params = CutlassMoEParams(
-                CutlassMoEType.BlockscaledFP4,
+            layer.tilelang_moe_params = TileLangMoEParams(
+                TileLangMoEType.BlockscaledFP4,
                 device,
                 num_experts=layer.num_experts,  # global num experts
                 intermediate_size_per_partition=layer.w2_weight.shape[2] * 2,  # n
@@ -1635,8 +1635,8 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
 
     @property
     def load_up_proj_weight_first(self) -> bool:
-        # FlashInfer CUTLASS kernel assumes [Up, Gate] Proj as W13
-        return self.enable_flashinfer_cutlass_moe and self.moe_runner_config.is_gated
+        # FlashInfer TILELANG kernel assumes [Up, Gate] Proj as W13
+        return self.enable_flashinfer_tilelang_moe and self.moe_runner_config.is_gated
 
     def create_moe_runner(
         self, layer: torch.nn.Module, moe_runner_config: MoeRunnerConfig
@@ -1667,11 +1667,11 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
 
             return StandardCombineInput(hidden_states=layer.forward(x, topk_output))
 
-        if self.enable_flashinfer_cutlass_moe:
+        if self.enable_flashinfer_tilelang_moe:
             assert (
                 not moe_runner_config.apply_router_weight_on_input
             ), "apply_router_weight_on_input is not supported for Flashinfer"
-            # TRTLLM Cutlass moe takes in activations in BF16/Half/nvfp4 precision
+            # TRTLLM TileLang moe takes in activations in BF16/Half/nvfp4 precision
             # and fp4 quantized weights loaded from the checkpoint
             topk_weights, topk_ids = topk_output.topk_weights, topk_output.topk_ids
 
@@ -1692,7 +1692,7 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
                     device=x.device,
                 )
 
-            output = flashinfer_cutlass_fused_moe(
+            output = flashinfer_tilelang_fused_moe(
                 output=symm_output,
                 input=x,
                 token_selected_experts=topk_ids.to(torch.int),
@@ -1721,10 +1721,10 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
 
             return StandardCombineInput(hidden_states=output)
 
-        from sglang.srt.layers.moe.cutlass_moe import cutlass_moe_fp4
+        from sglang.srt.layers.moe.tilelang_moe import tilelang_moe_fp4
 
         topk_weights, topk_ids = topk_output.topk_weights, topk_output.topk_ids
-        output = cutlass_moe_fp4(
+        output = tilelang_moe_fp4(
             a=x,
             a1_gscale=layer.w13_input_scale_quant,
             w1_fp4=layer.w13_weight,
@@ -1736,7 +1736,7 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
             w2_alphas=layer.g2_alphas,
             topk_weights=topk_weights,
             topk_ids=topk_ids,
-            params=layer.cutlass_moe_params,
+            params=layer.tilelang_moe_params,
             apply_router_weight_on_input=moe_runner_config.apply_router_weight_on_input,
         ).to(x.dtype)
         # Scale by routed_scaling_factor is fused into select_experts.

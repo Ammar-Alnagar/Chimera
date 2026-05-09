@@ -93,7 +93,7 @@ from sglang.srt.layers.logits_processor import LogitsProcessor
 from sglang.srt.layers.moe import (
     get_moe_a2a_backend,
     get_moe_runner_backend,
-    should_use_flashinfer_cutlass_moe_fp4_allgather,
+    should_use_flashinfer_tilelang_moe_fp4_allgather,
 )
 from sglang.srt.layers.moe.ep_moe.layer import get_moe_impl_class
 from sglang.srt.layers.moe.fused_moe_triton.layer import FusedMoE
@@ -249,7 +249,7 @@ FORWARD_ABSORB_CORE_ATTENTION_BACKENDS = [
     "fa3",
     "nsa",
     "flashinfer",
-    "cutlass_mla",
+    "tilelang_mla",
     "trtllm_mla",
     "ascend",
 ]
@@ -396,8 +396,8 @@ def handle_attention_flashmla(attn, forward_batch):
     return _handle_attention_backend(attn, forward_batch, "flashmla")
 
 
-def handle_attention_cutlass_mla(attn, forward_batch):
-    return _handle_attention_backend(attn, forward_batch, "cutlass_mla")
+def handle_attention_tilelang_mla(attn, forward_batch):
+    return _handle_attention_backend(attn, forward_batch, "tilelang_mla")
 
 
 def handle_attention_fa4(attn, forward_batch):
@@ -717,7 +717,7 @@ class DeepseekV2MoE(nn.Module):
                     if get_moe_a2a_backend().is_deepep()
                     or get_moe_a2a_backend().is_mooncake()
                     or get_moe_a2a_backend().is_ascend_fuseep()
-                    or should_use_flashinfer_cutlass_moe_fp4_allgather()
+                    or should_use_flashinfer_tilelang_moe_fp4_allgather()
                     else {}
                 ),
             )
@@ -850,7 +850,7 @@ class DeepseekV2MoE(nn.Module):
             self.tp_size > 1
             and not should_allreduce_fusion
             and not use_reduce_scatter
-            and not should_use_flashinfer_cutlass_moe_fp4_allgather()
+            and not should_use_flashinfer_tilelang_moe_fp4_allgather()
         ):
             final_hidden_states = tensor_model_parallel_all_reduce(final_hidden_states)
         return final_hidden_states
@@ -928,7 +928,7 @@ class DeepseekV2MoE(nn.Module):
             self.tp_size > 1
             and not should_allreduce_fusion
             and not use_reduce_scatter
-            and not should_use_flashinfer_cutlass_moe_fp4_allgather()
+            and not should_use_flashinfer_tilelang_moe_fp4_allgather()
         ):
             final_hidden_states = tensor_model_parallel_all_reduce(final_hidden_states)
         return final_hidden_states
@@ -4024,7 +4024,7 @@ AttentionBackendRegistry.register("ascend", handle_attention_ascend)
 AttentionBackendRegistry.register("flashinfer", handle_attention_flashinfer)
 AttentionBackendRegistry.register("fa3", handle_attention_fa3)
 AttentionBackendRegistry.register("flashmla", handle_attention_flashmla)
-AttentionBackendRegistry.register("cutlass_mla", handle_attention_cutlass_mla)
+AttentionBackendRegistry.register("tilelang_mla", handle_attention_tilelang_mla)
 AttentionBackendRegistry.register("fa4", handle_attention_fa4)
 AttentionBackendRegistry.register("trtllm_mla", handle_attention_trtllm_mla)
 AttentionBackendRegistry.register("aiter", handle_attention_aiter)

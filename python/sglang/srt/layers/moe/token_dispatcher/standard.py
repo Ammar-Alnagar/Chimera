@@ -28,7 +28,7 @@ from sglang.srt.layers.moe.token_dispatcher.base import (
 from sglang.srt.layers.moe.topk import StandardTopKOutput, TopKOutput, TopKOutputChecker
 from sglang.srt.layers.moe.utils import (
     get_moe_runner_backend,
-    should_use_flashinfer_cutlass_moe_fp4_allgather,
+    should_use_flashinfer_tilelang_moe_fp4_allgather,
 )
 from sglang.srt.utils.common import get_bool_env_var, is_hip, is_sm120_supported
 
@@ -83,8 +83,8 @@ class StandardDispatcher(BaseDispatcher):
     def __init__(self, moe_runner_config: MoeRunnerConfig):
         super().__init__()
         self.moe_ep_size = get_moe_expert_parallel_world_size()
-        self.enable_flashinfer_cutlass_moe = (
-            get_moe_runner_backend().is_flashinfer_cutlass()
+        self.enable_flashinfer_tilelang_moe = (
+            get_moe_runner_backend().is_flashinfer_tilelang()
         )
         self.num_experts = moe_runner_config.num_experts
         self.num_local_shared_experts = moe_runner_config.num_fused_shared_experts
@@ -98,7 +98,7 @@ class StandardDispatcher(BaseDispatcher):
         self, hidden_states: torch.Tensor, topk_output: TopKOutput
     ) -> StandardDispatchOutput:
 
-        if should_use_flashinfer_cutlass_moe_fp4_allgather():
+        if should_use_flashinfer_tilelang_moe_fp4_allgather():
             # all-gather fp4 hidden states
             from flashinfer import nvfp4_block_scale_interleave
 
@@ -140,7 +140,7 @@ class StandardDispatcher(BaseDispatcher):
 
         if (
             self.moe_ep_size > 1
-            and not self.enable_flashinfer_cutlass_moe
+            and not self.enable_flashinfer_tilelang_moe
             and TopKOutputChecker.format_is_standard(topk_output)
         ):
             if self.local_expert_mapping is None:
@@ -182,7 +182,7 @@ class StandardDispatcher(BaseDispatcher):
 
     def combine(self, combine_input: StandardCombineInput) -> torch.Tensor:
         (hidden_states,) = combine_input
-        if should_use_flashinfer_cutlass_moe_fp4_allgather():
+        if should_use_flashinfer_tilelang_moe_fp4_allgather():
             hidden_states, global_hidden_states = get_local_dp_buffer(), hidden_states
             get_tp_group().reduce_scatterv(
                 global_hidden_states,

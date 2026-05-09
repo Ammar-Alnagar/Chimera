@@ -1,13 +1,13 @@
 import pytest
 import torch
 import torch.nn.functional as F
-from sgl_kernel import cutlass_mla_decode, cutlass_mla_get_workspace_size
+from sgl_kernel import tilelang_mla_decode, tilelang_mla_get_workspace_size
 from torch import Tensor
 
 # Disable tests on SM103 until the accuracy issues are fixed.
 if torch.cuda.get_device_capability() != (10, 0):
     pytest.skip(
-        reason="Cutlass MLA Requires compute capability of 10.",
+        reason="TileLang MLA Requires compute capability of 10.",
         allow_module_level=True,
     )
 
@@ -43,7 +43,7 @@ def ref_mla(
 @pytest.mark.parametrize("block_size", [1, 16, 64, 128])
 @pytest.mark.parametrize("num_heads", [16, 32, 64, 128])
 @pytest.mark.parametrize("num_kv_splits", [-1, 1])
-def test_cutlass_mla_decode(
+def test_tilelang_mla_decode(
     dtype: torch.dtype,
     mean_seq_len: int,
     bs: int,
@@ -71,7 +71,7 @@ def test_cutlass_mla_decode(
     max_seq_len = seq_lens.max().item()
     block_num = (max_seq_len + block_size - 1) // block_size
 
-    # Pad block_num so that small blocks can be packed into full 128-sized CUTLASS tiles.
+    # Pad block_num so that small blocks can be packed into full 128-sized TILELANG tiles.
     # One 128-wide tile can hold (128 // block_size) small blocks.
     pack_factor = 128 // block_size
     block_num = ((block_num + pack_factor - 1) // pack_factor) * pack_factor
@@ -82,7 +82,7 @@ def test_cutlass_mla_decode(
 
     kv_cache = torch.randn(block_table.numel(), block_size, d)
 
-    workspace_size = cutlass_mla_get_workspace_size(
+    workspace_size = tilelang_mla_get_workspace_size(
         block_num * block_size, bs, num_kv_splits=num_kv_splits
     )
     workspace = torch.empty(workspace_size, device="cuda", dtype=torch.uint8)
@@ -93,7 +93,7 @@ def test_cutlass_mla_decode(
 
     out_ref = q.new_zeros(bs, h_q, dv)
     ref_mla(out_ref, q, kv_cache, scale, block_table, seq_lens)
-    out = cutlass_mla_decode(
+    out = tilelang_mla_decode(
         q_nope, q_pe, kv_cache, seq_lens, block_table, workspace, scale, num_kv_splits
     )
 

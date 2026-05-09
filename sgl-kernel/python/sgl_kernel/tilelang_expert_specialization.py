@@ -1,6 +1,6 @@
 """TileLang-based expert-specialized grouped GEMM kernels.
 
-Replaces the former CuteDSL expert specialization with TileLang.
+Replaces the former TileLang expert specialization with TileLang.
 Provides FP8 blockwise scaled grouped MM and SM100 MXFP8 blockscaled
 grouped MM with PyTorch fallbacks.
 """
@@ -130,5 +130,5 @@ def tilelang_es_sm100_mxfp8_blockscaled_grouped_mm(
 
 # Backward-compat aliases
 expert_specialization_kernel = _expert_specialization_fallback
-cutedsl_es_fp8_blockwise_scaled_grouped_mm = tilelang_es_fp8_blockwise_scaled_grouped_mm
-cutedsl_es_sm100_mxfp8_blockscaled_grouped_mm = tilelang_es_sm100_mxfp8_blockscaled_grouped_mm
+tilelang_es_fp8_blockwise_scaled_grouped_mm = tilelang_es_fp8_blockwise_scaled_grouped_mm
+tilelang_es_sm100_mxfp8_blockscaled_grouped_mm = tilelang_es_sm100_mxfp8_blockscaled_grouped_mm

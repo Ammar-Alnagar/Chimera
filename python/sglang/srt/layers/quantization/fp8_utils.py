@@ -76,7 +76,7 @@ if _is_cuda:
         return mat_a.new_empty((M, N), dtype=out_dtype)
 
 
-use_vllm_cutlass_w8a8_fp8_kernel = get_bool_env_var("USE_VLLM_CUTLASS_W8A8_FP8_KERNEL")
+use_vllm_tilelang_w8a8_fp8_kernel = get_bool_env_var("USE_VLLM_TILELANG_W8A8_FP8_KERNEL")
 use_triton_w8a8_fp8_kernel = get_bool_env_var("USE_TRITON_W8A8_FP8_KERNEL")
 
 # Input scaling factors are no longer optional in _scaled_mm starting
@@ -102,7 +102,7 @@ def use_rowwise_torch_scaled_mm():
 USE_ROWWISE_TORCH_SCALED_MM = use_rowwise_torch_scaled_mm()
 
 
-def cutlass_fp8_supported():
+def tilelang_fp8_supported():
     if not _is_cuda:
         return False
     major, minor = get_device_capability()
@@ -143,7 +143,7 @@ class Fp8GemmRunnerBackend(Enum):
 
     AUTO = "auto"
     FLASHINFER = "flashinfer_trtllm"
-    CUTLASS = "cutlass"
+    TILELANG = "tilelang"
     DEEP_GEMM = "deep_gemm"
     TRITON = "triton"
     AITER = "aiter"
@@ -154,8 +154,8 @@ class Fp8GemmRunnerBackend(Enum):
     def is_flashinfer(self) -> bool:
         return self == Fp8GemmRunnerBackend.FLASHINFER
 
-    def is_cutlass(self) -> bool:
-        return self == Fp8GemmRunnerBackend.CUTLASS
+    def is_tilelang(self) -> bool:
+        return self == Fp8GemmRunnerBackend.TILELANG
 
     def is_deep_gemm(self) -> bool:
         return self == Fp8GemmRunnerBackend.DEEP_GEMM
@@ -170,8 +170,8 @@ class Fp8GemmRunnerBackend(Enum):
 FP8_GEMM_RUNNER_BACKEND: Fp8GemmRunnerBackend | None = None
 
 
-def _check_cutlass_block_fp8_hardware_support() -> bool:
-    """Return True if CUTLASS block FP8 is supported (Hopper or newer with CUDA 12.0+)."""
+def _check_tilelang_block_fp8_hardware_support() -> bool:
+    """Return True if TILELANG block FP8 is supported (Hopper or newer with CUDA 12.0+)."""
     return is_sm90_supported() or is_blackwell_supported()
 
 
@@ -208,14 +208,14 @@ def _dispatch_explicit_backend(backend: Fp8GemmRunnerBackend) -> Callable:
             )
         return flashinfer_gemm_w8a8_block_fp8_linear_with_fallback
 
-    elif backend.is_cutlass():
-        if not _check_cutlass_block_fp8_hardware_support():
+    elif backend.is_tilelang():
+        if not _check_tilelang_block_fp8_hardware_support():
             raise RuntimeError(
-                "CUTLASS block FP8 requested via --fp8-gemm-backend=cutlass, "
-                "but hardware does not support it. CUTLASS block FP8 requires "
+                "TILELANG block FP8 requested via --fp8-gemm-backend=tilelang, "
+                "but hardware does not support it. TILELANG block FP8 requires "
                 "Hopper (SM90+) GPUs with CUDA 12.0+."
             )
-        return cutlass_w8a8_block_fp8_linear_with_fallback
+        return tilelang_w8a8_block_fp8_linear_with_fallback
 
     elif backend.is_aiter():
         if not _use_aiter:
@@ -247,7 +247,7 @@ def _dispatch_auto_backend() -> Callable:
     # Priority order for auto selection:
     # 1. DeepGEMM (if enabled and available)
     # 2. FlashInfer TRTLLM (if Blackwell GPU and FlashInfer available)
-    # 3. CUTLASS (if Hopper+ GPU and CUDA 12.0+)
+    # 3. TILELANG (if Hopper+ GPU and CUDA 12.0+)
     # 4. AITER (if AMD GPU with AITER enabled)
     # 5. Triton (fallback)
 
@@ -255,8 +255,8 @@ def _dispatch_auto_backend() -> Callable:
         return deepgemm_w8a8_block_fp8_linear_with_fallback
     elif is_blackwell_supported() and is_flashinfer_available():
         return flashinfer_gemm_w8a8_block_fp8_linear_with_fallback
-    elif _check_cutlass_block_fp8_hardware_support():
-        return cutlass_w8a8_block_fp8_linear_with_fallback
+    elif _check_tilelang_block_fp8_hardware_support():
+        return tilelang_w8a8_block_fp8_linear_with_fallback
     elif _use_aiter:
         return aiter_w8a8_block_fp8_linear
     else:
@@ -274,17 +274,17 @@ def initialize_fp8_gemm_config(server_args: ServerArgs) -> None:
     if backend == "auto":
         if envs.SGLANG_ENABLE_FLASHINFER_FP8_GEMM.get():
             backend = "flashinfer_trtllm"
-        elif envs.SGLANG_SUPPORT_CUTLASS_BLOCK_FP8.get():
-            backend = "cutlass"
+        elif envs.SGLANG_SUPPORT_TILELANG_BLOCK_FP8.get():
+            backend = "tilelang"
     else:
         if (
             envs.SGLANG_ENABLE_FLASHINFER_FP8_GEMM.get()
-            or envs.SGLANG_SUPPORT_CUTLASS_BLOCK_FP8.get()
+            or envs.SGLANG_SUPPORT_TILELANG_BLOCK_FP8.get()
         ):
             logger.warning(
                 f"FP8 GEMM backend set to '{backend}' via --fp8-gemm-backend overrides "
                 "environment variables SGLANG_ENABLE_FLASHINFER_FP8_GEMM and "
-                "SGLANG_SUPPORT_CUTLASS_BLOCK_FP8. Using server argument value."
+                "SGLANG_SUPPORT_TILELANG_BLOCK_FP8. Using server argument value."
             )
 
     FP8_GEMM_RUNNER_BACKEND = Fp8GemmRunnerBackend(backend)
@@ -310,7 +310,7 @@ def flashinfer_gemm_w8a8_block_fp8_linear_with_fallback(
 
     # FlashInfer TRTLLM backend requires K dimension >= 256
     # Check shape before quantizing, otherwise we run into Flashinfer assertion.
-    # TODO(brayden): make a better fallback here, maybe to cutlass backend?
+    # TODO(brayden): make a better fallback here, maybe to tilelang backend?
     input_2d = input.view(-1, input.shape[-1])
     k_dim = input_2d.shape[1]  # K dimension
 
@@ -341,7 +341,7 @@ def flashinfer_gemm_w8a8_block_fp8_linear_with_fallback(
     return output.to(dtype=input_2d.dtype).view(*output_shape)
 
 
-def cutlass_w8a8_block_fp8_linear_with_fallback(
+def tilelang_w8a8_block_fp8_linear_with_fallback(
     input: torch.Tensor,
     weight: torch.Tensor,
     block_size: List[int],
@@ -897,7 +897,7 @@ def apply_fp8_linear(
     input_scale: Optional[torch.Tensor] = None,
     input_scale_ub: Optional[torch.Tensor] = None,
     bias: Optional[torch.Tensor] = None,
-    cutlass_fp8_supported: bool = cutlass_fp8_supported(),
+    tilelang_fp8_supported: bool = tilelang_fp8_supported(),
     use_per_token_if_dynamic: bool = False,
     pad_output: Optional[bool] = None,
     compressed_tensor_quant: bool = False,
@@ -910,7 +910,7 @@ def apply_fp8_linear(
     if pad_output is None:
         pad_output = (
             not get_bool_env_var("SGLANG_ENABLE_TORCH_COMPILE")
-            and not cutlass_fp8_supported
+            and not tilelang_fp8_supported
         )
     output_padding = 17 if pad_output else None
 
@@ -921,7 +921,7 @@ def apply_fp8_linear(
     if compressed_tensor_quant:
         # Maybe apply padding to output, see comment in __init__
         num_token_padding = output_padding
-        if cutlass_fp8_supported and weight_scale.numel() == weight.shape[1]:
+        if tilelang_fp8_supported and weight_scale.numel() == weight.shape[1]:
             num_token_padding = None
         qinput, x_scale = scaled_fp8_quant(
             input_2d,
@@ -930,12 +930,12 @@ def apply_fp8_linear(
             use_per_token_if_dynamic=use_per_token_if_dynamic,
         )
     else:
-        # cutlass w8a8 fp8 sgl-kernel only supports per-token scale
+        # tilelang w8a8 fp8 sgl-kernel only supports per-token scale
         if input_scale is not None:
             assert input_scale.numel() == 1
-            # broadcast per-tensor scale to per-token scale when supporting cutlass
+            # broadcast per-tensor scale to per-token scale when supporting tilelang
             qinput, x_scale = static_quant_fp8(
-                input_2d, input_scale, repeat_scale=cutlass_fp8_supported
+                input_2d, input_scale, repeat_scale=tilelang_fp8_supported
             )
         else:
             # default use per-token quantization if dynamic
@@ -956,12 +956,12 @@ def apply_fp8_linear(
                         input_2d, group_size=input_2d.shape[1]
                     )
 
-    if cutlass_fp8_supported and weight_scale.numel() == weight.shape[1]:
-        # cutlass_scaled_mm supports per tensor/channel W and per tensor/token A
+    if tilelang_fp8_supported and weight_scale.numel() == weight.shape[1]:
+        # tilelang_scaled_mm supports per tensor/channel W and per tensor/token A
         # for sgl-kernel fp8_scaled_mm, it support per channel W now
-        if VLLM_AVAILABLE and use_vllm_cutlass_w8a8_fp8_kernel:
-            # Fall back to vllm cutlass w8a8 fp8 kernel
-            output = ops.cutlass_scaled_mm(
+        if VLLM_AVAILABLE and use_vllm_tilelang_w8a8_fp8_kernel:
+            # Fall back to vllm tilelang w8a8 fp8 kernel
+            output = ops.tilelang_scaled_mm(
                 qinput,
                 weight,
                 out_dtype=input.dtype,
@@ -970,10 +970,10 @@ def apply_fp8_linear(
                 bias=bias,
             )
         else:
-            cutlass_compatible_b = (
+            tilelang_compatible_b = (
                 weight.shape[0] % 16 == 0 and weight.shape[1] % 16 == 0
             )
-            if not cutlass_compatible_b or use_triton_w8a8_fp8_kernel:
+            if not tilelang_compatible_b or use_triton_w8a8_fp8_kernel:
                 # Massage the input to be 2D
                 qinput = qinput.view(-1, qinput.shape[-1])
                 output = triton_scaled_mm(
@@ -1095,7 +1095,7 @@ def apply_fp8_ptpc_linear(
     input_scale: Optional[torch.Tensor] = None,
     input_scale_ub: Optional[torch.Tensor] = None,
     bias: Optional[torch.Tensor] = None,
-    cutlass_fp8_supported: bool = cutlass_fp8_supported(),
+    tilelang_fp8_supported: bool = tilelang_fp8_supported(),
     use_per_token_if_dynamic: bool = False,
     pad_output: Optional[bool] = None,
     compressed_tensor_quant: bool = False,

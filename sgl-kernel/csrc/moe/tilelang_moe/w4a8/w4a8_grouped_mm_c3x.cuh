@@ -23,13 +23,13 @@
 #include <cuda_runtime.h>
 #include <torch/all.h>
 
-#include "cutlass/cutlass.h"
-#include "cutlass/epilogue/collective/collective_builder.hpp"
-#include "cutlass/gemm/device/gemm_universal_adapter.h"
-#include "cutlass/gemm/dispatch_policy.hpp"
-#include "cutlass/gemm/group_array_problem_shape.hpp"
-#include "cutlass/gemm/kernel/gemm_universal.hpp"
-#include "cutlass_extensions/gemm/collective/collective_builder_mixed_input.hpp"
+#include "tilelang/tilelang.h"
+#include "tilelang/epilogue/collective/collective_builder.hpp"
+#include "tilelang/gemm/device/gemm_universal_adapter.h"
+#include "tilelang/gemm/dispatch_policy.hpp"
+#include "tilelang/gemm/group_array_problem_shape.hpp"
+#include "tilelang/gemm/kernel/gemm_universal.hpp"
+#include "tilelang_extensions/gemm/collective/collective_builder_mixed_input.hpp"
 #include "w4a8_get_group_starts.cuh"
 
 using namespace cute;
@@ -37,51 +37,51 @@ using namespace cute;
 namespace {
 
 // Type definitions
-using MmaType = cutlass::float_e4m3_t;     // FP8 e4m3 type
-using QuantType = cutlass::int4b_t;        // 4-bit integer type
+using MmaType = tilelang::float_e4m3_t;     // FP8 e4m3 type
+using QuantType = tilelang::int4b_t;        // 4-bit integer type
 using ElementAccumulator = float;          // Accumulator type
-using ElementScale = cutlass::bfloat16_t;  // Scale type
-using ElementC = cutlass::bfloat16_t;      // Output type
+using ElementScale = tilelang::bfloat16_t;  // Scale type
+using ElementC = tilelang::bfloat16_t;      // Output type
 using ElementD = ElementC;                 // Output type
-using ProblemShape = cutlass::gemm::GroupProblemShape<Shape<int, int, int>>;
+using ProblemShape = tilelang::gemm::GroupProblemShape<Shape<int, int, int>>;
 
 // Architecture-specific configurations
-using ArchTag = cutlass::arch::Sm90;
-using OperatorClass = cutlass::arch::OpClassTensorOp;
+using ArchTag = tilelang::arch::Sm90;
+using OperatorClass = tilelang::arch::OpClassTensorOp;
 // constexpr int TileShapeK = 512;
 // using TileShape = Shape<_128, _32, cute::Int<TileShapeK>>;
 // using ClusterShape = Shape<_1, _1, _1>;
 
 // Layout configurations
-using LayoutA = cutlass::layout::RowMajor;
-using LayoutB = cutlass::layout::ColumnMajor;
-using LayoutC = cutlass::layout::RowMajor;
+using LayoutA = tilelang::layout::RowMajor;
+using LayoutB = tilelang::layout::ColumnMajor;
+using LayoutC = tilelang::layout::RowMajor;
 using LayoutD = LayoutC;
 
 // Transposed layouts
-using LayoutA_Transpose = typename cutlass::layout::LayoutTranspose<LayoutA>::type;
-using LayoutB_Transpose = typename cutlass::layout::LayoutTranspose<LayoutB>::type;
-using LayoutC_Transpose = typename cutlass::layout::LayoutTranspose<LayoutC>::type;
-using LayoutD_Transpose = typename cutlass::layout::LayoutTranspose<LayoutD>::type;
+using LayoutA_Transpose = typename tilelang::layout::LayoutTranspose<LayoutA>::type;
+using LayoutB_Transpose = typename tilelang::layout::LayoutTranspose<LayoutB>::type;
+using LayoutC_Transpose = typename tilelang::layout::LayoutTranspose<LayoutC>::type;
+using LayoutD_Transpose = typename tilelang::layout::LayoutTranspose<LayoutD>::type;
 
 // Alignments
-static constexpr int AlignmentA = 128 / cutlass::sizeof_bits<MmaType>::value;
-static constexpr int AlignmentB = 128 / cutlass::sizeof_bits<QuantType>::value;
-static constexpr int AlignmentC = 128 / cutlass::sizeof_bits<ElementC>::value;
-static constexpr int AlignmentD = 128 / cutlass::sizeof_bits<ElementD>::value;
+static constexpr int AlignmentA = 128 / tilelang::sizeof_bits<MmaType>::value;
+static constexpr int AlignmentB = 128 / tilelang::sizeof_bits<QuantType>::value;
+static constexpr int AlignmentC = 128 / tilelang::sizeof_bits<ElementC>::value;
+static constexpr int AlignmentD = 128 / tilelang::sizeof_bits<ElementD>::value;
 
 template <typename TileShape, typename ClusterShape, typename KernelSchedule, typename EpilogueSchedule>
-struct cutlass_3x_w4a8_group_gemm {
+struct tilelang_3x_w4a8_group_gemm {
   static constexpr int GroupSize = 128;
   static constexpr int PackedScalesNum = get<2>(TileShape{}) / GroupSize;
-  using ElementScalePacked = cutlass::Array<ElementScale, PackedScalesNum>;
+  using ElementScalePacked = tilelang::Array<ElementScale, PackedScalesNum>;
 
-  using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
+  using CollectiveEpilogue = typename tilelang::epilogue::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       TileShape,
       ClusterShape,
-      cutlass::epilogue::collective::EpilogueTileAuto,
+      tilelang::epilogue::collective::EpilogueTileAuto,
       ElementAccumulator,
       ElementAccumulator,
       ElementC,
@@ -92,7 +92,7 @@ struct cutlass_3x_w4a8_group_gemm {
       AlignmentD,
       EpilogueSchedule>::CollectiveOp;
 
-  using CollectiveMainloopScaleOnly = typename cutlass::gemm::collective::CollectiveBuilderMixedInput<
+  using CollectiveMainloopScaleOnly = typename tilelang::gemm::collective::CollectiveBuilderMixedInput<
       ArchTag,
       OperatorClass,
       cute::tuple<QuantType, ElementScalePacked>,
@@ -104,18 +104,18 @@ struct cutlass_3x_w4a8_group_gemm {
       ElementAccumulator,
       TileShape,
       ClusterShape,
-      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(
+      tilelang::gemm::collective::StageCountAutoCarveout<static_cast<int>(
           sizeof(typename CollectiveEpilogue::SharedStorage))>,
       KernelSchedule>::CollectiveOp;
 
   // Define the final kernel and GEMM operation types
   using GemmKernelScaleOnly =
-      cutlass::gemm::kernel::GemmUniversal<ProblemShape, CollectiveMainloopScaleOnly, CollectiveEpilogue>;
+      tilelang::gemm::kernel::GemmUniversal<ProblemShape, CollectiveMainloopScaleOnly, CollectiveEpilogue>;
 
-  using GemmScaleOnly = cutlass::gemm::device::GemmUniversalAdapter<GemmKernelScaleOnly>;
+  using GemmScaleOnly = tilelang::gemm::device::GemmUniversalAdapter<GemmKernelScaleOnly>;
 
-  using StrideA = cute::remove_pointer_t<cutlass::detail::TagToStrideA_t<LayoutA*>>;
-  using StrideB = cute::remove_pointer_t<cutlass::detail::TagToStrideB_t<LayoutB*>>;
+  using StrideA = cute::remove_pointer_t<tilelang::detail::TagToStrideA_t<LayoutA*>>;
+  using StrideB = cute::remove_pointer_t<tilelang::detail::TagToStrideB_t<LayoutB*>>;
   using StrideC = typename GemmKernelScaleOnly::InternalStrideC;
   using StrideD = typename GemmKernelScaleOnly::InternalStrideD;
   using StrideS = typename CollectiveMainloopScaleOnly::StrideScale;
@@ -153,7 +153,7 @@ struct cutlass_3x_w4a8_group_gemm {
  */
 // template <typename TileShape, typename ClusterShape, typename KernelSchedule, typename EpilogueSchedule>
 template <typename Gemm>
-void cutlass_w4a8_group_gemm_caller(
+void tilelang_w4a8_group_gemm_caller(
     torch::Tensor& d_tensors,
     torch::Tensor const& a_tensors,
     torch::Tensor const& b_tensors,
@@ -166,7 +166,7 @@ void cutlass_w4a8_group_gemm_caller(
     torch::Tensor const& d_strides,
     torch::Tensor const& s_strides,
     int64_t chunk_size) {
-  //   using Gemm = cutlass_3x_w4a8_group_gemm<TileShape, ClusterShape, KernelSchedule, EpilogueSchedule>;
+  //   using Gemm = tilelang_3x_w4a8_group_gemm<TileShape, ClusterShape, KernelSchedule, EpilogueSchedule>;
   using Args = typename Gemm::GemmScaleOnly::Arguments;
 
   int num_experts = static_cast<int>(expert_offsets.size(0));
@@ -205,9 +205,9 @@ void cutlass_w4a8_group_gemm_caller(
   torch::Tensor a_scales_ptrs = torch::empty(num_experts, options_int);
   torch::Tensor b_scales_ptrs = torch::empty(num_experts, options_int);
 
-  cutlass::KernelHardwareInfo hw_info;
+  tilelang::KernelHardwareInfo hw_info;
   hw_info.device_id = a_tensors.device().index();
-  hw_info.sm_count = cutlass::KernelHardwareInfo::query_device_multiprocessor_count(hw_info.device_id);
+  hw_info.sm_count = tilelang::KernelHardwareInfo::query_device_multiprocessor_count(hw_info.device_id);
 
   Args arguments;
   decltype(arguments.epilogue.thread) fusion_args;
@@ -238,7 +238,7 @@ void cutlass_w4a8_group_gemm_caller(
       b_scales);
 
   arguments = Args{
-      cutlass::gemm::GemmUniversalMode::kGrouped,
+      tilelang::gemm::GemmUniversalMode::kGrouped,
       {num_experts, problem_sizes_as_shapes, nullptr},
       {static_cast<const QuantType**>(b_ptrs.data_ptr()),
        static_cast<typename Gemm::StrideB*>(b_strides.data_ptr()),
@@ -260,18 +260,18 @@ void cutlass_w4a8_group_gemm_caller(
   auto const workspace_options = torch::TensorOptions().dtype(torch::kUInt8).device(a_tensors.device());
   auto workspace = torch::empty(workspace_size, workspace_options);
 
-  cutlass::Status status = gemm.can_implement(arguments);
-  if (status != cutlass::Status::kSuccess) {
+  tilelang::Status status = gemm.can_implement(arguments);
+  if (status != tilelang::Status::kSuccess) {
     TORCH_CHECK(false, "GEMM implementation not supported");
   }
 
   status = gemm.initialize(arguments, workspace.data_ptr(), stream);
-  if (status != cutlass::Status::kSuccess) {
+  if (status != tilelang::Status::kSuccess) {
     TORCH_CHECK(false, "GEMM initialization failed");
   }
 
   status = gemm.run(stream);
-  if (status != cutlass::Status::kSuccess) {
+  if (status != tilelang::Status::kSuccess) {
     TORCH_CHECK(false, "GEMM execution failed");
   }
 }

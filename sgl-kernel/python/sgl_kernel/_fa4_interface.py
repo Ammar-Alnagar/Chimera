@@ -1,7 +1,7 @@
 # Adapted from https://github.com/Dao-AILab/flash-attention/blob/54d8aa6751fc9d5f0357854079261913d5df1f9d/flash_attn/cute/interface.py
 
 # Copyright (c) 2025, Jay Shah, Ganesh Bikshandi, Ying Zhang, Vijay Thakkar, Pradeep Ramani, Tri Dao.
-# [2025-10-14] Version in Cute-DSL, for Hopper and Blackwell. You'd need to install nvidia-cutlass-dsl==4.4.2.
+# [2025-10-14] Version in Cute-DSL, for Hopper and Blackwell. You'd need to install nvidia-tilelang-dsl==4.4.2.
 
 
 import copy
@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 import cuda.bindings.driver as cuda
-import cutlass
-import cutlass.cute as cute
+import tilelang
+import tilelang.cute as cute
 import torch
-from cutlass.cute.runtime import from_dlpack
+from tilelang.cute.runtime import from_dlpack
 from flash_attn_origin.cute import utils
 from flash_attn_origin.cute.flash_fwd import FlashAttentionForwardSm90
 from flash_attn_origin.cute.flash_fwd_sm100 import FlashAttentionForwardSm100
@@ -29,9 +29,9 @@ def maybe_contiguous(x):
 
 
 torch2cute_dtype_map = {
-    torch.float16: cutlass.Float16,
-    torch.bfloat16: cutlass.BFloat16,
-    torch.float32: cutlass.Float32,
+    torch.float16: tilelang.Float16,
+    torch.bfloat16: tilelang.BFloat16,
+    torch.float32: tilelang.Float32,
 }
 
 

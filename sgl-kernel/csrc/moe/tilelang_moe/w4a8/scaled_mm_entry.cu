@@ -10,7 +10,7 @@ int32_t get_sm_version_num() {
   return version_num;
 }
 
-void cutlass_w4a8_moe_mm_sm90(
+void tilelang_w4a8_moe_mm_sm90(
     torch::Tensor& d_tensors,
     torch::Tensor const& a_tensors,
     torch::Tensor const& b_tensors,
@@ -25,7 +25,7 @@ void cutlass_w4a8_moe_mm_sm90(
     int64_t chunk_size,
     int64_t topk);
 
-void get_cutlass_w4a8_moe_mm_data_caller(
+void get_tilelang_w4a8_moe_mm_data_caller(
     const torch::Tensor& topk_ids,
     torch::Tensor& expert_offsets,
     torch::Tensor& problem_sizes1,
@@ -36,7 +36,7 @@ void get_cutlass_w4a8_moe_mm_data_caller(
     const int64_t n,
     const int64_t k);
 
-void cutlass_w4a8_moe_mm(
+void tilelang_w4a8_moe_mm(
     torch::Tensor& d_tensors,
     torch::Tensor const& a_tensors,
     torch::Tensor const& b_tensors,
@@ -50,7 +50,7 @@ void cutlass_w4a8_moe_mm(
     torch::Tensor const& s_strides,
     int64_t chunk_size,
     int64_t topk) {
-  cutlass_w4a8_moe_mm_sm90(
+  tilelang_w4a8_moe_mm_sm90(
       d_tensors,
       a_tensors,
       b_tensors,
@@ -67,7 +67,7 @@ void cutlass_w4a8_moe_mm(
   return;
 }
 
-void get_cutlass_w4a8_moe_mm_data(
+void get_tilelang_w4a8_moe_mm_data(
     const torch::Tensor& topk_ids,
     torch::Tensor& expert_offsets,
     torch::Tensor& problem_sizes1,
@@ -77,7 +77,7 @@ void get_cutlass_w4a8_moe_mm_data(
     const int64_t num_experts,
     const int64_t n,
     const int64_t k) {
-  get_cutlass_w4a8_moe_mm_data_caller(
+  get_tilelang_w4a8_moe_mm_data_caller(
       topk_ids,
       expert_offsets,
       problem_sizes1,

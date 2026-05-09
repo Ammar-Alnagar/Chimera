@@ -145,11 +145,11 @@ def create_flashattention_v4_backend(runner):
     return FlashAttentionBackend(runner, fa_impl_ver=4)
 
 
-@register_attention_backend("cutlass_mla")
-def create_cutlass_mla_backend(runner):
-    from sglang.srt.layers.attention.cutlass_mla_backend import CutlassMLABackend
+@register_attention_backend("tilelang_mla")
+def create_tilelang_mla_backend(runner):
+    from sglang.srt.layers.attention.tilelang_mla_backend import TileLangMLABackend
 
-    return CutlassMLABackend(runner)
+    return TileLangMLABackend(runner)
 
 
 @register_attention_backend("trtllm_mha")

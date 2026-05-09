@@ -626,7 +626,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 # Force TileLang path
-os.environ["SGL_KERNEL_FORCE_CUTEDSL"] = "1"
+os.environ["SGL_KERNEL_FORCE_TILELANG"] = "1"
 ```
 
 #### 4. Out of Shared Memory
@@ -678,8 +678,8 @@ print(f"TFLOPS: {2 * M * N * K / (elapsed_ms * 1e-3) / 1e12:.2f}")
 
 ## Additional Resources
 
-- [CUTLASS Documentation](https://github.com/NVIDIA/cutlass)
-- [TileLang Tutorial](https://github.com/NVIDIA/cutlass/tree/main/media/docs/tilelang)
+- [TILELANG Documentation](https://github.com/NVIDIA/tilelang)
+- [TileLang Tutorial](https://github.com/NVIDIA/tilelang/tree/main/media/docs/tilelang)
 - [Chimera Kernel Tests](../sgl-kernel/tests/)
 - [Benchmark Scripts](../sgl-kernel/benchmark/)
 

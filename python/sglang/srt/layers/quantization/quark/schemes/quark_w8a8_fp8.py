@@ -13,7 +13,7 @@ from sglang.srt.layers.parameter import (
 from sglang.srt.layers.quantization.fp8_kernel import is_fp8_fnuz
 from sglang.srt.layers.quantization.fp8_utils import (
     apply_fp8_linear,
-    cutlass_fp8_supported,
+    tilelang_fp8_supported,
     normalize_e4m3fn_to_e4m3fnuz,
 )
 from sglang.srt.layers.quantization.quark.schemes import QuarkScheme
@@ -34,7 +34,7 @@ class QuarkW8A8Fp8(QuarkScheme):
     def __init__(
         self, weight_config: dict[str, Any], input_config: Optional[dict[str, Any]]
     ):
-        self.cutlass_fp8_supported = cutlass_fp8_supported()
+        self.tilelang_fp8_supported = tilelang_fp8_supported()
         self.weight_qscheme = cast(str, weight_config.get("qscheme"))
         self.is_static_input_scheme: bool = False
         self.input_qscheme: Optional[str] = None
@@ -181,6 +181,6 @@ class QuarkW8A8Fp8(QuarkScheme):
             layer.weight_scale,
             input_scale=layer.input_scale,
             bias=bias,
-            cutlass_fp8_supported=self.cutlass_fp8_supported,
+            tilelang_fp8_supported=self.tilelang_fp8_supported,
             use_per_token_if_dynamic=self.per_token,
         )

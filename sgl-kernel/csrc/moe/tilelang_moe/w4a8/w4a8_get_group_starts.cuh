@@ -4,8 +4,8 @@
 #include <cuda.h>
 #include <torch/all.h>
 
-#include "cutlass/bfloat16.h"
-#include "cutlass/float8.h"
+#include "tilelang/bfloat16.h"
+#include "tilelang/float8.h"
 
 template <typename ElementA, typename ElementB, typename ElementC, typename ElementAccumulator>
 __global__ void int4_fp8_get_group_gemm_starts(
@@ -14,12 +14,12 @@ __global__ void int4_fp8_get_group_gemm_starts(
     ElementB** b_offsets,
     ElementC** out_offsets,
     ElementAccumulator** a_scales_offsets,
-    cutlass::bfloat16_t** b_scales_offsets,
+    tilelang::bfloat16_t** b_scales_offsets,
     ElementA* a_base_as_int,
     ElementB* b_base_as_int,
     ElementC* out_base_as_int,
     ElementAccumulator* a_scales_base_as_int,
-    cutlass::bfloat16_t* b_scales_base_as_int,
+    tilelang::bfloat16_t* b_scales_base_as_int,
     int64_t n,
     int64_t k,
     bool per_act_token,
@@ -40,12 +40,12 @@ __global__ void int4_fp8_get_group_gemm_starts_3d(
     ElementB** b_offsets,
     ElementC** out_offsets,
     ElementAccumulator** a_scales_offsets,
-    cutlass::bfloat16_t** b_scales_offsets,
+    tilelang::bfloat16_t** b_scales_offsets,
     ElementA* a_base_as_int,
     ElementB* b_base_as_int,
     ElementC* out_base_as_int,
     ElementAccumulator* a_scales_base_as_int,
-    cutlass::bfloat16_t* b_scales_base_as_int,
+    tilelang::bfloat16_t* b_scales_base_as_int,
     int64_t n,
     int64_t m,
     int64_t k,
@@ -70,19 +70,19 @@ __global__ void int4_fp8_get_group_gemm_starts_3d(
 
 #define __CALL_W4A8_GET_STARTS_KERNEL(TENSOR_C_TYPE, C_TYPE)                              \
   else if (out_tensors.dtype() == TENSOR_C_TYPE) {                                        \
-    int4_fp8_get_group_gemm_starts<cutlass::float_e4m3_t, cutlass::int8_t, C_TYPE, float> \
+    int4_fp8_get_group_gemm_starts<tilelang::float_e4m3_t, tilelang::int8_t, C_TYPE, float> \
         <<<1, num_experts, 0, stream>>>(                                                  \
             static_cast<int32_t*>(expert_offsets.data_ptr()),                             \
-            static_cast<cutlass::float_e4m3_t**>(a_ptrs.data_ptr()),                      \
-            static_cast<cutlass::int8_t**>(b_ptrs.data_ptr()),                            \
+            static_cast<tilelang::float_e4m3_t**>(a_ptrs.data_ptr()),                      \
+            static_cast<tilelang::int8_t**>(b_ptrs.data_ptr()),                            \
             static_cast<C_TYPE**>(out_ptrs.data_ptr()),                                   \
             static_cast<float**>(a_scales_ptrs.data_ptr()),                               \
-            static_cast<cutlass::bfloat16_t**>(b_scales_ptrs.data_ptr()),                 \
-            static_cast<cutlass::float_e4m3_t*>(a_tensors.data_ptr()),                    \
-            static_cast<cutlass::int8_t*>(b_tensors.data_ptr()),                          \
+            static_cast<tilelang::bfloat16_t**>(b_scales_ptrs.data_ptr()),                 \
+            static_cast<tilelang::float_e4m3_t*>(a_tensors.data_ptr()),                    \
+            static_cast<tilelang::int8_t*>(b_tensors.data_ptr()),                          \
             static_cast<C_TYPE*>(out_tensors.data_ptr()),                                 \
             static_cast<float*>(a_scales.data_ptr()),                                     \
-            static_cast<cutlass::bfloat16_t*>(b_scales.data_ptr()),                       \
+            static_cast<tilelang::bfloat16_t*>(b_scales.data_ptr()),                       \
             out_tensors.size(1),                                                          \
             a_tensors.size(1),                                                            \
             per_act_token,                                                                \
@@ -91,18 +91,18 @@ __global__ void int4_fp8_get_group_gemm_starts_3d(
 
 #define __CALL_W4A8_GET_STARTS_KERNEL_3D(TENSOR_C_TYPE, C_TYPE)                              \
   else if (out_tensors.dtype() == TENSOR_C_TYPE) {                                           \
-    int4_fp8_get_group_gemm_starts_3d<cutlass::float_e4m3_t, cutlass::int8_t, C_TYPE, float> \
+    int4_fp8_get_group_gemm_starts_3d<tilelang::float_e4m3_t, tilelang::int8_t, C_TYPE, float> \
         <<<1, num_experts, 0, stream>>>(                                                     \
-            static_cast<cutlass::float_e4m3_t**>(a_ptrs.data_ptr()),                         \
-            static_cast<cutlass::int8_t**>(b_ptrs.data_ptr()),                               \
+            static_cast<tilelang::float_e4m3_t**>(a_ptrs.data_ptr()),                         \
+            static_cast<tilelang::int8_t**>(b_ptrs.data_ptr()),                               \
             static_cast<C_TYPE**>(out_ptrs.data_ptr()),                                      \
             static_cast<float**>(a_scales_ptrs.data_ptr()),                                  \
-            static_cast<cutlass::bfloat16_t**>(b_scales_ptrs.data_ptr()),                    \
-            static_cast<cutlass::float_e4m3_t*>(a_tensors.data_ptr()),                       \
-            static_cast<cutlass::int8_t*>(b_tensors.data_ptr()),                             \
+            static_cast<tilelang::bfloat16_t**>(b_scales_ptrs.data_ptr()),                    \
+            static_cast<tilelang::float_e4m3_t*>(a_tensors.data_ptr()),                       \
+            static_cast<tilelang::int8_t*>(b_tensors.data_ptr()),                             \
             static_cast<C_TYPE*>(out_tensors.data_ptr()),                                    \
             static_cast<float*>(a_scales.data_ptr()),                                        \
-            static_cast<cutlass::bfloat16_t*>(b_scales.data_ptr()),                          \
+            static_cast<tilelang::bfloat16_t*>(b_scales.data_ptr()),                          \
             out_tensors.size(2),                                                             \
             a_tensors.size(1),                                                               \
             a_tensors.size(2),                                                               \
@@ -139,7 +139,7 @@ void run_int4_fp8_get_group_gemm_starts(
   if (a_tensors.dim() == 3) {
     if (false) {
     }
-    __CALL_W4A8_GET_STARTS_KERNEL_3D(torch::kBFloat16, cutlass::bfloat16_t)
+    __CALL_W4A8_GET_STARTS_KERNEL_3D(torch::kBFloat16, tilelang::bfloat16_t)
     __CALL_W4A8_GET_STARTS_KERNEL_3D(torch::kFloat16, half)
     else {
       TORCH_CHECK(false, "Invalid output type (must be float16 or bfloat16)");
@@ -147,7 +147,7 @@ void run_int4_fp8_get_group_gemm_starts(
   } else {
     if (false) {
     }
-    __CALL_W4A8_GET_STARTS_KERNEL(torch::kBFloat16, cutlass::bfloat16_t)
+    __CALL_W4A8_GET_STARTS_KERNEL(torch::kBFloat16, tilelang::bfloat16_t)
     __CALL_W4A8_GET_STARTS_KERNEL(torch::kFloat16, half)
     else {
       TORCH_CHECK(false, "Invalid output type (must be float16 or bfloat16)");

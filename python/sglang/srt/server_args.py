@@ -120,7 +120,7 @@ ATTENTION_BACKEND_CHOICES = [
     "flex_attention",
     "nsa",
     # NVIDIA specific
-    "cutlass_mla",
+    "tilelang_mla",
     "fa3",
     "fa4",
     "flashinfer",
@@ -170,11 +170,10 @@ MOE_RUNNER_BACKEND_CHOICES = [
     "triton",
     "triton_kernel",
     "flashinfer_trtllm",
-    "flashinfer_cutlass",
     "flashinfer_mxfp4",
     "flashinfer_tilelang",
-    "flashinfer_cutedsl",  # deprecated alias for flashinfer_tilelang
-    "cutlass",
+    "flashinfer_tilelang",  # deprecated alias for flashinfer_tilelang
+    "tilelang",
 ]
 
 MOE_A2A_BACKEND_CHOICES = ["none", "deepep", "mooncake", "ascend_fuseep"]
@@ -183,7 +182,7 @@ FP8_GEMM_RUNNER_BACKEND_CHOICES = [
     "auto",
     "deep_gemm",
     "flashinfer_trtllm",
-    "cutlass",
+    "tilelang",
     "triton",
     "aiter",
 ]
@@ -528,7 +527,7 @@ class ServerArgs:
     enable_layerwise_nvtx_marker: bool = False
     enable_nccl_nvls: bool = False
     enable_symm_mem: bool = False
-    disable_flashinfer_cutlass_moe_fp4_allgather: bool = False
+    disable_flashinfer_tilelang_moe_fp4_allgather: bool = False
     enable_tokenizer_batch_encode: bool = False
     disable_tokenizer_batch_decode: bool = False
     disable_outlines_disk_cache: bool = False
@@ -1361,7 +1360,7 @@ class ServerArgs:
                     )
                 else:
                     self.quantization = model_config.quantization
-                self.moe_runner_backend = "flashinfer_cutlass"
+                self.moe_runner_backend = "flashinfer_tilelang"
             if not self.disable_radix_cache:
                 logger.warning(
                     "Disabling overlap schedule since MambaRadixCache is not compatible with "
@@ -1628,11 +1627,11 @@ class ServerArgs:
             self.page_size = 64
 
         if (
-            self.attention_backend == "cutlass_mla"
-            or self.decode_attention_backend == "cutlass_mla"
+            self.attention_backend == "tilelang_mla"
+            or self.decode_attention_backend == "tilelang_mla"
         ):
             logger.warning(
-                "Cutlass MLA only supports a page_size of 128, change page_size to 128."
+                "TileLang MLA only supports a page_size of 128, change page_size to 128."
             )
             self.page_size = 128
 
@@ -1767,7 +1766,7 @@ class ServerArgs:
                 if self.prefill_attention_backend_str == "fa4":
                     if use_mla_backend:  # FA4 + MLA
                         KV4_FA4_MLA_BACKEND_CHOICES = [
-                            "cutlass_mla",
+                            "tilelang_mla",
                             "flashinfer",
                             "trtllm_mla",
                         ]
@@ -1794,7 +1793,7 @@ class ServerArgs:
                 else:
                     if use_mla_backend:  # !FA4 + MLA
                         KV4_ATTENTION_MLA_BACKEND_CHOICES = [
-                            "cutlass_mla",
+                            "tilelang_mla",
                             "flashinfer",
                             "trtllm_mla",
                             "flashmla",
@@ -1852,12 +1851,12 @@ class ServerArgs:
             ), "Please enable dp attention when setting enable_dp_lm_head. "
 
     def _handle_moe_kernel_config(self):
-        if self.moe_runner_backend == "flashinfer_cutlass":
+        if self.moe_runner_backend == "flashinfer_tilelang":
             assert self.quantization in [
                 "modelopt_fp4",
                 "modelopt_fp8",
                 None,
-            ], f"Invalid quantization '{self.quantization}'. \nFlashInfer Cutlass MOE supports only: 'modelopt_fp4', 'modelopt_fp8', or bfloat16 (None)."
+            ], f"Invalid quantization '{self.quantization}'. \nFlashInfer TileLang MOE supports only: 'modelopt_fp4', 'modelopt_fp8', or bfloat16 (None)."
             assert self.ep_size in [
                 1,
                 self.tp_size,
@@ -1876,18 +1875,18 @@ class ServerArgs:
                 "FlashInfer TRTLLM MoE is enabled. --disable-shared-experts-fusion is automatically set."
             )
 
-        if get_bool_env_var("SGLANG_CUTLASS_MOE"):
+        if get_bool_env_var("SGLANG_TILELANG_MOE"):
             logger.warning(
-                "SGLANG_CUTLASS_MOE is deprecated, use --moe-runner-backend=cutlass and/or --speculative-moe-runner-backend=cutlass instead"
+                "SGLANG_TILELANG_MOE is deprecated, use --moe-runner-backend=tilelang and/or --speculative-moe-runner-backend=tilelang instead"
             )
             assert (
                 self.quantization == "fp8"
-            ), "cutlass MoE is only supported with fp8 quantization"
-            self.moe_runner_backend = "cutlass"
-        if self.moe_runner_backend == "cutlass" and self.quantization == "fp8":
+            ), "tilelang MoE is only supported with fp8 quantization"
+            self.moe_runner_backend = "tilelang"
+        if self.moe_runner_backend == "tilelang" and self.quantization == "fp8":
             assert (
                 self.ep_size == 1
-            ), "FP8 Cutlass MoE is only supported with ep_size == 1"
+            ), "FP8 TileLang MoE is only supported with ep_size == 1"
 
     def _handle_a2a_moe(self):
         if self.moe_a2a_backend == "deepep":
@@ -3376,11 +3375,11 @@ class ServerArgs:
             "Options: 'auto' (default, auto-selects based on hardware), "
             "'deep_gemm' (JIT-compiled; enabled by default on NVIDIA Hopper (SM90) and Blackwell (SM100) when DeepGEMM is installed), "
             "'flashinfer_trtllm' (optimal for Blackwell and low-latency), "
-            "'cutlass' (optimal for Hopper/Blackwell GPUs and high-throughput), "
+            "'tilelang' (optimal for Hopper/Blackwell GPUs and high-throughput), "
             "'triton' (fallback, widely compatible), "
             "'aiter' (ROCm only). "
             "NOTE: This replaces the deprecated environment variables "
-            "SGLANG_ENABLE_FLASHINFER_FP8_GEMM and SGLANG_SUPPORT_CUTLASS_BLOCK_FP8.",
+            "SGLANG_ENABLE_FLASHINFER_FP8_GEMM and SGLANG_SUPPORT_TILELANG_BLOCK_FP8.",
         )
         parser.add_argument(
             "--disable-flashinfer-autotune",
@@ -3965,9 +3964,9 @@ class ServerArgs:
             help="Enable NCCL symmetric memory for fast collectives.",
         )
         parser.add_argument(
-            "--disable-flashinfer-cutlass-moe-fp4-allgather",
+            "--disable-flashinfer-tilelang-moe-fp4-allgather",
             action="store_true",
-            help="Disables quantize before all-gather for flashinfer cutlass moe.",
+            help="Disables quantize before all-gather for flashinfer tilelang moe.",
         )
         parser.add_argument(
             "--enable-tokenizer-batch-encode",

@@ -1,7 +1,7 @@
 import torch
 
 
-def get_cutlass_w4a8_moe_mm_data(
+def get_tilelang_w4a8_moe_mm_data(
     topk_ids: torch.Tensor,
     expert_offsets: torch.Tensor,
     problem_sizes1: torch.Tensor,
@@ -13,8 +13,8 @@ def get_cutlass_w4a8_moe_mm_data(
     k: int,
 ):
     """
-    Prepare data necessary to perform CUTLASS grouped matrix multiplications
-    used in CUTLASS-based fused MoE.
+    Prepare data necessary to perform TILELANG grouped matrix multiplications
+    used in TILELANG-based fused MoE.
 
     The function takes in topk_ids (token-expert mapping) and uses it to
     compute:
@@ -30,7 +30,7 @@ def get_cutlass_w4a8_moe_mm_data(
     - output_permutation: Permutation that must be used to shuffle the output
                           after executing the MMs.
     """
-    torch.ops.sgl_kernel.get_cutlass_w4a8_moe_mm_data.default(
+    torch.ops.sgl_kernel.get_tilelang_w4a8_moe_mm_data.default(
         topk_ids,
         expert_offsets,
         problem_sizes1,
@@ -43,7 +43,7 @@ def get_cutlass_w4a8_moe_mm_data(
     )
 
 
-def cutlass_w4a8_moe_mm(
+def tilelang_w4a8_moe_mm(
     d: torch.Tensor,
     a: torch.Tensor,
     b: torch.Tensor,
@@ -95,7 +95,7 @@ def cutlass_w4a8_moe_mm(
         for each group of tensors in parallel
     """
 
-    torch.ops.sgl_kernel.cutlass_w4a8_moe_mm.default(
+    torch.ops.sgl_kernel.tilelang_w4a8_moe_mm.default(
         d,
         a,
         b,

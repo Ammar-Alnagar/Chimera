@@ -386,7 +386,7 @@ class _DeepEPDispatcherImplNormal(_DeepEPDispatcherImplBase):
         topk_ids = topk_ids.to(torch.int64)
         if (
             deep_gemm_wrapper.ENABLE_JIT_DEEPGEMM
-            and not get_moe_runner_backend().is_cutlass()
+            and not get_moe_runner_backend().is_tilelang()
             and not envs.SGLANG_DEEPEP_BF16_DISPATCH.get()
         ):
             # TODO hard code 128 block quant,use fp8 communication

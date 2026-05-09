@@ -9,7 +9,7 @@ from sgl_kernel import int8_scaled_mm
 
 # Optional vLLM import
 try:
-    from vllm._custom_ops import cutlass_scaled_mm as vllm_scaled_mm
+    from vllm._custom_ops import tilelang_scaled_mm as vllm_scaled_mm
 
     VLLM_AVAILABLE = True
 except ImportError:

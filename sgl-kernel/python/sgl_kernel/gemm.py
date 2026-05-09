@@ -162,7 +162,7 @@ def sgl_per_token_quant_fp8(
     torch.ops.sgl_kernel.sgl_per_token_quant_fp8.default(input, output_q, output_s)
 
 
-def cutlass_scaled_fp4_mm(
+def tilelang_scaled_fp4_mm(
     a: torch.Tensor,
     b: torch.Tensor,
     block_scale_a: torch.Tensor,
@@ -173,7 +173,7 @@ def cutlass_scaled_fp4_mm(
     assert a.ndim == 2 and b.ndim == 2
     m, n = a.shape[0], b.shape[0]
     out = torch.empty((m, n), dtype=out_dtype, device=a.device)
-    torch.ops.sgl_kernel.cutlass_scaled_fp4_mm.default(
+    torch.ops.sgl_kernel.tilelang_scaled_fp4_mm.default(
         out, a, b, block_scale_a, block_scale_b, alpha
     )
     return out
@@ -470,7 +470,7 @@ def scaled_fp4_experts_quant(
     assert m_numtopk <= MAX_TOKENS_PER_EXPERT * topk, (
         f"m_numtopk must be less than MAX_TOKENS_PER_EXPERT("
         f"{MAX_TOKENS_PER_EXPERT})"
-        f" for cutlass_moe_fp4, observed m_numtopk = {m_numtopk}. Use"
+        f" for tilelang_moe_fp4, observed m_numtopk = {m_numtopk}. Use"
         f" MODELOPT_MAX_TOKENS_PER_EXPERT to set this value."
     )
     scales_k = k // 16

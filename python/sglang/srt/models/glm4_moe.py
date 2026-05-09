@@ -58,7 +58,7 @@ from sglang.srt.layers.linear import (
 from sglang.srt.layers.logits_processor import LogitsProcessor
 from sglang.srt.layers.moe import (
     get_moe_a2a_backend,
-    should_use_flashinfer_cutlass_moe_fp4_allgather,
+    should_use_flashinfer_tilelang_moe_fp4_allgather,
 )
 from sglang.srt.layers.moe.ep_moe.layer import get_moe_impl_class
 from sglang.srt.layers.moe.fused_moe_triton.layer import FusedMoE
@@ -408,7 +408,7 @@ class Glm4MoeSparseMoeBlock(nn.Module):
                     dict(tp_rank=0, tp_size=1)
                     if get_moe_a2a_backend().is_deepep()
                     or get_moe_a2a_backend().is_mooncake()
-                    or should_use_flashinfer_cutlass_moe_fp4_allgather()
+                    or should_use_flashinfer_tilelang_moe_fp4_allgather()
                     else {}
                 ),
             )
@@ -497,7 +497,7 @@ class Glm4MoeSparseMoeBlock(nn.Module):
             self.tp_size > 1
             and not should_allreduce_fusion
             and not use_reduce_scatter
-            and not should_use_flashinfer_cutlass_moe_fp4_allgather()
+            and not should_use_flashinfer_tilelang_moe_fp4_allgather()
         ):
             final_hidden_states = tensor_model_parallel_all_reduce(final_hidden_states)
         return final_hidden_states
@@ -531,7 +531,7 @@ class Glm4MoeSparseMoeBlock(nn.Module):
             self.tp_size > 1
             and not should_allreduce_fusion
             and not use_reduce_scatter
-            and not should_use_flashinfer_cutlass_moe_fp4_allgather()
+            and not should_use_flashinfer_tilelang_moe_fp4_allgather()
         ):
             final_hidden_states = tensor_model_parallel_all_reduce(final_hidden_states)
         return final_hidden_states

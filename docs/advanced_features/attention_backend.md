@@ -37,7 +37,7 @@ The support matrix is split into two parts: MHA (standard attention) and MLA (mu
 |----------------------------|---------------------------|------------------|------------------|--------------------------|-----------------|-----------------|
 | **FlashInfer MLA**         | 1                         | ❌               | ✅               | ✅                       | ✅              | ❌              |
 | **FlashMLA**               | 64                        | ✅               | ✅               | ✅                       | ✅              | ❌              |
-| **Cutlass MLA**            | 128                       | ✅               | ✅               | ✅                       | ✅              | ❌              |
+| **TileLang MLA**            | 128                       | ✅               | ✅               | ✅                       | ✅              | ❌              |
 | **TRTLLM MLA (Blackwell)** | 32 or 64                  | ✅               | ✅               | ✅                       | ✅              | ❌              |
 | **FA3 (FlashAttention 3)** | n/a                       | ❌               | ❌               | ✅                       | ✅              | ⚠️ (page_size=1 only) |
 | **Triton**                 | n/a                       | ❌               | ❌               | ❌                       | ✅              | ⚠️ (page_size=1 only) |
@@ -65,12 +65,12 @@ Speculative decoding topk: `topk` is the number of draft tokens sampled per step
 Page size controls how many tokens are grouped into a KV cache block. For the prefix cache to take effect, the number of tokens must fill at least one complete page. For example, if your prompt is only 32 tokens and `page_size = 64`, it won't fill a complete page and cannot be matched in the prefix cache (pages cannot be padded). With 65 tokens and `page_size = 64`, only the first page of 64 tokens will be cached and matched; the remaining 1 token is discarded. Use `page_size = 1` for maximum prefix reuse (token-level matching).
 ```
 
-Many backends that do not natively operate on pages can emulate `page_size > 1` at the wrapper layer by expanding page tables to per-token indices. The "Page Size > 1 (native)" column indicates true in-kernel paging. Some backends require fixed native page sizes and cannot be reduced/emulated differently: TRTLLM MHA (16/32/64), TRTLLM MLA (32/64), FlashMLA (64), Cutlass MLA (128), Ascend (128).
+Many backends that do not natively operate on pages can emulate `page_size > 1` at the wrapper layer by expanding page tables to per-token indices. The "Page Size > 1 (native)" column indicates true in-kernel paging. Some backends require fixed native page sizes and cannot be reduced/emulated differently: TRTLLM MHA (16/32/64), TRTLLM MLA (32/64), FlashMLA (64), TileLang MLA (128), Ascend (128).
 
 MLA page-size constraints:
 - FlashInfer MLA: page_size = 1.
 - FlashMLA: page_size = 64.
-- Cutlass MLA: page_size = 128.
+- TileLang MLA: page_size = 128.
 - TRTLLM MLA: page_size ∈ {32, 64}.
 
 ### Hybrid attention (different backends for prefill vs decode) (Experimental)
@@ -194,12 +194,12 @@ python3 -m sglang.launch_server \
   --trust-remote-code
 ```
 
-- Cutlass MLA
+- TileLang MLA
 ```bash
 python3 -m sglang.launch_server \
   --tp 8 \
   --model deepseek-ai/DeepSeek-R1 \
-  --attention-backend cutlass_mla \
+  --attention-backend tilelang_mla \
   --trust-remote-code
 ```
 

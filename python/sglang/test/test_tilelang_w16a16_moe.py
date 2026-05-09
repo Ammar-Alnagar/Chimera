@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import torch
-from flashinfer.fused_moe import cutlass_fused_moe as flashinfer_cutlass_fused_moe
+from flashinfer.fused_moe import tilelang_fused_moe as flashinfer_tilelang_fused_moe
 
 from sglang.srt.layers.activation import SiluAndMul
 from sglang.srt.layers.moe.topk import TopKConfig, select_experts
@@ -59,9 +59,9 @@ def torch_moe_reference(a, w13, w2, score, topk):
 @pytest.mark.parametrize("e", [40, 64, 256])
 @pytest.mark.parametrize("topk", [1, 6, 8])
 @torch.inference_mode()
-def test_flashinfer_bf16_cutlass_moe(m: int, n: int, k: int, e: int, topk: int):
+def test_flashinfer_bf16_tilelang_moe(m: int, n: int, k: int, e: int, topk: int):
     """
-    Test the bf16 cutlass moe API.
+    Test the bf16 tilelang moe API.
 
     Args:
         m: number of tokens
@@ -78,7 +78,7 @@ def test_flashinfer_bf16_cutlass_moe(m: int, n: int, k: int, e: int, topk: int):
     a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
 
     # w13: fused gate_up projection [num_experts, 2*intermediate, hidden]
-    # FlashInfer CUTLASS expects [up, gate] layout
+    # FlashInfer TILELANG expects [up, gate] layout
     w13 = torch.randn((e, 2 * n, k), device="cuda", dtype=dtype) / 10
 
     # w2: down projection [num_experts, hidden, intermediate]
@@ -95,8 +95,8 @@ def test_flashinfer_bf16_cutlass_moe(m: int, n: int, k: int, e: int, topk: int):
     )
     topk_weights, topk_ids, _ = topk_output
 
-    # Test: Call FlashInfer CUTLASS fused_moe (unquantized version)
-    test_output = flashinfer_cutlass_fused_moe(
+    # Test: Call FlashInfer TILELANG fused_moe (unquantized version)
+    test_output = flashinfer_tilelang_fused_moe(
         input=a,
         token_selected_experts=topk_ids,
         token_final_scales=topk_weights,
@@ -115,4 +115,4 @@ def test_flashinfer_bf16_cutlass_moe(m: int, n: int, k: int, e: int, topk: int):
 
 if __name__ == "__main__":
     # Run a simple test case
-    test_flashinfer_bf16_cutlass_moe(224, 1024, 1024, 8, 2)
+    test_flashinfer_bf16_tilelang_moe(224, 1024, 1024, 8, 2)

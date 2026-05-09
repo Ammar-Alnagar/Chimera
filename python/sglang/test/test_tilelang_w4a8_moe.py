@@ -5,7 +5,7 @@ from typing import Optional
 import pytest
 import torch
 
-from sglang.srt.layers.moe.cutlass_w4a8_moe import cutlass_w4a8_moe
+from sglang.srt.layers.moe.tilelang_w4a8_moe import tilelang_w4a8_moe
 from sglang.srt.layers.moe.topk import TopKConfig, select_experts
 
 
@@ -58,7 +58,7 @@ def pack_interleave(num_experts, ref_weight, ref_scale, alignment=4):
 @pytest.mark.parametrize("topk", [8])
 @pytest.mark.parametrize("group_size", [128])
 @pytest.mark.parametrize("dtype", [torch.bfloat16])
-def test_cutlass_w4a8_moe(M, N, K, E, tp_size, use_ep_moe, topk, group_size, dtype):
+def test_tilelang_w4a8_moe(M, N, K, E, tp_size, use_ep_moe, topk, group_size, dtype):
     if use_ep_moe:
         local_e = E // tp_size
     else:  # tp mode
@@ -122,7 +122,7 @@ def test_cutlass_w4a8_moe(M, N, K, E, tp_size, use_ep_moe, topk, group_size, dty
     expert_map = torch.arange(E, dtype=torch.int32, device=device)
     expert_map[local_e:] = -1
 
-    output = cutlass_moe(
+    output = tilelang_moe(
         a,
         w1_q,
         w2_q,
@@ -169,7 +169,7 @@ def test_cutlass_w4a8_moe(M, N, K, E, tp_size, use_ep_moe, topk, group_size, dty
     print("SUCCESS: Final output tensors are close.")
 
 
-def cutlass_moe(
+def tilelang_moe(
     a: torch.Tensor,
     w1_q: torch.Tensor,
     w2_q: torch.Tensor,
@@ -203,7 +203,7 @@ def cutlass_moe(
     problem_sizes2 = torch.empty(
         (num_local_experts, 3), dtype=torch.int32, device=device
     )
-    return cutlass_w4a8_moe(
+    return tilelang_w4a8_moe(
         a,
         w1_q,
         w2_q,

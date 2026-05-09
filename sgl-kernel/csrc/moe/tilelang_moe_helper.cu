@@ -4,8 +4,8 @@
 #include <cuda.h>
 #include <torch/all.h>
 
-#include "cutlass/bfloat16.h"
-#include "cutlass/float8.h"
+#include "tilelang/bfloat16.h"
+#include "tilelang/float8.h"
 
 template <
     typename ElementAB,
@@ -82,16 +82,16 @@ __global__ void get_group_gemm_starts(
 
 #define __CALL_GET_STARTS_KERNEL(TENSOR_C_TYPE, C_TYPE, LayoutSFA, LayoutSFB, ScaleConfig)         \
   else if (out_tensors.dtype() == TENSOR_C_TYPE) {                                                 \
-    get_group_gemm_starts<cutlass::float_e4m3_t, C_TYPE, float, LayoutSFA, LayoutSFB, ScaleConfig> \
+    get_group_gemm_starts<tilelang::float_e4m3_t, C_TYPE, float, LayoutSFA, LayoutSFB, ScaleConfig> \
         <<<1, num_experts, 0, stream>>>(                                                           \
             static_cast<int32_t*>(expert_offsets.data_ptr()),                                      \
-            static_cast<cutlass::float_e4m3_t**>(a_ptrs.data_ptr()),                               \
-            static_cast<cutlass::float_e4m3_t**>(b_ptrs.data_ptr()),                               \
+            static_cast<tilelang::float_e4m3_t**>(a_ptrs.data_ptr()),                               \
+            static_cast<tilelang::float_e4m3_t**>(b_ptrs.data_ptr()),                               \
             static_cast<C_TYPE**>(out_ptrs.data_ptr()),                                            \
             static_cast<float**>(a_scales_ptrs.data_ptr()),                                        \
             static_cast<float**>(b_scales_ptrs.data_ptr()),                                        \
-            static_cast<cutlass::float_e4m3_t*>(a_tensors.data_ptr()),                             \
-            static_cast<cutlass::float_e4m3_t*>(b_tensors.data_ptr()),                             \
+            static_cast<tilelang::float_e4m3_t*>(a_tensors.data_ptr()),                             \
+            static_cast<tilelang::float_e4m3_t*>(b_tensors.data_ptr()),                             \
             static_cast<C_TYPE*>(out_tensors.data_ptr()),                                          \
             static_cast<float*>(a_scales.data_ptr()),                                              \
             static_cast<float*>(b_scales.data_ptr()),                                              \
@@ -133,7 +133,7 @@ void run_get_group_gemm_starts(
 
   if (false) {
   }
-  __CALL_GET_STARTS_KERNEL(torch::kBFloat16, cutlass::bfloat16_t, LayoutSFA, LayoutSFB, ScaleConfig)
+  __CALL_GET_STARTS_KERNEL(torch::kBFloat16, tilelang::bfloat16_t, LayoutSFA, LayoutSFB, ScaleConfig)
   __CALL_GET_STARTS_KERNEL(torch::kFloat16, half, LayoutSFA, LayoutSFB, ScaleConfig)
   else {
     TORCH_CHECK(false, "Invalid output type (must be float16 or bfloat16)");

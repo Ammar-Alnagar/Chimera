@@ -1,30 +1,30 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Cutlass W4A8 MoE kernel."""
+"""TileLang W4A8 MoE kernel."""
 from typing import Optional
 
 import torch
 from sgl_kernel import (
-    cutlass_w4a8_moe_mm,
-    get_cutlass_w4a8_moe_mm_data,
+    tilelang_w4a8_moe_mm,
+    get_tilelang_w4a8_moe_mm_data,
     sgl_per_tensor_quant_fp8,
     silu_and_mul,
 )
 
 from sglang.srt.distributed import get_moe_expert_parallel_world_size
 from sglang.srt.layers.moe.ep_moe.kernels import (
-    cutlass_w4_run_moe_ep_preproess,
-    deepep_ll_get_cutlass_w4a8_moe_mm_data,
+    tilelang_w4_run_moe_ep_preproess,
+    deepep_ll_get_tilelang_w4a8_moe_mm_data,
     deepep_permute_triton_kernel,
     deepep_post_reorder_triton_kernel,
     deepep_run_moe_deep_preprocess,
-    post_reorder_for_cutlass_moe,
-    pre_reorder_for_cutlass_moe,
+    post_reorder_for_tilelang_moe,
+    pre_reorder_for_tilelang_moe,
     silu_and_mul_masked_post_per_tensor_quant_fwd,
-    silu_mul_static_tensorwise_quant_for_cutlass_moe,
+    silu_mul_static_tensorwise_quant_for_tilelang_moe,
 )
 
 
-def cutlass_w4a8_moe(
+def tilelang_w4a8_moe(
     a: torch.Tensor,
     w1_q: torch.Tensor,
     w2_q: torch.Tensor,
@@ -51,7 +51,7 @@ def cutlass_w4a8_moe(
     """
     This function computes a w4a8-quantized Mixture of Experts (MoE) layer
     using two sets of quantized weights, w1_q and w2_q, and top-k gating
-    mechanism. The matrix multiplications are implemented with CUTLASS
+    mechanism. The matrix multiplications are implemented with TILELANG
     grouped gemm.
 
     Parameters:
@@ -114,7 +114,7 @@ def cutlass_w4a8_moe(
     if get_moe_expert_parallel_world_size() > 1:
         topk_ids = torch.where(topk_ids == -1, num_local_experts, topk_ids)
 
-    src2dst = cutlass_w4_run_moe_ep_preproess(
+    src2dst = tilelang_w4_run_moe_ep_preproess(
         topk_ids,
     )
 
@@ -124,7 +124,7 @@ def cutlass_w4a8_moe(
         dtype=torch.float8_e4m3fn,
     )
 
-    pre_reorder_for_cutlass_moe(
+    pre_reorder_for_tilelang_moe(
         a,
         gateup_input,
         src2dst,
@@ -136,12 +136,12 @@ def cutlass_w4a8_moe(
         k,
     )
 
-    # NOTE: a_map and c_map are not used in the get_cutlass_w4a8_moe_mm_data kernel,
+    # NOTE: a_map and c_map are not used in the get_tilelang_w4a8_moe_mm_data kernel,
     # they are kept to allow for a quick switch of the permutation logic
-    # from the current triton kernel implementation to the cutlass-based one if needed.
+    # from the current triton kernel implementation to the tilelang-based one if needed.
     a_map = torch.empty((topk_ids.numel()), dtype=torch.int32, device=device)
     c_map = torch.empty((topk_ids.numel()), dtype=torch.int32, device=device)
-    get_cutlass_w4a8_moe_mm_data(
+    get_tilelang_w4a8_moe_mm_data(
         topk_ids,
         expert_offsets,
         problem_sizes1,
@@ -156,7 +156,7 @@ def cutlass_w4a8_moe(
     c1 = torch.empty((m * topk, n * 2), device=device, dtype=torch.bfloat16)
     c2 = torch.empty((m * topk, k), device=device, dtype=torch.bfloat16)
 
-    cutlass_w4a8_moe_mm(
+    tilelang_w4a8_moe_mm(
         c1,
         gateup_input,
         w1_q,
@@ -175,11 +175,11 @@ def cutlass_w4a8_moe(
     intermediate_q = torch.empty(
         (m * topk, n), dtype=torch.float8_e4m3fn, device=device
     )
-    silu_mul_static_tensorwise_quant_for_cutlass_moe(
+    silu_mul_static_tensorwise_quant_for_tilelang_moe(
         c1, intermediate_q, a2_scale.float(), expert_offsets[-1:], m * topk, n
     )
 
-    cutlass_w4a8_moe_mm(
+    tilelang_w4a8_moe_mm(
         c2,
         intermediate_q,
         w2_q,
@@ -197,7 +197,7 @@ def cutlass_w4a8_moe(
 
     output = torch.empty_like(a)
 
-    post_reorder_for_cutlass_moe(
+    post_reorder_for_tilelang_moe(
         c2,
         output,
         src2dst,
@@ -212,7 +212,7 @@ def cutlass_w4a8_moe(
     return output
 
 
-def cutlass_w4a8_moe_deepep_normal(
+def tilelang_w4a8_moe_deepep_normal(
     a: torch.Tensor,
     w1_q: torch.Tensor,
     w2_q: torch.Tensor,
@@ -237,7 +237,7 @@ def cutlass_w4a8_moe_deepep_normal(
     """
     This function computes a w4a8-quantized Mixture of Experts (MoE) layer
     using two sets of quantized weights, w1_q and w2_q, and top-k gating
-    mechanism. The matrix multiplications are implemented with CUTLASS
+    mechanism. The matrix multiplications are implemented with TILELANG
     grouped gemm.
 
     Parameters:
@@ -332,7 +332,7 @@ def cutlass_w4a8_moe_deepep_normal(
 
     a_map = torch.empty((local_topk_ids.numel()), dtype=torch.int32, device=device)
     c_map = torch.empty((local_topk_ids.numel()), dtype=torch.int32, device=device)
-    get_cutlass_w4a8_moe_mm_data(
+    get_tilelang_w4a8_moe_mm_data(
         local_topk_ids,
         expert_offsets,
         problem_sizes1,
@@ -346,7 +346,7 @@ def cutlass_w4a8_moe_deepep_normal(
     c1 = torch.empty((m * topk, n * 2), device=device, dtype=torch.bfloat16)
     c2 = torch.zeros((m * topk, k), device=device, dtype=torch.bfloat16)
 
-    cutlass_w4a8_moe_mm(
+    tilelang_w4a8_moe_mm(
         c1,
         gateup_input,
         w1_q,
@@ -369,7 +369,7 @@ def cutlass_w4a8_moe_deepep_normal(
     )
     sgl_per_tensor_quant_fp8(intermediate, intermediate_q, a2_scale.float(), True)
 
-    cutlass_w4a8_moe_mm(
+    tilelang_w4a8_moe_mm(
         c2,
         intermediate_q,
         w2_q,
@@ -404,7 +404,7 @@ def cutlass_w4a8_moe_deepep_normal(
     return output
 
 
-def cutlass_w4a8_moe_deepep_ll(
+def tilelang_w4a8_moe_deepep_ll(
     a: torch.Tensor,
     w1_q: torch.Tensor,
     w2_q: torch.Tensor,
@@ -429,7 +429,7 @@ def cutlass_w4a8_moe_deepep_ll(
     """
     This function computes a w4a8-quantized Mixture of Experts (MoE) layer
     using two sets of quantized weights, w1_q and w2_q, and top-k gating
-    mechanism. The matrix multiplications are implemented with CUTLASS
+    mechanism. The matrix multiplications are implemented with TILELANG
     grouped gemm.
 
     Parameters:
@@ -485,7 +485,7 @@ def cutlass_w4a8_moe_deepep_ll(
 
     device = a.device
 
-    problem_sizes1, problem_sizes2 = deepep_ll_get_cutlass_w4a8_moe_mm_data(
+    problem_sizes1, problem_sizes2 = deepep_ll_get_tilelang_w4a8_moe_mm_data(
         masked_m,
         problem_sizes1,
         problem_sizes2,
@@ -499,7 +499,7 @@ def cutlass_w4a8_moe_deepep_ll(
     c1 = torch.empty((num_experts, m, n * 2), device=device, dtype=torch.bfloat16)
     c2 = torch.empty((num_experts, m, k), device=device, dtype=torch.bfloat16)
 
-    cutlass_w4a8_moe_mm(
+    tilelang_w4a8_moe_mm(
         c1,
         gateup_input,
         w1_q,
@@ -521,7 +521,7 @@ def cutlass_w4a8_moe_deepep_ll(
     silu_and_mul_masked_post_per_tensor_quant_fwd(
         c1, intermediate_q, masked_m, a2_scale
     )
-    cutlass_w4a8_moe_mm(
+    tilelang_w4a8_moe_mm(
         c2,
         intermediate_q,
         w2_q,

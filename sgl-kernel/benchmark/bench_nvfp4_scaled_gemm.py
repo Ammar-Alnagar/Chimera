@@ -5,7 +5,7 @@ import os
 
 import torch
 import triton
-from sgl_kernel import cutlass_scaled_fp4_mm, scaled_fp4_quant
+from sgl_kernel import tilelang_scaled_fp4_mm, scaled_fp4_quant
 
 from sglang.srt.utils import get_device_capability
 
@@ -124,12 +124,12 @@ def benchmark(batch_size, provider, N, K):
         c = a @ b.t()
     # Warmup
     for _ in range(5):
-        cutlass_scaled_fp4_mm(
+        tilelang_scaled_fp4_mm(
             a_fp4, b_fp4, a_scale_interleaved, b_scale_interleaved, alpha, dtype
         )
     start_event.record()
     for _ in range(run_step):
-        cutlass_scaled_fp4_mm(
+        tilelang_scaled_fp4_mm(
             a_fp4, b_fp4, a_scale_interleaved, b_scale_interleaved, alpha, dtype
         )
     end_event.record()

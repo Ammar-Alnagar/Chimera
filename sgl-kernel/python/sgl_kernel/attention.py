@@ -45,7 +45,7 @@ def merge_state_v2(
     return v_merged, s_merged
 
 
-def cutlass_mla_decode(
+def tilelang_mla_decode(
     q_nope: torch.Tensor,
     q_pe: torch.Tensor,
     kv_c_and_k_pe_cache: torch.Tensor,
@@ -121,7 +121,7 @@ def cutlass_mla_decode(
     return out[:, :H].contiguous()
 
 
-def cutlass_mla_get_workspace_size(
+def tilelang_mla_get_workspace_size(
     max_seq_len: int,
     num_batches: int,
     sm_count: int = 0,

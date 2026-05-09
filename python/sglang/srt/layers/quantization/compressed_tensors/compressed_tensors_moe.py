@@ -17,7 +17,7 @@ from sglang.srt.distributed.device_communicators.pynccl_allocator import (
 )
 from sglang.srt.layers.dp_attention import is_allocation_symmetric
 from sglang.srt.layers.moe import MoeRunner, MoeRunnerBackend, MoeRunnerConfig
-from sglang.srt.layers.moe.cutlass_moe_params import CutlassMoEParams, CutlassMoEType
+from sglang.srt.layers.moe.tilelang_moe_params import TileLangMoEParams, TileLangMoEType
 from sglang.srt.layers.moe.moe_runner.triton import TritonMoeQuantInfo
 from sglang.srt.layers.moe.utils import get_moe_runner_backend
 from sglang.srt.layers.quantization.base_config import FusedMoEMethodBase
@@ -369,8 +369,8 @@ class CompressedTensorsW4A4Nvfp4MoEMethod(CompressedTensorsMoEMethod):
                 swizzle_blockscale(layer.w2_weight_scale), requires_grad=False
             )
 
-            layer.cutlass_moe_params = CutlassMoEParams(
-                CutlassMoEType.BlockscaledFP4,
+            layer.tilelang_moe_params = TileLangMoEParams(
+                TileLangMoEType.BlockscaledFP4,
                 layer.w13_weight.device,
                 num_experts=layer.num_experts,
                 intermediate_size_per_partition=layer.w2_weight.shape[2] * 2,
@@ -389,14 +389,14 @@ class CompressedTensorsW4A4Nvfp4MoEMethod(CompressedTensorsMoEMethod):
         dispatch_output: StandardDispatchOutput,
     ) -> CombineInput:
 
-        from sglang.srt.layers.moe.cutlass_moe import cutlass_moe_fp4
+        from sglang.srt.layers.moe.tilelang_moe import tilelang_moe_fp4
         from sglang.srt.layers.moe.token_dispatcher import StandardCombineInput
 
         x = dispatch_output.hidden_states
         topk_output = dispatch_output.topk_output
         topk_weights, topk_ids = topk_output.topk_weights, topk_output.topk_ids
 
-        output = cutlass_moe_fp4(
+        output = tilelang_moe_fp4(
             a=x,
             a1_gscale=layer.w13_input_scale_quant,
             w1_fp4=layer.w13_weight,
@@ -408,7 +408,7 @@ class CompressedTensorsW4A4Nvfp4MoEMethod(CompressedTensorsMoEMethod):
             w2_alphas=layer.g2_alphas,
             topk_weights=topk_weights,
             topk_ids=topk_ids,
-            params=layer.cutlass_moe_params,
+            params=layer.tilelang_moe_params,
             apply_router_weight_on_input=self.moe_runner_config.apply_router_weight_on_input,
         ).to(x.dtype)
 

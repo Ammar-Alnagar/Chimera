@@ -149,10 +149,10 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
   m.impl("sgl_per_token_quant_fp8", torch::kCUDA, &sgl_per_token_quant_fp8);
 
   m.def(
-      "cutlass_scaled_fp4_mm(Tensor! out, Tensor a, Tensor b,"
+      "tilelang_scaled_fp4_mm(Tensor! out, Tensor a, Tensor b,"
       "                      Tensor block_scale_a, Tensor block_scale_b,"
       "                      Tensor alpha) -> ()");
-  m.impl("cutlass_scaled_fp4_mm", torch::kCUDA, &cutlass_scaled_fp4_mm);
+  m.impl("tilelang_scaled_fp4_mm", torch::kCUDA, &tilelang_scaled_fp4_mm);
 
   m.def(
       "scaled_fp4_quant(Tensor! output, Tensor! input,"
@@ -175,11 +175,11 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
   m.impl("silu_and_mul_scaled_fp4_experts_quant", torch::kCUDA, &silu_and_mul_scaled_fp4_experts_quant);
 
   m.def(
-      "cutlass_fp4_group_mm(Tensor! output, Tensor a, Tensor b,"
+      "tilelang_fp4_group_mm(Tensor! output, Tensor a, Tensor b,"
       "Tensor a_blockscale, Tensor b_blockscale, Tensor alphas,"
       "Tensor ab_strides, Tensor c_strides, Tensor problem_sizes,"
       " Tensor expert_offsets, Tensor sf_offsets) -> ()");
-  m.impl("cutlass_fp4_group_mm", torch::kCUDA, &cutlass_fp4_group_mm);
+  m.impl("tilelang_fp4_group_mm", torch::kCUDA, &tilelang_fp4_group_mm);
 
   m.def("dsv3_router_gemm(Tensor! output, Tensor mat_a, Tensor mat_b) -> ()");
   m.impl("dsv3_router_gemm", torch::kCUDA, &dsv3_router_gemm);
@@ -274,23 +274,23 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
   m.impl("fused_qk_norm_rope", torch::kCUDA, &fused_qk_norm_rope);
 
   /*
-   * From csrc/moe/cutlass_moe/w4a8
+   * From csrc/moe/tilelang_moe/w4a8
    */
   m.def(
-      "get_cutlass_w4a8_moe_mm_data(Tensor topk_ids, Tensor! expert_offsets, "
+      "get_tilelang_w4a8_moe_mm_data(Tensor topk_ids, Tensor! expert_offsets, "
       "                        Tensor! problem_sizes1, Tensor! problem_sizes2, "
       "                        Tensor! input_permutation, "
       "                        Tensor! output_permutation, int num_experts, "
       "                        int n, int k) -> ()");
-  m.impl("get_cutlass_w4a8_moe_mm_data", torch::kCUDA, &get_cutlass_w4a8_moe_mm_data);
+  m.impl("get_tilelang_w4a8_moe_mm_data", torch::kCUDA, &get_tilelang_w4a8_moe_mm_data);
 
   m.def(
-      "cutlass_w4a8_moe_mm(Tensor! d, Tensor a, Tensor b, "
+      "tilelang_w4a8_moe_mm(Tensor! d, Tensor a, Tensor b, "
       "               Tensor a_scales, Tensor b_scales, Tensor expert_offsets, "
       "               Tensor problem_sizes, Tensor a_strides, "
       "               Tensor b_strides, Tensor d_strides, Tensor s_strides,"
       "               int chunk_size, int topk) -> ()");
-  m.impl("cutlass_w4a8_moe_mm", torch::kCUDA, &cutlass_w4a8_moe_mm);
+  m.impl("tilelang_w4a8_moe_mm", torch::kCUDA, &tilelang_w4a8_moe_mm);
 
   /*
    * From csrc/moe/marlin_moe_wna16

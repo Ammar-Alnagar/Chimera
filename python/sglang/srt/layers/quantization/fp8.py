@@ -40,7 +40,7 @@ from sglang.srt.layers.quantization.fp8_kernel import (
 from sglang.srt.layers.quantization.fp8_utils import (
     apply_fp8_linear,
     can_auto_enable_marlin_fp8,
-    cutlass_fp8_supported,
+    tilelang_fp8_supported,
     dispatch_w8a8_block_fp8_linear,
     input_to_float8,
     normalize_e4m3fn_to_e4m3fnuz,
@@ -212,7 +212,7 @@ class Fp8LinearMethod(LinearMethodBase):
 
     def __init__(self, quant_config: Union[Fp8Config, W4AFp8Config]):
         self.quant_config = quant_config
-        self.cutlass_fp8_supported = cutlass_fp8_supported()
+        self.tilelang_fp8_supported = tilelang_fp8_supported()
 
         # For GPUs that lack FP8 hardware support, we can leverage the Marlin
         # kernel for fast weight-only FP8 quantization
@@ -398,9 +398,9 @@ class Fp8LinearMethod(LinearMethodBase):
 
             # If checkpoint not serialized fp8, quantize the weights.
             if not self.quant_config.is_checkpoint_fp8_serialized:
-                if self.cutlass_fp8_supported or self.use_marlin:
+                if self.tilelang_fp8_supported or self.use_marlin:
                     # apply per-channel quantization default as
-                    # cutlass sgl-kernel and marlin only support per-channel scale
+                    # tilelang sgl-kernel and marlin only support per-channel scale
                     qweight, weight_scale = per_token_group_quant_fp8(
                         layer.weight, layer.weight.shape[-1]
                     )
@@ -431,8 +431,8 @@ class Fp8LinearMethod(LinearMethodBase):
                         layer.input_scale.data, requires_grad=False
                     )
 
-                # cutlass sgl-kernel and marlin only support per-channel scale
-                if self.cutlass_fp8_supported or self.use_marlin:
+                # tilelang sgl-kernel and marlin only support per-channel scale
+                if self.tilelang_fp8_supported or self.use_marlin:
                     weight = layer.weight
                     weight_scale = convert_to_channelwise(
                         layer.weight_scale, layer.logical_widths
@@ -536,7 +536,7 @@ class Fp8LinearMethod(LinearMethodBase):
             weight_scale=layer.weight_scale,
             input_scale=layer.input_scale,
             bias=bias,
-            cutlass_fp8_supported=self.cutlass_fp8_supported,
+            tilelang_fp8_supported=self.tilelang_fp8_supported,
             use_per_token_if_dynamic=False,
         )
 
@@ -557,11 +557,11 @@ class Fp8MoEMethod(FusedMoEMethodBase):
     def __init__(self, quant_config: Fp8Config):
         self.quant_config = quant_config
         self.block_quant = self.quant_config.weight_block_size is not None
-        if get_moe_runner_backend().is_cutlass():
+        if get_moe_runner_backend().is_tilelang():
             assert (
-                cutlass_fp8_supported()
-            ), "cutlass_fp8 MoE requires CUDA 12.0+ with SM90 or CUDA 12.4+ with SM89"
-            assert self.block_quant, "cutlass_fp8 MoE requires block quantization"
+                tilelang_fp8_supported()
+            ), "tilelang_fp8 MoE requires CUDA 12.0+ with SM90 or CUDA 12.4+ with SM89"
+            assert self.block_quant, "tilelang_fp8 MoE requires block quantization"
             assert is_sm100_supported() or is_sm90_supported()
 
     def create_weights(
@@ -673,8 +673,8 @@ class Fp8MoEMethod(FusedMoEMethodBase):
             layer.register_parameter("w13_weight_scale_inv", w13_weight_scale)
             layer.register_parameter("w2_weight_scale_inv", w2_weight_scale)
             assert self.quant_config.activation_scheme == "dynamic"
-            if get_moe_runner_backend().is_cutlass():
-                self._ensure_cutlass_buffers_initialized(layer)
+            if get_moe_runner_backend().is_tilelang():
+                self._ensure_tilelang_buffers_initialized(layer)
 
         else:
             # Allocate 2 scales for w1 and w3 respectively.
@@ -1173,8 +1173,8 @@ class Fp8MoEMethod(FusedMoEMethodBase):
             if ret is not None:
                 return StandardCombineInput(hidden_states=ret)
 
-        if get_moe_runner_backend().is_cutlass():
-            from sglang.srt.layers.moe.cutlass_moe import cutlass_fused_experts_fp8
+        if get_moe_runner_backend().is_tilelang():
+            from sglang.srt.layers.moe.tilelang_moe import tilelang_fused_experts_fp8
 
             with use_symmetric_memory(
                 get_tp_group(), disabled=not is_allocation_symmetric()
@@ -1182,7 +1182,7 @@ class Fp8MoEMethod(FusedMoEMethodBase):
                 symm_output = torch.empty_like(x)
 
             topk_weights, topk_ids, _ = dispatch_output.topk_output
-            output = cutlass_fused_experts_fp8(
+            output = tilelang_fused_experts_fp8(
                 x,
                 layer.w13_weight.transpose(1, 2),
                 layer.w2_weight.transpose(1, 2),
@@ -1271,8 +1271,8 @@ class Fp8MoEMethod(FusedMoEMethodBase):
 
         return self.runner.run(dispatch_output, quant_info)
 
-    def _ensure_cutlass_buffers_initialized(self, layer: Module) -> None:
-        if getattr(self, "_cutlass_buffers_ready", False):
+    def _ensure_tilelang_buffers_initialized(self, layer: Module) -> None:
+        if getattr(self, "_tilelang_buffers_ready", False):
             return
 
         device = layer.w13_weight.device
@@ -1314,7 +1314,7 @@ class Fp8MoEMethod(FusedMoEMethodBase):
             num_experts, 3, device=device, dtype=torch.int32
         )
 
-        self._cutlass_buffers_ready = True
+        self._tilelang_buffers_ready = True
 
     def apply_with_router_logits(
         self,

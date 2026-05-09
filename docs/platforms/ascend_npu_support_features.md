@@ -174,7 +174,7 @@ If you want to know the meaning and usage of each parameter, click [Service Argu
 | `--mm-attention-backend`               | `None`            | `ascend_attn`                                                                                   | **<span style="color: green;">√</span>** | **<span style="color: green;">√</span>** |
 | `--nsa-prefill-backend`                | `flashmla_sparse` | `flashmla_sparse`,<br/> `flashmla_decode`,<br/> `fa3`,<br/> `tilelang`,<br/> `aiter`            |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--nsa-decode-backend`                 | `flashmla_kv`     | `flashmla_prefill`,<br/> `flashmla_kv`,<br/> `fa3`,<br/> `tilelang`,<br/> `aiter`               |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
-| `--fp8-gemm-backend`                   | `auto`            | `auto`,<br/> `deep_gemm`,<br/> `flashinfer_trtllm`,<br/> `cutlass`,<br/> `triton`,<br/> `aiter` |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
+| `--fp8-gemm-backend`                   | `auto`            | `auto`,<br/> `deep_gemm`,<br/> `flashinfer_trtllm`,<br/> `tilelang`,<br/> `triton`,<br/> `aiter` |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--disable-flashinfer-`<br/>`autotune` | `False`           | bool flag<br/> (set to enable)                                                                  |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 
 ## Speculative decoding
@@ -302,7 +302,7 @@ If you want to know the meaning and usage of each parameter, click [Service Argu
 | `--enable-cudagraph-gc`                                 | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--enable-nccl-nvls`                                    | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--enable-symm-mem`                                     | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
-| `--disable-flashinfer-`<br/>`cutlass-moe-fp4-allgather` | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
+| `--disable-flashinfer-`<br/>`tilelang-moe-fp4-allgather` | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--enable-tokenizer-`<br/>`batch-encode`                | `False`  | bool flag<br/> (set to enable) | **<span style="color: green;">√</span>** | **<span style="color: green;">√</span>** |
 | `--disable-outlines-`<br/>`disk-cache`                  | `False`  | bool flag<br/> (set to enable) | **<span style="color: green;">√</span>** | **<span style="color: green;">√</span>** |
 | `--disable-custom-`<br/>`all-reduce`                    | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |

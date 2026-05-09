@@ -1,6 +1,6 @@
 """TileLang-based FP8 blockwise scaled GEMM kernel.
 
-Replaces the former CuteDSL GEMM implementation with TileLang's Pythonic
+Replaces the former TileLang GEMM implementation with TileLang's Pythonic
 DSL for high-performance GPU kernel generation. Uses @tilelang.jit to
 compile tile-level GEMM descriptions into optimized CUDA kernels for
 Hopper/Blackwell architectures.
@@ -172,4 +172,4 @@ def tilelang_fp8_blockwise_scaled_mm(
 blockwise_gemm_kernel = _blockwise_gemm_fallback
 
 # Legacy name preserved for callers that import the old symbol.
-cutedsl_fp8_blockwise_scaled_mm = tilelang_fp8_blockwise_scaled_mm
+tilelang_fp8_blockwise_scaled_mm = tilelang_fp8_blockwise_scaled_mm

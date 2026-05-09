@@ -224,7 +224,7 @@ class DeepEPMoE(FusedMoE):
             output = self.forward_npu(dispatch_output)
         elif DispatchOutputChecker.format_is_deepep_normal(dispatch_output):
             if self.use_w4afp8:
-                output = self.forward_cutlass_w4afp8(dispatch_output)
+                output = self.forward_tilelang_w4afp8(dispatch_output)
             else:
                 assert False, "forward_deepgemm_contiguous is deprecated"
         elif DispatchOutputChecker.format_is_deepep_ll(dispatch_output):
@@ -234,7 +234,7 @@ class DeepEPMoE(FusedMoE):
             ):
                 output = self.forward_flashinfer_tilelang(dispatch_output)
             elif self.use_w4afp8:
-                output = self.forward_cutlass_w4afp8_masked(dispatch_output)
+                output = self.forward_tilelang_w4afp8_masked(dispatch_output)
             else:
                 assert False, "forward_deepgemm_masked is deprecated"
 
@@ -313,7 +313,7 @@ class DeepEPMoE(FusedMoE):
         )
         return output
 
-    def forward_cutlass_w4afp8(
+    def forward_tilelang_w4afp8(
         self,
         dispatch_output: DeepEPNormalDispatchOutput,
     ):
@@ -324,7 +324,7 @@ class DeepEPMoE(FusedMoE):
             dispatch_output=dispatch_output,
         )
 
-    def forward_cutlass_w4afp8_masked(
+    def forward_tilelang_w4afp8_masked(
         self,
         dispatch_output: DeepEPLLDispatchOutput,
     ):
@@ -576,6 +576,6 @@ def get_moe_impl_class(quant_config: Optional[QuantizationConfig]):
             # FlashInferFusedMoE support bf16, fp8 and compressed_tensors
             return FlashInferFusedMoE
 
-    if get_moe_runner_backend().is_flashinfer_cutlass():
+    if get_moe_runner_backend().is_flashinfer_tilelang():
         return FusedMoE
     return FusedMoE

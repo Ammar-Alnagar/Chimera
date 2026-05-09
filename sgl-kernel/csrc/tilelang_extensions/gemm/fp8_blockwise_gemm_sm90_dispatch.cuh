@@ -1,21 +1,21 @@
 // Adapted from
-// https://github.com/vllm-project/vllm/blob/main/csrc/quantization/cutlass_w8a8/c3x/scaled_mm_blockwise_sm90_fp8_dispatch.cuh
+// https://github.com/vllm-project/vllm/blob/main/csrc/quantization/tilelang_w8a8/c3x/scaled_mm_blockwise_sm90_fp8_dispatch.cuh
 #pragma once
 
 #include "cute/tensor.hpp"
-#include "cutlass/cutlass.h"
-#include "cutlass/epilogue/collective/collective_builder.hpp"
-#include "cutlass/epilogue/dispatch_policy.hpp"
-#include "cutlass/gemm/collective/collective_builder.hpp"
-#include "cutlass/gemm/device/gemm_universal_adapter.h"
-#include "cutlass/gemm/dispatch_policy.hpp"
-#include "cutlass/gemm/kernel/gemm_universal.hpp"
-#include "cutlass/gemm/kernel/tile_scheduler_params.h"
-#include "cutlass/numeric_types.h"
-#include "cutlass/tensor_ref.h"
-#include "cutlass_extensions/common.hpp"
-#include "cutlass_extensions/gemm/cutlass_gemm_caller.cuh"
-#include "cutlass_extensions/gemm/dispatch_policy.hpp"
+#include "tilelang/tilelang.h"
+#include "tilelang/epilogue/collective/collective_builder.hpp"
+#include "tilelang/epilogue/dispatch_policy.hpp"
+#include "tilelang/gemm/collective/collective_builder.hpp"
+#include "tilelang/gemm/device/gemm_universal_adapter.h"
+#include "tilelang/gemm/dispatch_policy.hpp"
+#include "tilelang/gemm/kernel/gemm_universal.hpp"
+#include "tilelang/gemm/kernel/tile_scheduler_params.h"
+#include "tilelang/numeric_types.h"
+#include "tilelang/tensor_ref.h"
+#include "tilelang_extensions/common.hpp"
+#include "tilelang_extensions/gemm/tilelang_gemm_caller.cuh"
+#include "tilelang_extensions/gemm/dispatch_policy.hpp"
 
 using namespace cute;
 
@@ -27,7 +27,7 @@ template <
     int GroupSizeK_,
     int TileSizeM_ = 128,
     class ClusterShape = Shape<_1, _2, _1>>
-struct cutlass_3x_gemm_fp8_blockwise {
+struct tilelang_3x_gemm_fp8_blockwise {
   using GroupSizeM = Int<GroupSizeM_>;
   using GroupSizeN = Int<GroupSizeN_>;
   using GroupSizeK = Int<GroupSizeK_>;
@@ -35,29 +35,29 @@ struct cutlass_3x_gemm_fp8_blockwise {
 
   static_assert(TileSizeM_ % GroupSizeM_ == 0, "TileSizeM must be a multiple of GroupSizeM");
 
-  using ElementAB = cutlass::float_e4m3_t;
+  using ElementAB = tilelang::float_e4m3_t;
 
   // A matrix configuration
   using ElementA = ElementAB;
-  using LayoutA = cutlass::layout::RowMajor;
-  static constexpr int AlignmentA = 128 / cutlass::sizeof_bits<ElementA>::value;
+  using LayoutA = tilelang::layout::RowMajor;
+  static constexpr int AlignmentA = 128 / tilelang::sizeof_bits<ElementA>::value;
 
   // B matrix configuration
   using ElementB = ElementAB;
-  using LayoutB = cutlass::layout::ColumnMajor;
-  static constexpr int AlignmentB = 128 / cutlass::sizeof_bits<ElementB>::value;
+  using LayoutB = tilelang::layout::ColumnMajor;
+  static constexpr int AlignmentB = 128 / tilelang::sizeof_bits<ElementB>::value;
 
   // C/D matrix configuration
   using ElementC = void;
-  using LayoutC = cutlass::layout::RowMajor;
-  static constexpr int AlignmentC = 128 / cutlass::sizeof_bits<OutType>::value;
+  using LayoutC = tilelang::layout::RowMajor;
+  static constexpr int AlignmentC = 128 / tilelang::sizeof_bits<OutType>::value;
 
   using ElementD = OutType;
-  using LayoutD = cutlass::layout::RowMajor;
+  using LayoutD = tilelang::layout::RowMajor;
   static constexpr int AlignmentD = AlignmentC;
 
   using ScaleTileShape = Shape<_1, _128, _128>;
-  using ScaleConfig = decltype(cutlass::detail::sm90_trivial_blockwise_scale_config(ScaleTileShape{}));
+  using ScaleConfig = decltype(tilelang::detail::sm90_trivial_blockwise_scale_config(ScaleTileShape{}));
   using LayoutSFA = decltype(ScaleConfig::deduce_layoutSFA());
   using LayoutSFB = decltype(ScaleConfig::deduce_layoutSFB());
 
@@ -66,14 +66,14 @@ struct cutlass_3x_gemm_fp8_blockwise {
   using ElementCompute = float;                                // Element type for compute
   using TileShape = Shape<TileSizeM, GroupSizeN, GroupSizeK>;  // Threadblock-level tile size
 
-  using ArchTag = cutlass::arch::Sm90;
-  using OperatorClass = cutlass::arch::OpClassTensorOp;
-  using EpilogueSchedule = cutlass::epilogue::TmaWarpSpecializedCooperative;
-  using EpilogueTileType = cutlass::epilogue::collective::EpilogueTileAuto;
-  using StoreEpilogueCompute = typename cutlass::epilogue::fusion::Sm90EVT<cutlass::epilogue::fusion::Sm90AccFetch>;
+  using ArchTag = tilelang::arch::Sm90;
+  using OperatorClass = tilelang::arch::OpClassTensorOp;
+  using EpilogueSchedule = tilelang::epilogue::TmaWarpSpecializedCooperative;
+  using EpilogueTileType = tilelang::epilogue::collective::EpilogueTileAuto;
+  using StoreEpilogueCompute = typename tilelang::epilogue::fusion::Sm90EVT<tilelang::epilogue::fusion::Sm90AccFetch>;
 
-  using KernelSchedule = cutlass::gemm::KernelTmaWarpSpecializedCooperativeFP8Blockwise;
-  using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
+  using KernelSchedule = tilelang::gemm::KernelTmaWarpSpecializedCooperativeFP8Blockwise;
+  using CollectiveEpilogue = typename tilelang::epilogue::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       TileShape,
@@ -90,7 +90,7 @@ struct cutlass_3x_gemm_fp8_blockwise {
       EpilogueSchedule,
       StoreEpilogueCompute>::CollectiveOp;
 
-  using CollectiveMainloop = typename cutlass::gemm::collective::CollectiveBuilder<
+  using CollectiveMainloop = typename tilelang::gemm::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       ElementA,
@@ -102,11 +102,11 @@ struct cutlass_3x_gemm_fp8_blockwise {
       ElementAccumulator,
       TileShape,
       ClusterShape,
-      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(
+      tilelang::gemm::collective::StageCountAutoCarveout<static_cast<int>(
           sizeof(typename CollectiveEpilogue::SharedStorage))>,
       KernelSchedule>::CollectiveOp;
 
-  using GemmKernel = cutlass::gemm::kernel::GemmUniversal<
+  using GemmKernel = tilelang::gemm::kernel::GemmUniversal<
       Shape<int, int, int, int>,  // Indicates ProblemShape
       CollectiveMainloop,
       CollectiveEpilogue,
@@ -114,7 +114,7 @@ struct cutlass_3x_gemm_fp8_blockwise {
 };
 
 template <typename Gemm>
-void cutlass_gemm_caller_blockwise(
+void tilelang_gemm_caller_blockwise(
     torch::Tensor& out,
     torch::Tensor const& a,
     torch::Tensor const& b,
@@ -128,7 +128,7 @@ void cutlass_gemm_caller_blockwise(
   using ElementBlockScale = float;
 
   using ScaleTileShape = Shape<_1, _128, _128>;
-  using ScaleConfig = decltype(cutlass::detail::sm90_trivial_blockwise_scale_config(ScaleTileShape{}));
+  using ScaleConfig = decltype(tilelang::detail::sm90_trivial_blockwise_scale_config(ScaleTileShape{}));
   using LayoutSFA = decltype(ScaleConfig::deduce_layoutSFA());
   using LayoutSFB = decltype(ScaleConfig::deduce_layoutSFB());
 
@@ -147,9 +147,9 @@ void cutlass_gemm_caller_blockwise(
   using StrideD = typename GemmKernel::StrideD;
   using StrideC = typename GemmKernel::StrideC;
 
-  StrideA a_stride = cutlass::make_cute_packed_stride(StrideA{}, cute::make_shape(m, k, 1));
-  StrideB b_stride = cutlass::make_cute_packed_stride(StrideB{}, cute::make_shape(n, k, 1));
-  StrideC c_stride = cutlass::make_cute_packed_stride(StrideC{}, cute::make_shape(m, n, 1));
+  StrideA a_stride = tilelang::make_cute_packed_stride(StrideA{}, cute::make_shape(m, k, 1));
+  StrideB b_stride = tilelang::make_cute_packed_stride(StrideB{}, cute::make_shape(n, k, 1));
+  StrideC c_stride = tilelang::make_cute_packed_stride(StrideC{}, cute::make_shape(m, n, 1));
   LayoutSFA layout_sfa = ScaleConfig::tile_atom_to_shape_SFA(make_shape(m, n, k, 1));
   LayoutSFB layout_sfb = ScaleConfig::tile_atom_to_shape_SFB(make_shape(m, n, k, 1));
 
@@ -161,23 +161,23 @@ void cutlass_gemm_caller_blockwise(
   typename GemmKernel::TileSchedulerArguments scheduler;
 
   static constexpr bool UsesStreamKScheduler =
-      cute::is_same_v<typename GemmKernel::TileSchedulerTag, cutlass::gemm::StreamKScheduler>;
+      cute::is_same_v<typename GemmKernel::TileSchedulerTag, tilelang::gemm::StreamKScheduler>;
 
   if constexpr (UsesStreamKScheduler) {
     using DecompositionMode =
-        typename cutlass::gemm::kernel::detail::PersistentTileSchedulerSm90StreamKParams::DecompositionMode;
+        typename tilelang::gemm::kernel::detail::PersistentTileSchedulerSm90StreamKParams::DecompositionMode;
     using ReductionMode =
-        typename cutlass::gemm::kernel::detail::PersistentTileSchedulerSm90StreamKParams::ReductionMode;
+        typename tilelang::gemm::kernel::detail::PersistentTileSchedulerSm90StreamKParams::ReductionMode;
 
     scheduler.decomposition_mode = DecompositionMode::StreamK;
     scheduler.reduction_mode = ReductionMode::Nondeterministic;
   }
 
-  cutlass_gemm_caller<GemmKernel>(a.device(), {m, n, k, 1}, mainloop_args, epilogue_args, scheduler);
+  tilelang_gemm_caller<GemmKernel>(a.device(), {m, n, k, 1}, mainloop_args, epilogue_args, scheduler);
 }
 
 template <typename OutType>
-void cutlass_gemm_blockwise_sm90_fp8_dispatch(
+void tilelang_gemm_blockwise_sm90_fp8_dispatch(
     torch::Tensor& out,
     torch::Tensor const& a,
     torch::Tensor const& b,
@@ -187,11 +187,11 @@ void cutlass_gemm_blockwise_sm90_fp8_dispatch(
   auto n = b.size(1);
 
   if (k > 3 * n) {
-    cutlass_gemm_caller_blockwise<cutlass_3x_gemm_fp8_blockwise<cutlass::gemm::StreamKScheduler, OutType, 1, 128, 128>>(
+    tilelang_gemm_caller_blockwise<tilelang_3x_gemm_fp8_blockwise<tilelang::gemm::StreamKScheduler, OutType, 1, 128, 128>>(
         out, a, b, a_scales, b_scales);
   } else {
-    cutlass_gemm_caller_blockwise<
-        cutlass_3x_gemm_fp8_blockwise<cutlass::gemm::PersistentScheduler, OutType, 1, 128, 128>>(
+    tilelang_gemm_caller_blockwise<
+        tilelang_3x_gemm_fp8_blockwise<tilelang::gemm::PersistentScheduler, OutType, 1, 128, 128>>(
         out, a, b, a_scales, b_scales);
   }
 }

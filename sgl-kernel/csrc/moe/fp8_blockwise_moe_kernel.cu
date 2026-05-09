@@ -1,35 +1,35 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
-#include <cutlass/arch/arch.h>
+#include <tilelang/arch/arch.h>
 #include <torch/all.h>
 
 #include "cute/tensor.hpp"
-#include "cutlass/cutlass.h"
-#include "cutlass/epilogue/collective/collective_builder.hpp"
-#include "cutlass/epilogue/collective/default_epilogue.hpp"
-#include "cutlass/epilogue/dispatch_policy.hpp"
-#include "cutlass/epilogue/thread/activation.h"
-#include "cutlass/epilogue/thread/linear_combination.h"
-#include "cutlass/gemm/collective/collective_builder.hpp"
-#include "cutlass/gemm/device/gemm_universal_adapter.h"
-#include "cutlass/gemm/dispatch_policy.hpp"
-#include "cutlass/gemm/group_array_problem_shape.hpp"
-#include "cutlass/gemm/kernel/gemm_universal.hpp"
-#include "cutlass/gemm/kernel/tile_scheduler_params.h"
-#include "cutlass/tensor_ref.h"
-#include "cutlass/util/command_line.h"
-#include "cutlass/util/distribution.h"
-#include "cutlass/util/host_tensor.h"
-#include "cutlass/util/packed_stride.hpp"
-#include "cutlass/util/reference/device/gemm.h"
-#include "cutlass/util/reference/device/tensor_compare.h"
-#include "cutlass/util/tensor_view_io.h"
-#include "cutlass_moe_helper.cu"
+#include "tilelang/tilelang.h"
+#include "tilelang/epilogue/collective/collective_builder.hpp"
+#include "tilelang/epilogue/collective/default_epilogue.hpp"
+#include "tilelang/epilogue/dispatch_policy.hpp"
+#include "tilelang/epilogue/thread/activation.h"
+#include "tilelang/epilogue/thread/linear_combination.h"
+#include "tilelang/gemm/collective/collective_builder.hpp"
+#include "tilelang/gemm/device/gemm_universal_adapter.h"
+#include "tilelang/gemm/dispatch_policy.hpp"
+#include "tilelang/gemm/group_array_problem_shape.hpp"
+#include "tilelang/gemm/kernel/gemm_universal.hpp"
+#include "tilelang/gemm/kernel/tile_scheduler_params.h"
+#include "tilelang/tensor_ref.h"
+#include "tilelang/util/command_line.h"
+#include "tilelang/util/distribution.h"
+#include "tilelang/util/host_tensor.h"
+#include "tilelang/util/packed_stride.hpp"
+#include "tilelang/util/reference/device/gemm.h"
+#include "tilelang/util/reference/device/tensor_compare.h"
+#include "tilelang/util/tensor_view_io.h"
+#include "tilelang_moe_helper.cu"
 #include "utils.h"
 
 using namespace cute;
 
-using ProblemShape = cutlass::gemm::GroupProblemShape<Shape<int, int, int>>;
+using ProblemShape = tilelang::gemm::GroupProblemShape<Shape<int, int, int>>;
 
 template <typename OutType, typename ScheduleConfig, typename LayoutD>
 void launch_sm90_fp8_blockwise_scaled_group_mm(
@@ -46,34 +46,34 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
     const torch::Tensor& problem_sizes,
     const torch::Tensor& expert_offsets,
     const torch::Tensor& workspace) {
-  using ElementA = cutlass::float_e4m3_t;
-  using ElementB = cutlass::float_e4m3_t;
+  using ElementA = tilelang::float_e4m3_t;
+  using ElementB = tilelang::float_e4m3_t;
   using ElementC = void;
   using ElementD = OutType;
   using ElementAccumulator = float;
-  using LayoutA = cutlass::layout::RowMajor;
-  using LayoutB = cutlass::layout::ColumnMajor;
+  using LayoutA = tilelang::layout::RowMajor;
+  using LayoutB = tilelang::layout::ColumnMajor;
   using LayoutC = LayoutD;
 
-  static constexpr int AlignmentA = 128 / cutlass::sizeof_bits<ElementA>::value;
-  static constexpr int AlignmentB = 128 / cutlass::sizeof_bits<ElementB>::value;
-  static constexpr int AlignmentC = 128 / cutlass::sizeof_bits<ElementD>::value;
+  static constexpr int AlignmentA = 128 / tilelang::sizeof_bits<ElementA>::value;
+  static constexpr int AlignmentB = 128 / tilelang::sizeof_bits<ElementB>::value;
+  static constexpr int AlignmentC = 128 / tilelang::sizeof_bits<ElementD>::value;
 
-  using ArchTag = cutlass::arch::Sm90;
-  using OperatorClass = cutlass::arch::OpClassTensorOp;
-  static constexpr auto RoundStyle = cutlass::FloatRoundStyle::round_to_nearest;
+  using ArchTag = tilelang::arch::Sm90;
+  using OperatorClass = tilelang::arch::OpClassTensorOp;
+  static constexpr auto RoundStyle = tilelang::FloatRoundStyle::round_to_nearest;
   using CustomEVTIdentity =  // acc
-      cutlass::epilogue::fusion::Sm90EVT<
-          cutlass::epilogue::fusion::
-              Sm90Compute<cutlass::epilogue::thread::Identity, ElementD, ElementAccumulator, RoundStyle>,
-          cutlass::epilogue::fusion::Sm90AccFetch>;
+      tilelang::epilogue::fusion::Sm90EVT<
+          tilelang::epilogue::fusion::
+              Sm90Compute<tilelang::epilogue::thread::Identity, ElementD, ElementAccumulator, RoundStyle>,
+          tilelang::epilogue::fusion::Sm90AccFetch>;
 
-  using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
+  using CollectiveEpilogue = typename tilelang::epilogue::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       typename ScheduleConfig::MmaTileShape,
       typename ScheduleConfig::ClusterShape,
-      cutlass::epilogue::collective::EpilogueTileAuto,
+      tilelang::epilogue::collective::EpilogueTileAuto,
       ElementAccumulator,
       ElementAccumulator,
       ElementC,  // Use void to avoid load Matrix C
@@ -85,7 +85,7 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
       typename ScheduleConfig::EpilogueSchedule,
       CustomEVTIdentity>::CollectiveOp;
 
-  using CollectiveMainloop = typename cutlass::gemm::collective::CollectiveBuilder<
+  using CollectiveMainloop = typename tilelang::gemm::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       ElementA,
@@ -97,13 +97,13 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
       ElementAccumulator,
       typename ScheduleConfig::MmaTileShape,
       typename ScheduleConfig::ClusterShape,
-      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(
+      tilelang::gemm::collective::StageCountAutoCarveout<static_cast<int>(
           sizeof(typename CollectiveEpilogue::SharedStorage))>,
       typename ScheduleConfig::KernelSchedule>::CollectiveOp;
 
-  using GemmKernel = cutlass::gemm::kernel::GemmUniversal<ProblemShape, CollectiveMainloop, CollectiveEpilogue, void>;
+  using GemmKernel = tilelang::gemm::kernel::GemmUniversal<ProblemShape, CollectiveMainloop, CollectiveEpilogue, void>;
 
-  using Gemm = cutlass::gemm::device::GemmUniversalAdapter<GemmKernel>;
+  using Gemm = tilelang::gemm::device::GemmUniversalAdapter<GemmKernel>;
   using UnderlyingProblemShape = ProblemShape::UnderlyingProblemShape;
   using StrideA = typename Gemm::GemmKernel::InternalStrideA;
   using StrideB = typename Gemm::GemmKernel::InternalStrideB;
@@ -123,7 +123,7 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
       static_cast<const ElementAccumulator**>(b_scales_ptrs.data_ptr()),
       reinterpret_cast<typename ScheduleConfig::LayoutSFB*>(layout_sfb.data_ptr())};
 
-  cutlass::KernelHardwareInfo hw_info;
+  tilelang::KernelHardwareInfo hw_info;
   hw_info.device_id = c10::cuda::current_device();
   hw_info.sm_count = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
 
@@ -136,7 +136,7 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
 
   UnderlyingProblemShape* problem_sizes_as_shapes = static_cast<UnderlyingProblemShape*>(problem_sizes.data_ptr());
   typename GemmKernel::Arguments args{
-      cutlass::gemm::GemmUniversalMode::kGrouped,
+      tilelang::gemm::GemmUniversalMode::kGrouped,
       {num_experts, problem_sizes_as_shapes, nullptr},
       mainloop_args,
       epilogue_args,
@@ -146,13 +146,13 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
   const cudaStream_t stream = at::cuda::getCurrentCUDAStream(a_ptrs.get_device());
 
   auto can_implement_status = gemm_op.can_implement(args);
-  TORCH_CHECK(can_implement_status == cutlass::Status::kSuccess, "Failed to implement GEMM");
+  TORCH_CHECK(can_implement_status == tilelang::Status::kSuccess, "Failed to implement GEMM");
 
   auto status = gemm_op.initialize(args, workspace.data_ptr(), stream);
-  TORCH_CHECK(status == cutlass::Status::kSuccess, "Failed to initialize GEMM");
+  TORCH_CHECK(status == tilelang::Status::kSuccess, "Failed to initialize GEMM");
 
   status = gemm_op.run(stream);
-  TORCH_CHECK(status == cutlass::Status::kSuccess, "Failed to run GEMM");
+  TORCH_CHECK(status == tilelang::Status::kSuccess, "Failed to run GEMM");
 }
 
 template <typename OutType, typename ScheduleConfig, typename LayoutD>
@@ -170,28 +170,28 @@ void launch_sm100_fp8_blockwise_scaled_group_mm(
     const torch::Tensor& problem_sizes,
     const torch::Tensor& expert_offsets,
     const torch::Tensor& workspace) {
-  using ProblemShape = cutlass::gemm::GroupProblemShape<Shape<int, int, int>>;
-  using ElementA = cutlass::float_e4m3_t;
-  using ElementB = cutlass::float_e4m3_t;
+  using ProblemShape = tilelang::gemm::GroupProblemShape<Shape<int, int, int>>;
+  using ElementA = tilelang::float_e4m3_t;
+  using ElementB = tilelang::float_e4m3_t;
   using ElementC = OutType;
   using ElementD = ElementC;
   using ElementAccumulator = float;
-  using LayoutA = cutlass::layout::RowMajor;
-  using LayoutB = cutlass::layout::ColumnMajor;
+  using LayoutA = tilelang::layout::RowMajor;
+  using LayoutB = tilelang::layout::ColumnMajor;
   using LayoutC = LayoutD;
 
-  static constexpr int AlignmentA = 128 / cutlass::sizeof_bits<ElementA>::value;
-  static constexpr int AlignmentB = 128 / cutlass::sizeof_bits<ElementB>::value;
-  static constexpr int AlignmentC = 128 / cutlass::sizeof_bits<ElementC>::value;
+  static constexpr int AlignmentA = 128 / tilelang::sizeof_bits<ElementA>::value;
+  static constexpr int AlignmentB = 128 / tilelang::sizeof_bits<ElementB>::value;
+  static constexpr int AlignmentC = 128 / tilelang::sizeof_bits<ElementC>::value;
 
-  using ArchTag = cutlass::arch::Sm100;
-  using OperatorClass = cutlass::arch::OpClassTensorOp;
-  using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
+  using ArchTag = tilelang::arch::Sm100;
+  using OperatorClass = tilelang::arch::OpClassTensorOp;
+  using CollectiveEpilogue = typename tilelang::epilogue::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       typename ScheduleConfig::MmaTileShape,
       typename ScheduleConfig::ClusterShape,
-      cutlass::epilogue::collective::EpilogueTileAuto,
+      tilelang::epilogue::collective::EpilogueTileAuto,
       ElementAccumulator,
       ElementAccumulator,
       void,
@@ -202,7 +202,7 @@ void launch_sm100_fp8_blockwise_scaled_group_mm(
       AlignmentC,
       typename ScheduleConfig::EpilogueSchedule>::CollectiveOp;
 
-  using CollectiveMainloop = typename cutlass::gemm::collective::CollectiveBuilder<
+  using CollectiveMainloop = typename tilelang::gemm::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       ElementA,
@@ -214,13 +214,13 @@ void launch_sm100_fp8_blockwise_scaled_group_mm(
       ElementAccumulator,
       typename ScheduleConfig::MmaTileShape,
       typename ScheduleConfig::ClusterShape,
-      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(
+      tilelang::gemm::collective::StageCountAutoCarveout<static_cast<int>(
           sizeof(typename CollectiveEpilogue::SharedStorage))>,
       typename ScheduleConfig::KernelSchedule>::CollectiveOp;
 
-  using GemmKernel = cutlass::gemm::kernel::GemmUniversal<ProblemShape, CollectiveMainloop, CollectiveEpilogue, void>;
+  using GemmKernel = tilelang::gemm::kernel::GemmUniversal<ProblemShape, CollectiveMainloop, CollectiveEpilogue, void>;
 
-  using Gemm = cutlass::gemm::device::GemmUniversalAdapter<GemmKernel>;
+  using Gemm = tilelang::gemm::device::GemmUniversalAdapter<GemmKernel>;
   using UnderlyingProblemShape = ProblemShape::UnderlyingProblemShape;
   using StrideA = typename Gemm::GemmKernel::InternalStrideA;
   using StrideB = typename Gemm::GemmKernel::InternalStrideB;
@@ -241,7 +241,7 @@ void launch_sm100_fp8_blockwise_scaled_group_mm(
       static_cast<const ElementAccumulator**>(b_scales_ptrs.data_ptr()),
       reinterpret_cast<typename ScheduleConfig::LayoutSFB*>(layout_sfb.data_ptr())};
 
-  cutlass::KernelHardwareInfo hw_info;
+  tilelang::KernelHardwareInfo hw_info;
 
   hw_info.device_id = 0;
   // sm_count is the number of SMs on the current device, since we only support SM100 blackwell, so we set it to 148
@@ -255,7 +255,7 @@ void launch_sm100_fp8_blockwise_scaled_group_mm(
 
   UnderlyingProblemShape* problem_sizes_as_shapes = static_cast<UnderlyingProblemShape*>(problem_sizes.data_ptr());
   typename GemmKernel::Arguments args{
-      cutlass::gemm::GemmUniversalMode::kGrouped,
+      tilelang::gemm::GemmUniversalMode::kGrouped,
       {num_experts, problem_sizes_as_shapes, nullptr},
       mainloop_args,
       epilogue_args,
@@ -265,13 +265,13 @@ void launch_sm100_fp8_blockwise_scaled_group_mm(
   const cudaStream_t stream = at::cuda::getCurrentCUDAStream(a_ptrs.get_device());
 
   auto can_implement_status = gemm_op.can_implement(args);
-  TORCH_CHECK(can_implement_status == cutlass::Status::kSuccess, "Failed to implement GEMM");
+  TORCH_CHECK(can_implement_status == tilelang::Status::kSuccess, "Failed to implement GEMM");
 
   auto status = gemm_op.initialize(args, workspace.data_ptr(), stream);
-  TORCH_CHECK(status == cutlass::Status::kSuccess, "Failed to initialize GEMM");
+  TORCH_CHECK(status == tilelang::Status::kSuccess, "Failed to initialize GEMM");
 
   status = gemm_op.run(stream);
-  TORCH_CHECK(status == cutlass::Status::kSuccess, "Failed to run GEMM");
+  TORCH_CHECK(status == tilelang::Status::kSuccess, "Failed to run GEMM");
 }
 
 template <typename OutType>
@@ -298,35 +298,35 @@ void sm100_fp8_blockwise_group_mm_dispatch_shape(
   // Assuming all matrices in the group have similar size characteristics
   // bool use_small_config = a[0].size(0) <= 128;
   struct MmaConfig1 {
-    using ElementA = cutlass::float_e4m3_t;
+    using ElementA = tilelang::float_e4m3_t;
     using MmaTileShape = Shape<_256, _32, _128>;
     using ClusterShape = Shape<_2, _1, _1>;  // Layout type for SFB matrix operand
-    using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedBlockwise2SmSm100;
-    using EpilogueSchedule = cutlass::epilogue::PtrArrayTmaWarpSpecialized2Sm;
+    using KernelSchedule = tilelang::gemm::KernelPtrArrayTmaWarpSpecializedBlockwise2SmSm100;
+    using EpilogueSchedule = tilelang::epilogue::PtrArrayTmaWarpSpecialized2Sm;
     using ScaleConfig =
-        cutlass::detail::Sm100BlockwiseScaleConfig<128, 1, 128, cute::UMMA::Major::K, cute::UMMA::Major::K>;
+        tilelang::detail::Sm100BlockwiseScaleConfig<128, 1, 128, cute::UMMA::Major::K, cute::UMMA::Major::K>;
     using LayoutSFA = decltype(ScaleConfig::deduce_layoutSFA());
     using LayoutSFB = decltype(ScaleConfig::deduce_layoutSFB());
   };
   struct MmaConfig2 {
-    using ElementA = cutlass::float_e4m3_t;
+    using ElementA = tilelang::float_e4m3_t;
     using MmaTileShape = Shape<_128, _128, _128>;
     using ClusterShape = Shape<_1, _1, _1>;  // Layout type for SFB matrix operand
-    using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedBlockwise1SmSm100;
-    using EpilogueSchedule = cutlass::epilogue::PtrArrayTmaWarpSpecialized1Sm;
+    using KernelSchedule = tilelang::gemm::KernelPtrArrayTmaWarpSpecializedBlockwise1SmSm100;
+    using EpilogueSchedule = tilelang::epilogue::PtrArrayTmaWarpSpecialized1Sm;
     using ScaleConfig =
-        cutlass::detail::Sm100BlockwiseScaleConfig<1, 128, 128, cute::UMMA::Major::K, cute::UMMA::Major::K>;
+        tilelang::detail::Sm100BlockwiseScaleConfig<1, 128, 128, cute::UMMA::Major::K, cute::UMMA::Major::K>;
     using LayoutSFA = decltype(ScaleConfig::deduce_layoutSFA());
     using LayoutSFB = decltype(ScaleConfig::deduce_layoutSFB());
   };
   struct MmaConfig3 {
-    using ElementA = cutlass::float_e4m3_t;
+    using ElementA = tilelang::float_e4m3_t;
     using MmaTileShape = Shape<_64, _128, _128>;
     using ClusterShape = Shape<_1, _1, _1>;  // Layout type for SFB matrix operand
-    using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedBlockwise1SmSm100;
-    using EpilogueSchedule = cutlass::epilogue::PtrArrayTmaWarpSpecialized1Sm;
+    using KernelSchedule = tilelang::gemm::KernelPtrArrayTmaWarpSpecializedBlockwise1SmSm100;
+    using EpilogueSchedule = tilelang::epilogue::PtrArrayTmaWarpSpecialized1Sm;
     using ScaleConfig =
-        cutlass::detail::Sm100BlockwiseScaleConfig<1, 128, 128, cute::UMMA::Major::K, cute::UMMA::Major::K>;
+        tilelang::detail::Sm100BlockwiseScaleConfig<1, 128, 128, cute::UMMA::Major::K, cute::UMMA::Major::K>;
     using LayoutSFA = decltype(ScaleConfig::deduce_layoutSFA());
     using LayoutSFB = decltype(ScaleConfig::deduce_layoutSFB());
   };
@@ -357,7 +357,7 @@ void sm100_fp8_blockwise_group_mm_dispatch_shape(
         problem_sizes,
         problem_sizes_transpose,
         true);
-    launch_sm100_fp8_blockwise_scaled_group_mm<OutType, MmaConfig1, cutlass::layout::ColumnMajor>(
+    launch_sm100_fp8_blockwise_scaled_group_mm<OutType, MmaConfig1, tilelang::layout::ColumnMajor>(
         out_ptrs,
         a_ptrs,
         b_ptrs,
@@ -389,7 +389,7 @@ void sm100_fp8_blockwise_group_mm_dispatch_shape(
         layout_sfb,
         problem_sizes,
         problem_sizes_transpose);
-    launch_sm100_fp8_blockwise_scaled_group_mm<OutType, MmaConfig2, cutlass::layout::RowMajor>(
+    launch_sm100_fp8_blockwise_scaled_group_mm<OutType, MmaConfig2, tilelang::layout::RowMajor>(
         out_ptrs,
         a_ptrs,
         b_ptrs,
@@ -420,7 +420,7 @@ void sm100_fp8_blockwise_group_mm_dispatch_shape(
         layout_sfb,
         problem_sizes,
         problem_sizes_transpose);
-    launch_sm100_fp8_blockwise_scaled_group_mm<OutType, MmaConfig3, cutlass::layout::RowMajor>(
+    launch_sm100_fp8_blockwise_scaled_group_mm<OutType, MmaConfig3, tilelang::layout::RowMajor>(
         out_ptrs,
         a_ptrs,
         b_ptrs,
@@ -459,38 +459,38 @@ void sm90_fp8_blockwise_group_mm_dispatch_shape(
     const torch::Tensor& workspace) {
   struct MmaConfigSmallM {
     // Swap A/B
-    using ElementA = cutlass::float_e4m3_t;
+    using ElementA = tilelang::float_e4m3_t;
     using MmaTileShape = Shape<_128, _32, _128>;
     using ClusterShape = Shape<_2, _1, _1>;
     // TODO: Check Pingpong or Cooperative
-    using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedPingpongFP8Blockwise;
-    using EpilogueSchedule = cutlass::epilogue::PtrArrayTmaWarpSpecializedPingpong;
+    using KernelSchedule = tilelang::gemm::KernelPtrArrayTmaWarpSpecializedPingpongFP8Blockwise;
+    using EpilogueSchedule = tilelang::epilogue::PtrArrayTmaWarpSpecializedPingpong;
     using ScaleConfig =
-        cutlass::detail::Sm90BlockwiseScaleConfig<128, 1, 128, cute::GMMA::Major::K, cute::GMMA::Major::K>;
+        tilelang::detail::Sm90BlockwiseScaleConfig<128, 1, 128, cute::GMMA::Major::K, cute::GMMA::Major::K>;
     using LayoutSFA = decltype(ScaleConfig::deduce_layoutSFA());
     using LayoutSFB = decltype(ScaleConfig::deduce_layoutSFB());
   };
 
   struct MmaConfigH20LargeK {
-    using ElementA = cutlass::float_e4m3_t;
+    using ElementA = tilelang::float_e4m3_t;
     using MmaTileShape = Shape<_64, _128, _128>;
     using ClusterShape = Shape<_2, _1, _1>;
-    using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedPingpongFP8Blockwise;
-    using EpilogueSchedule = cutlass::epilogue::PtrArrayTmaWarpSpecializedPingpong;
+    using KernelSchedule = tilelang::gemm::KernelPtrArrayTmaWarpSpecializedPingpongFP8Blockwise;
+    using EpilogueSchedule = tilelang::epilogue::PtrArrayTmaWarpSpecializedPingpong;
     using ScaleConfig =
-        cutlass::detail::Sm90BlockwiseScaleConfig<1, 128, 128, cute::GMMA::Major::K, cute::GMMA::Major::K>;
+        tilelang::detail::Sm90BlockwiseScaleConfig<1, 128, 128, cute::GMMA::Major::K, cute::GMMA::Major::K>;
     using LayoutSFA = decltype(ScaleConfig::deduce_layoutSFA());
     using LayoutSFB = decltype(ScaleConfig::deduce_layoutSFB());
   };
 
   struct MmaConfigHx00AndH20SmallK {
-    using ElementA = cutlass::float_e4m3_t;
+    using ElementA = tilelang::float_e4m3_t;
     using MmaTileShape = Shape<_128, _128, _128>;
     using ClusterShape = Shape<_1, _2, _1>;
-    using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperativeFP8Blockwise;
-    using EpilogueSchedule = cutlass::epilogue::PtrArrayTmaWarpSpecializedCooperative;
+    using KernelSchedule = tilelang::gemm::KernelPtrArrayTmaWarpSpecializedCooperativeFP8Blockwise;
+    using EpilogueSchedule = tilelang::epilogue::PtrArrayTmaWarpSpecializedCooperative;
     using ScaleConfig =
-        cutlass::detail::Sm90BlockwiseScaleConfig<1, 128, 128, cute::GMMA::Major::K, cute::GMMA::Major::K>;
+        tilelang::detail::Sm90BlockwiseScaleConfig<1, 128, 128, cute::GMMA::Major::K, cute::GMMA::Major::K>;
     using LayoutSFA = decltype(ScaleConfig::deduce_layoutSFA());
     using LayoutSFB = decltype(ScaleConfig::deduce_layoutSFB());
   };
@@ -525,7 +525,7 @@ void sm90_fp8_blockwise_group_mm_dispatch_shape(
         problem_sizes,
         problem_sizes_transpose,
         true);
-    launch_sm90_fp8_blockwise_scaled_group_mm<OutType, MmaConfigSmallM, cutlass::layout::ColumnMajor>(
+    launch_sm90_fp8_blockwise_scaled_group_mm<OutType, MmaConfigSmallM, tilelang::layout::ColumnMajor>(
         out_ptrs,
         a_ptrs,
         b_ptrs,
@@ -562,7 +562,7 @@ void sm90_fp8_blockwise_group_mm_dispatch_shape(
           layout_sfb,
           problem_sizes,
           problem_sizes_transpose);
-      launch_sm90_fp8_blockwise_scaled_group_mm<OutType, MmaConfigH20LargeK, cutlass::layout::RowMajor>(
+      launch_sm90_fp8_blockwise_scaled_group_mm<OutType, MmaConfigH20LargeK, tilelang::layout::RowMajor>(
           out_ptrs,
           a_ptrs,
           b_ptrs,
@@ -597,7 +597,7 @@ void sm90_fp8_blockwise_group_mm_dispatch_shape(
           layout_sfb,
           problem_sizes,
           problem_sizes_transpose);
-      launch_sm90_fp8_blockwise_scaled_group_mm<OutType, MmaConfigHx00AndH20SmallK, cutlass::layout::RowMajor>(
+      launch_sm90_fp8_blockwise_scaled_group_mm<OutType, MmaConfigHx00AndH20SmallK, tilelang::layout::RowMajor>(
           out_ptrs,
           a_ptrs,
           b_ptrs,
@@ -706,7 +706,7 @@ void fp8_blockwise_scaled_grouped_mm(
   bool can_implement = false;
   auto sm_version = getSMVersion();
 
-#if defined(CUTLASS_ARCH_MMA_SM100A_SUPPORTED) || defined(CUTLASS_ARCH_MMA_SM100_SUPPORTED)
+#if defined(TILELANG_ARCH_MMA_SM100A_SUPPORTED) || defined(TILELANG_ARCH_MMA_SM100_SUPPORTED)
 #if defined CUDA_VERSION && CUDA_VERSION >= 12080
   if (sm_version == 100
 #if CUDA_VERSION >= 12090
@@ -714,7 +714,7 @@ void fp8_blockwise_scaled_grouped_mm(
 #endif
   ) {
     if (output.scalar_type() == torch::kBFloat16) {
-      sm100_fp8_blockwise_group_mm_dispatch_shape<cutlass::bfloat16_t>(
+      sm100_fp8_blockwise_group_mm_dispatch_shape<tilelang::bfloat16_t>(
           output,
           a_ptrs,
           b_ptrs,
@@ -734,7 +734,7 @@ void fp8_blockwise_scaled_grouped_mm(
           expert_offsets,
           workspace);
     } else {
-      sm100_fp8_blockwise_group_mm_dispatch_shape<cutlass::half_t>(
+      sm100_fp8_blockwise_group_mm_dispatch_shape<tilelang::half_t>(
           output,
           a_ptrs,
           b_ptrs,
@@ -759,10 +759,10 @@ void fp8_blockwise_scaled_grouped_mm(
 #endif
 #endif
 
-#if defined(CUTLASS_ARCH_MMA_SM90_SUPPORTED) && defined(CUTLASS_ARCH_MMA_MODIFIABLE_TMA_SM90_SUPPORTED)
+#if defined(TILELANG_ARCH_MMA_SM90_SUPPORTED) && defined(TILELANG_ARCH_MMA_MODIFIABLE_TMA_SM90_SUPPORTED)
   if (sm_version == 90) {
     if (output.scalar_type() == torch::kBFloat16) {
-      sm90_fp8_blockwise_group_mm_dispatch_shape<cutlass::bfloat16_t>(
+      sm90_fp8_blockwise_group_mm_dispatch_shape<tilelang::bfloat16_t>(
           output,
           a_ptrs,
           b_ptrs,
@@ -782,7 +782,7 @@ void fp8_blockwise_scaled_grouped_mm(
           expert_offsets,
           workspace);
     } else {
-      sm90_fp8_blockwise_group_mm_dispatch_shape<cutlass::half_t>(
+      sm90_fp8_blockwise_group_mm_dispatch_shape<tilelang::half_t>(
           output,
           a_ptrs,
           b_ptrs,

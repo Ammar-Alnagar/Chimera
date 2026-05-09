@@ -20,21 +20,21 @@ limitations under the License.
 #include "utils.h"
 
 // clang-format off
-#include "cutlass/cutlass.h"
-#include "cutlass/gemm/collective/collective_builder.hpp"
-#include "cutlass/epilogue/collective/collective_builder.hpp"
-#include "cutlass/gemm/device/gemm_universal_adapter.h"
-#include "cutlass/gemm/kernel/gemm_universal.hpp"
-#include "cutlass/util/packed_stride.hpp"
+#include "tilelang/tilelang.h"
+#include "tilelang/gemm/collective/collective_builder.hpp"
+#include "tilelang/epilogue/collective/collective_builder.hpp"
+#include "tilelang/gemm/device/gemm_universal_adapter.h"
+#include "tilelang/gemm/kernel/gemm_universal.hpp"
+#include "tilelang/util/packed_stride.hpp"
 // clang-format on
 
 /**
- * Helper function for checking CUTLASS errors
+ * Helper function for checking TILELANG errors
  */
-#define CUTLASS_CHECK(status)                                                       \
+#define TILELANG_CHECK(status)                                                       \
   {                                                                                 \
-    cutlass::Status error = status;                                                 \
-    TORCH_CHECK(error == cutlass::Status::kSuccess, cutlassGetStatusString(error)); \
+    tilelang::Status error = status;                                                 \
+    TORCH_CHECK(error == tilelang::Status::kSuccess, tilelangGetStatusString(error)); \
   }
 
 using namespace cute;
@@ -51,8 +51,8 @@ inline uint32_t next_pow_2(uint32_t x) {
   return x + 1;
 }
 
-#if defined(CUTLASS_ARCH_MMA_SM100_SUPPORTED) || defined(CUTLASS_ARCH_MMA_SM120_SUPPORTED) || \
-    defined(CUTLASS_ARCH_MMA_SM121_SUPPORTED)
+#if defined(TILELANG_ARCH_MMA_SM100_SUPPORTED) || defined(TILELANG_ARCH_MMA_SM120_SUPPORTED) || \
+    defined(TILELANG_ARCH_MMA_SM121_SUPPORTED)
 // Config(half_t/bfloat16_t) for M <= 128
 template <typename T>
 struct KernelConfigM128 {
@@ -60,8 +60,8 @@ struct KernelConfigM128 {
   using MmaTileShape = Shape<_128, _256, _256>;
   using ClusterShape = Shape<int, int, _1>;
   using EpilogueTile = Shape<_128, _64>;  // Avoid register spilling
-  using EpilogueSchedule = cutlass::epilogue::TmaWarpSpecialized1Sm;
-  using MainloopSchedule = cutlass::gemm::KernelTmaWarpSpecialized1SmNvf4Sm100;
+  using EpilogueSchedule = tilelang::epilogue::TmaWarpSpecialized1Sm;
+  using MainloopSchedule = tilelang::gemm::KernelTmaWarpSpecialized1SmNvf4Sm100;
   const static dim3 preferred_cluster;
   const static dim3 fallback_cluster;
 };
@@ -77,8 +77,8 @@ struct KernelConfigM256 {
   using MmaTileShape = Shape<_256, _256, _256>;
   using ClusterShape = Shape<int, int, _1>;
   using EpilogueTile = Shape<_128, _64>;  // Avoid register spilling
-  using EpilogueSchedule = cutlass::epilogue::TmaWarpSpecialized2Sm;
-  using MainloopSchedule = cutlass::gemm::KernelTmaWarpSpecialized2SmNvf4Sm100;
+  using EpilogueSchedule = tilelang::epilogue::TmaWarpSpecialized2Sm;
+  using MainloopSchedule = tilelang::gemm::KernelTmaWarpSpecialized2SmNvf4Sm100;
   const static dim3 preferred_cluster;
   const static dim3 fallback_cluster;
 };
@@ -94,8 +94,8 @@ struct KernelConfigDefault {
   using MmaTileShape = Shape<_256, _256, _256>;
   using ClusterShape = Shape<int, int, _1>;
   using EpilogueTile = Shape<_128, _64>;  // Avoid register spilling
-  using EpilogueSchedule = cutlass::epilogue::TmaWarpSpecialized2Sm;
-  using MainloopSchedule = cutlass::gemm::KernelTmaWarpSpecialized2SmNvf4Sm100;
+  using EpilogueSchedule = tilelang::epilogue::TmaWarpSpecialized2Sm;
+  using MainloopSchedule = tilelang::gemm::KernelTmaWarpSpecialized2SmNvf4Sm100;
   const static dim3 preferred_cluster;
   const static dim3 fallback_cluster;
 };
@@ -108,9 +108,9 @@ struct KernelConfigFp32 {
   using OutputType = float;
   using MmaTileShape = Shape<_128, _128, _256>;
   using ClusterShape = Shape<int, int, _1>;
-  using EpilogueTile = cutlass::epilogue::collective::EpilogueTileAuto;
-  using EpilogueSchedule = cutlass::epilogue::TmaWarpSpecialized1Sm;
-  using MainloopSchedule = cutlass::gemm::KernelTmaWarpSpecialized1SmNvf4Sm100;
+  using EpilogueTile = tilelang::epilogue::collective::EpilogueTileAuto;
+  using EpilogueSchedule = tilelang::epilogue::TmaWarpSpecialized1Sm;
+  using MainloopSchedule = tilelang::gemm::KernelTmaWarpSpecialized1SmNvf4Sm100;
   const static dim3 preferred_cluster;
   const static dim3 fallback_cluster;
 };
@@ -135,26 +135,26 @@ struct Fp4GemmSm100 {
   using Config = KernelConfig;  // For generating args
   using OutputType = typename KernelConfig::OutputType;
   // A matrix configuration
-  using ElementA = cutlass::nv_float4_t<cutlass::float_e2m1_t>;
-  using LayoutATag = cutlass::layout::RowMajor;
+  using ElementA = tilelang::nv_float4_t<tilelang::float_e2m1_t>;
+  using LayoutATag = tilelang::layout::RowMajor;
   static constexpr int AlignmentA = 32;
 
   // B matrix configuration
-  using ElementB = cutlass::nv_float4_t<cutlass::float_e2m1_t>;
-  using LayoutBTag = cutlass::layout::ColumnMajor;
+  using ElementB = tilelang::nv_float4_t<tilelang::float_e2m1_t>;
+  using LayoutBTag = tilelang::layout::ColumnMajor;
   static constexpr int AlignmentB = 32;
 
   // C/D matrix configuration
   using ElementD = OutputType;
   using ElementC = OutputType;
-  using LayoutCTag = cutlass::layout::RowMajor;
-  using LayoutDTag = cutlass::layout::RowMajor;
-  static constexpr int AlignmentD = 128 / cutlass::sizeof_bits<ElementD>::value;
-  static constexpr int AlignmentC = 128 / cutlass::sizeof_bits<ElementC>::value;
+  using LayoutCTag = tilelang::layout::RowMajor;
+  using LayoutDTag = tilelang::layout::RowMajor;
+  static constexpr int AlignmentD = 128 / tilelang::sizeof_bits<ElementD>::value;
+  static constexpr int AlignmentC = 128 / tilelang::sizeof_bits<ElementC>::value;
   // Kernel functional config
   using ElementAccumulator = float;
-  using ArchTag = cutlass::arch::Sm100;
-  using OperatorClass = cutlass::arch::OpClassBlockScaledTensorOp;
+  using ArchTag = tilelang::arch::Sm100;
+  using OperatorClass = tilelang::arch::OpClassBlockScaledTensorOp;
 
   // Kernel Perf config
   using MmaTileShape = typename KernelConfig::MmaTileShape;
@@ -163,7 +163,7 @@ struct Fp4GemmSm100 {
   using EpilogueSchedule = typename KernelConfig::EpilogueSchedule;
   using MainloopSchedule = typename KernelConfig::MainloopSchedule;
 
-  using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
+  using CollectiveEpilogue = typename tilelang::epilogue::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       MmaTileShape,
@@ -178,9 +178,9 @@ struct Fp4GemmSm100 {
       LayoutDTag,
       AlignmentD,
       EpilogueSchedule,
-      cutlass::epilogue::fusion::LinearCombination<ElementD, float, void, float>>::CollectiveOp;
+      tilelang::epilogue::fusion::LinearCombination<ElementD, float, void, float>>::CollectiveOp;
 
-  using CollectiveMainloop = typename cutlass::gemm::collective::CollectiveBuilder<
+  using CollectiveMainloop = typename tilelang::gemm::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       ElementA,
@@ -192,13 +192,13 @@ struct Fp4GemmSm100 {
       ElementAccumulator,
       MmaTileShape,
       ClusterShape,
-      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(
+      tilelang::gemm::collective::StageCountAutoCarveout<static_cast<int>(
           sizeof(typename CollectiveEpilogue::SharedStorage))>,
       MainloopSchedule>::CollectiveOp;
 
   using GemmKernel =
-      cutlass::gemm::kernel::GemmUniversal<Shape<int, int, int, int>, CollectiveMainloop, CollectiveEpilogue, void>;
-  using Gemm = cutlass::gemm::device::GemmUniversalAdapter<GemmKernel>;
+      tilelang::gemm::kernel::GemmUniversal<Shape<int, int, int, int>, CollectiveMainloop, CollectiveEpilogue, void>;
+  using Gemm = tilelang::gemm::device::GemmUniversalAdapter<GemmKernel>;
   using StrideA = typename Gemm::GemmKernel::StrideA;
   using LayoutA = decltype(cute::make_layout(make_shape(0, 0, 0), StrideA{}));
   using LayoutSFA = typename Gemm::GemmKernel::CollectiveMainloop::LayoutSFA;
@@ -214,35 +214,35 @@ struct Fp4GemmSm100 {
 // SM120 specific GEMM template
 template <typename Config, typename OutType>
 struct Fp4GemmSm120 {
-  using ElementA = cutlass::nv_float4_t<cutlass::float_e2m1_t>;
-  using LayoutATag = cutlass::layout::RowMajor;
+  using ElementA = tilelang::nv_float4_t<tilelang::float_e2m1_t>;
+  using LayoutATag = tilelang::layout::RowMajor;
   static constexpr int AlignmentA = 32;
 
-  using ElementB = cutlass::nv_float4_t<cutlass::float_e2m1_t>;
-  using LayoutBTag = cutlass::layout::ColumnMajor;
+  using ElementB = tilelang::nv_float4_t<tilelang::float_e2m1_t>;
+  using LayoutBTag = tilelang::layout::ColumnMajor;
   static constexpr int AlignmentB = 32;
 
   using ElementD = OutType;
   using ElementC = OutType;
-  using LayoutCTag = cutlass::layout::RowMajor;
-  using LayoutDTag = cutlass::layout::RowMajor;
-  static constexpr int AlignmentD = 128 / cutlass::sizeof_bits<ElementD>::value;
-  static constexpr int AlignmentC = 128 / cutlass::sizeof_bits<ElementC>::value;
+  using LayoutCTag = tilelang::layout::RowMajor;
+  using LayoutDTag = tilelang::layout::RowMajor;
+  static constexpr int AlignmentD = 128 / tilelang::sizeof_bits<ElementD>::value;
+  static constexpr int AlignmentC = 128 / tilelang::sizeof_bits<ElementC>::value;
 
   using ElementAccumulator = float;
-  using ArchTag = cutlass::arch::Sm120;
-  using OperatorClass = cutlass::arch::OpClassBlockScaledTensorOp;
+  using ArchTag = tilelang::arch::Sm120;
+  using OperatorClass = tilelang::arch::OpClassBlockScaledTensorOp;
 
   using MmaTileShape = typename Config::MmaTileShape;
   using ClusterShape = typename Config::ClusterShape;
   using PerSmTileShape_MNK = typename Config::PerSmTileShape_MNK;
 
-  using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
+  using CollectiveEpilogue = typename tilelang::epilogue::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       PerSmTileShape_MNK,
       ClusterShape,
-      cutlass::epilogue::collective::EpilogueTileAuto,
+      tilelang::epilogue::collective::EpilogueTileAuto,
       ElementAccumulator,
       ElementAccumulator,
       ElementC,
@@ -251,9 +251,9 @@ struct Fp4GemmSm120 {
       ElementD,
       LayoutDTag,
       AlignmentD,
-      cutlass::epilogue::collective::EpilogueScheduleAuto>::CollectiveOp;
+      tilelang::epilogue::collective::EpilogueScheduleAuto>::CollectiveOp;
 
-  using CollectiveMainloop = typename cutlass::gemm::collective::CollectiveBuilder<
+  using CollectiveMainloop = typename tilelang::gemm::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       ElementA,
@@ -265,14 +265,14 @@ struct Fp4GemmSm120 {
       ElementAccumulator,
       MmaTileShape,
       ClusterShape,
-      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(
+      tilelang::gemm::collective::StageCountAutoCarveout<static_cast<int>(
           sizeof(typename CollectiveEpilogue::SharedStorage))>,
-      cutlass::gemm::collective::KernelScheduleAuto>::CollectiveOp;
+      tilelang::gemm::collective::KernelScheduleAuto>::CollectiveOp;
 
   using GemmKernel =
-      cutlass::gemm::kernel::GemmUniversal<Shape<int, int, int, int>, CollectiveMainloop, CollectiveEpilogue, void>;
+      tilelang::gemm::kernel::GemmUniversal<Shape<int, int, int, int>, CollectiveMainloop, CollectiveEpilogue, void>;
 
-  using Gemm = cutlass::gemm::device::GemmUniversalAdapter<GemmKernel>;
+  using Gemm = tilelang::gemm::device::GemmUniversalAdapter<GemmKernel>;
 };
 
 template <typename T>
@@ -288,8 +288,8 @@ typename T::Gemm::Arguments args_from_options(
     int64_t K) {
   using ElementA = typename T::Gemm::ElementA;
   using ElementB = typename T::Gemm::ElementB;
-  using ElementSFA = cutlass::float_ue4m3_t;
-  using ElementSFB = cutlass::float_ue4m3_t;
+  using ElementSFA = tilelang::float_ue4m3_t;
+  using ElementSFB = tilelang::float_ue4m3_t;
   using ElementD = typename T::Gemm::ElementD;
   using ElementCompute = float;
   using StrideA = typename T::StrideA;
@@ -300,15 +300,15 @@ typename T::Gemm::Arguments args_from_options(
   int m = static_cast<int>(M);
   int n = static_cast<int>(N);
   int k = static_cast<int>(K);
-  auto stride_A = cutlass::make_cute_packed_stride(StrideA{}, {m, k, 1});
-  auto stride_B = cutlass::make_cute_packed_stride(StrideB{}, {n, k, 1});
-  auto stride_D = cutlass::make_cute_packed_stride(StrideD{}, {m, n, 1});
+  auto stride_A = tilelang::make_cute_packed_stride(StrideA{}, {m, k, 1});
+  auto stride_B = tilelang::make_cute_packed_stride(StrideB{}, {n, k, 1});
+  auto stride_D = tilelang::make_cute_packed_stride(StrideD{}, {m, n, 1});
 
   auto layout_SFA = Sm1xxBlkScaledConfig::tile_atom_to_shape_SFA(cute::make_shape(m, n, k, 1));
   auto layout_SFB = Sm1xxBlkScaledConfig::tile_atom_to_shape_SFB(cute::make_shape(m, n, k, 1));
 
   typename T::Gemm::Arguments arguments{
-      cutlass::gemm::GemmUniversalMode::kGemm,
+      tilelang::gemm::GemmUniversalMode::kGemm,
       {m, n, k, 1},
       {// Mainloop arguments
        static_cast<ElementA const*>(A.data_ptr()),
@@ -352,11 +352,11 @@ void runGemm(
   auto const workspace_options = torch::TensorOptions().dtype(torch::kUInt8).device(A.device());
   auto workspace = torch::empty(workspace_size, workspace_options);
 
-  CUTLASS_CHECK(gemm.can_implement(arguments));
+  TILELANG_CHECK(gemm.can_implement(arguments));
 
-  CUTLASS_CHECK(gemm.initialize(arguments, workspace.data_ptr(), stream));
+  TILELANG_CHECK(gemm.initialize(arguments, workspace.data_ptr(), stream));
 
-  CUTLASS_CHECK(gemm.run(arguments, workspace.data_ptr(), stream));
+  TILELANG_CHECK(gemm.run(arguments, workspace.data_ptr(), stream));
 }
 
 // SM120 specific args_from_options function
@@ -374,8 +374,8 @@ typename Gemm::Arguments args_from_options_sm120(
   using ElementA = typename Gemm::ElementA;
   using ElementB = typename Gemm::ElementB;
   using ElementD = typename Gemm::ElementD;
-  using ElementSFA = cutlass::float_ue4m3_t;
-  using ElementSFB = cutlass::float_ue4m3_t;
+  using ElementSFA = tilelang::float_ue4m3_t;
+  using ElementSFB = tilelang::float_ue4m3_t;
   using ElementCompute = float;
 
   using StrideA = typename Gemm::GemmKernel::StrideA;
@@ -385,15 +385,15 @@ typename Gemm::Arguments args_from_options_sm120(
 
   using Sm1xxBlkScaledConfig = typename Gemm::GemmKernel::CollectiveMainloop::Sm1xxBlkScaledConfig;
 
-  auto stride_A = cutlass::make_cute_packed_stride(StrideA{}, {M, K, 1});
-  auto stride_B = cutlass::make_cute_packed_stride(StrideB{}, {N, K, 1});
-  auto stride_D = cutlass::make_cute_packed_stride(StrideD{}, {M, N, 1});
+  auto stride_A = tilelang::make_cute_packed_stride(StrideA{}, {M, K, 1});
+  auto stride_B = tilelang::make_cute_packed_stride(StrideB{}, {N, K, 1});
+  auto stride_D = tilelang::make_cute_packed_stride(StrideD{}, {M, N, 1});
 
   auto layout_SFA = Sm1xxBlkScaledConfig::tile_atom_to_shape_SFA(cute::make_shape(M, N, K, 1));
   auto layout_SFB = Sm1xxBlkScaledConfig::tile_atom_to_shape_SFB(cute::make_shape(M, N, K, 1));
 
   typename Gemm::Arguments arguments{
-      cutlass::gemm::GemmUniversalMode::kGemm,
+      tilelang::gemm::GemmUniversalMode::kGemm,
       {M, N, K, 1},
       {static_cast<ElementA const*>(A.data_ptr()),
        stride_A,
@@ -431,16 +431,16 @@ void runGemmSm120(
   auto const workspace_options = torch::TensorOptions().dtype(torch::kUInt8).device(A.device());
   auto workspace = torch::empty(workspace_size, workspace_options);
 
-  CUTLASS_CHECK(gemm.can_implement(arguments));
+  TILELANG_CHECK(gemm.can_implement(arguments));
 
-  CUTLASS_CHECK(gemm.initialize(arguments, workspace.data_ptr(), stream));
+  TILELANG_CHECK(gemm.initialize(arguments, workspace.data_ptr(), stream));
 
-  CUTLASS_CHECK(gemm.run(arguments, workspace.data_ptr(), stream));
+  TILELANG_CHECK(gemm.run(arguments, workspace.data_ptr(), stream));
 }
 
 // Dispatch function to select appropriate config based on M
 template <typename OutType>
-void cutlassFp4GemmDispatch(
+void tilelangFp4GemmDispatch(
     torch::Tensor& D,
     torch::Tensor const& A,
     torch::Tensor const& B,
@@ -465,7 +465,7 @@ void cutlassFp4GemmDispatch(
 
 // Dispatch function to select appropriate config based on M
 template <>
-void cutlassFp4GemmDispatch<float>(
+void tilelangFp4GemmDispatch<float>(
     torch::Tensor& D,
     torch::Tensor const& A,
     torch::Tensor const& B,
@@ -480,7 +480,7 @@ void cutlassFp4GemmDispatch<float>(
 }
 
 // SM120 specific dispatch functions
-void cutlass_fp4_bf16_gemm_dispatch_sm120(
+void tilelang_fp4_bf16_gemm_dispatch_sm120(
     torch::Tensor& D,
     torch::Tensor const& A,
     torch::Tensor const& B,
@@ -493,15 +493,15 @@ void cutlass_fp4_bf16_gemm_dispatch_sm120(
     cudaStream_t stream) {
   uint32_t const mp2 = std::max(static_cast<uint32_t>(16), next_pow_2(m));
   if (mp2 <= 256) {
-    runGemmSm120<Fp4GemmSm120<sm120_fp4_config_M256, cutlass::bfloat16_t>::Gemm>(
+    runGemmSm120<Fp4GemmSm120<sm120_fp4_config_M256, tilelang::bfloat16_t>::Gemm>(
         D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
   } else {
-    runGemmSm120<Fp4GemmSm120<sm120_fp4_config_default, cutlass::bfloat16_t>::Gemm>(
+    runGemmSm120<Fp4GemmSm120<sm120_fp4_config_default, tilelang::bfloat16_t>::Gemm>(
         D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
   }
 }
 
-void cutlass_fp4_f16_gemm_dispatch_sm120(
+void tilelang_fp4_f16_gemm_dispatch_sm120(
     torch::Tensor& D,
     torch::Tensor const& A,
     torch::Tensor const& B,
@@ -514,17 +514,17 @@ void cutlass_fp4_f16_gemm_dispatch_sm120(
     cudaStream_t stream) {
   uint32_t const mp2 = std::max(static_cast<uint32_t>(16), next_pow_2(m));
   if (mp2 <= 256) {
-    runGemmSm120<Fp4GemmSm120<sm120_fp4_config_M256, cutlass::half_t>::Gemm>(
+    runGemmSm120<Fp4GemmSm120<sm120_fp4_config_M256, tilelang::half_t>::Gemm>(
         D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
   } else {
-    runGemmSm120<Fp4GemmSm120<sm120_fp4_config_default, cutlass::half_t>::Gemm>(
+    runGemmSm120<Fp4GemmSm120<sm120_fp4_config_default, tilelang::half_t>::Gemm>(
         D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
   }
 }
 
 #else
 template <typename T>
-void cutlassFp4GemmDispatch(
+void tilelangFp4GemmDispatch(
     at::Tensor& D,
     at::Tensor const& A,
     at::Tensor const& B,
@@ -537,11 +537,11 @@ void cutlassFp4GemmDispatch(
     cudaStream_t stream) {
   TORCH_CHECK(
       false,
-      "Unsupported CUTLASS version. Set VLLM_CUTLASS_SRC_DIR to "
-      "a CUTLASS 3.8 source directory to enable support.");
+      "Unsupported TILELANG version. Set VLLM_TILELANG_SRC_DIR to "
+      "a TILELANG 3.8 source directory to enable support.");
 }
-#endif  // defined(CUTLASS_ARCH_MMA_SM100_SUPPORTED) || defined(CUTLASS_ARCH_MMA_SM120_SUPPORTED) ||
-        // defined(CUTLASS_ARCH_MMA_SM121_SUPPORTED)
+#endif  // defined(TILELANG_ARCH_MMA_SM100_SUPPORTED) || defined(TILELANG_ARCH_MMA_SM120_SUPPORTED) ||
+        // defined(TILELANG_ARCH_MMA_SM121_SUPPORTED)
 
 // Undefine macros from utils.h to redefine with custom signatures
 #undef CHECK_CONTIGUOUS
@@ -558,7 +558,7 @@ void cutlassFp4GemmDispatch(
 constexpr auto FLOAT4_E2M1X2 = at::ScalarType::Byte;
 constexpr auto SF_DTYPE = at::ScalarType::Float8_e4m3fn;
 
-void cutlass_scaled_fp4_mm_sm100a_sm120a(
+void tilelang_scaled_fp4_mm_sm100a_sm120a(
     torch::Tensor& D,
     torch::Tensor const& A,
     torch::Tensor const& B,
@@ -666,20 +666,20 @@ void cutlass_scaled_fp4_mm_sm100a_sm120a(
   if (sm_version == 120) {
     // Use SM120 specific dispatch
     if (out_dtype == at::ScalarType::Half) {
-      cutlass_fp4_f16_gemm_dispatch_sm120(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
+      tilelang_fp4_f16_gemm_dispatch_sm120(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
     } else if (out_dtype == at::ScalarType::BFloat16) {
-      cutlass_fp4_bf16_gemm_dispatch_sm120(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
+      tilelang_fp4_bf16_gemm_dispatch_sm120(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
     } else {
       TORCH_CHECK(false, "Unsupported output data type of nvfp4 mm sm120 (", out_dtype, ")");
     }
   } else {
     // Use SM100 dispatch for other architectures
     if (out_dtype == at::ScalarType::Half) {
-      cutlassFp4GemmDispatch<cutlass::half_t>(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
+      tilelangFp4GemmDispatch<tilelang::half_t>(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
     } else if (out_dtype == at::ScalarType::BFloat16) {
-      cutlassFp4GemmDispatch<cutlass::bfloat16_t>(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
+      tilelangFp4GemmDispatch<tilelang::bfloat16_t>(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
     } else if (out_dtype == at::ScalarType::Float) {
-      cutlassFp4GemmDispatch<float>(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
+      tilelangFp4GemmDispatch<float>(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
     } else {
       TORCH_CHECK(false, "Unsupported output data type of nvfp4 mm");
     }

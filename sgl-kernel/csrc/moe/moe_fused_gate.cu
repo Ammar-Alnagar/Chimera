@@ -1,17 +1,17 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <cuda_runtime.h>
-#include <cutlass/array.h>
-#include <cutlass/cutlass.h>
-#include <cutlass/numeric_types.h>
+#include <tilelang/array.h>
+#include <tilelang/tilelang.h>
+#include <tilelang/numeric_types.h>
 #include <stdio.h>
 #include <torch/all.h>
 
 #include <cfloat>
 #include <type_traits>
 template <typename T, int N>
-using AlignedArray = cutlass::AlignedArray<T, N>;
-using bfloat16_t = cutlass::bfloat16_t;
-using float16_t = cutlass::half_t;
+using AlignedArray = tilelang::AlignedArray<T, N>;
+using bfloat16_t = tilelang::bfloat16_t;
+using float16_t = tilelang::half_t;
 using float32_t = float;
 
 // QQ NOTE: to handle the case for at::Half, error: more than one operator ">" matches these operands: built-in operator
@@ -22,7 +22,7 @@ __device__ inline bool cmp_gt(const T& a, const T& b) {
     // at::Half (or float16_t in our native case) causes ambiguity, so we cast to float.
     return static_cast<float>(a) > static_cast<float>(b);
   } else {
-    // For types like float, at::BFloat16, or cutlass::half_t / cutlass::bfloat16_t, assume operator> works as expected.
+    // For types like float, at::BFloat16, or tilelang::half_t / tilelang::bfloat16_t, assume operator> works as expected.
     return a > b;
   }
 }

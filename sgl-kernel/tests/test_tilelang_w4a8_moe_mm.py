@@ -1,6 +1,6 @@
 import pytest
 import torch
-from sgl_kernel import cutlass_w4a8_moe_mm, sgl_per_tensor_quant_fp8
+from sgl_kernel import tilelang_w4a8_moe_mm, sgl_per_tensor_quant_fp8
 from utils import is_hopper
 
 
@@ -47,7 +47,7 @@ def pack_interleave(num_experts, ref_weight, ref_scale):
 
 @pytest.mark.skipif(
     not is_hopper(),
-    reason="cutlass_w4a8_moe_mm is only supported on sm90",
+    reason="tilelang_w4a8_moe_mm is only supported on sm90",
 )
 @pytest.mark.parametrize("batch_size", [1, 2, 4, 8, 16])
 def test_int4_fp8_grouped_gemm_single_expert(batch_size):
@@ -95,7 +95,7 @@ def test_int4_fp8_grouped_gemm_single_expert(batch_size):
 
     # Create output tensor
     c = torch.empty((m, n), dtype=torch.bfloat16, device=device)
-    cutlass_w4a8_moe_mm(
+    tilelang_w4a8_moe_mm(
         c,
         a_q,
         w,
@@ -125,7 +125,7 @@ def test_int4_fp8_grouped_gemm_single_expert(batch_size):
         # torch.set_printoptions(threshold=10_000)
         print(f"  FAILURE: tensors are NOT close.")
         print(f"    Ref tensor: {c_ref.flatten()}")
-        print(f"    Cutlass tensor: {c.flatten()}")
+        print(f"    TileLang tensor: {c.flatten()}")
         print(
             f"    Max absolute difference: {torch.max(torch.abs(c.to(c_ref.dtype) - c_ref))}"
         )
@@ -154,7 +154,7 @@ def _per_tensor_quant_fp8(
 
 @pytest.mark.skipif(
     not is_hopper(),
-    reason="cutlass_w4a8_moe_mm is only supported on sm90",
+    reason="tilelang_w4a8_moe_mm is only supported on sm90",
 )
 @pytest.mark.parametrize("batch_size", [2, 4, 8, 16, 32])
 @pytest.mark.parametrize("k", [256, 512, 1024, 2048, 4096, 7168])
@@ -220,7 +220,7 @@ def test_int4_fp8_grouped_gemm_multi_experts(batch_size, k, n, num_experts):
     s_strides = c_strides
 
     c_perm = torch.empty((batch_size, n), dtype=torch.bfloat16, device=device)
-    cutlass_w4a8_moe_mm(
+    tilelang_w4a8_moe_mm(
         c_perm,
         a_q_perm,
         w,

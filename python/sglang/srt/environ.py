@@ -342,18 +342,18 @@ class Envs:
     SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK = EnvBool(False)
 
     # vLLM dependencies (TODO: they have been deprecated, we can remove them safely)
-    USE_VLLM_CUTLASS_W8A8_FP8_KERNEL = EnvBool(False)
+    USE_VLLM_TILELANG_W8A8_FP8_KERNEL = EnvBool(False)
 
     USE_TRITON_W8A8_FP8_KERNEL = EnvBool(False)
     SGLANG_RETURN_ORIGINAL_LOGPROB = EnvBool(False)
     SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN = EnvBool(False)
     SGLANG_MOE_PADDING = EnvBool(False)
-    SGLANG_CUTLASS_MOE = EnvBool(False)
+    SGLANG_TILELANG_MOE = EnvBool(False)
     HF_HUB_DISABLE_XET = EnvBool(False)
     DISABLE_OPENAPI_DOC = EnvBool(False)
     SGLANG_ENABLE_TORCH_INFERENCE_MODE = EnvBool(False)
     SGLANG_IS_FIRST_RANK_ON_NODE = EnvBool(True)
-    SGLANG_SUPPORT_CUTLASS_BLOCK_FP8 = EnvBool(False)
+    SGLANG_SUPPORT_TILELANG_BLOCK_FP8 = EnvBool(False)
     SGLANG_SYNC_TOKEN_IDS_ACROSS_TP = EnvBool(False)
     SGLANG_ENABLE_COLOCATED_BATCH_GEN = EnvBool(False)
 
@@ -461,7 +461,7 @@ def _convert_SGL_to_SGLANG():
         "SGLANG_ENABLE_FLASHINFER_FP8_GEMM", "SGLANG_ENABLE_FLASHINFER_GEMM"
     )
     _print_deprecated_env(
-        "SGLANG_MOE_NVFP4_DISPATCH", "SGLANG_CUTEDSL_MOE_NVFP4_DISPATCH"
+        "SGLANG_MOE_NVFP4_DISPATCH", "SGLANG_TILELANG_MOE_NVFP4_DISPATCH"
     )
     _print_deprecated_env(
         "SGLANG_MOE_NVFP4_DISPATCH", "SGLANG_TILELANG_MOE_NVFP4_DISPATCH"
@@ -491,8 +491,8 @@ _warn_deprecated_env_to_cli_flag(
     "It will be completely removed in 0.5.7. Please use '--fp8-gemm-backend=flashinfer_trtllm' instead.",
 )
 _warn_deprecated_env_to_cli_flag(
-    "SGLANG_SUPPORT_CUTLASS_BLOCK_FP8",
-    "It will be completely removed in 0.5.7. Please use '--fp8-gemm-backend=cutlass' instead.",
+    "SGLANG_SUPPORT_TILELANG_BLOCK_FP8",
+    "It will be completely removed in 0.5.7. Please use '--fp8-gemm-backend=tilelang' instead.",
 )
 
 

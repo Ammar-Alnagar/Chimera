@@ -1,32 +1,32 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <c10/cuda/CUDAStream.h>
-#include <cutlass/arch/arch.h>
+#include <tilelang/arch/arch.h>
 #include <torch/all.h>
 
 #include <cassert>
 
 #include "cute/tensor.hpp"
-#include "cutlass/epilogue/collective/collective_builder.hpp"
-#include "cutlass/epilogue/collective/default_epilogue.hpp"
-#include "cutlass/epilogue/thread/linear_combination.h"
-#include "cutlass/gemm/collective/collective_builder.hpp"
-#include "cutlass/gemm/device/gemm_universal_adapter.h"
-#include "cutlass/gemm/dispatch_policy.hpp"
-#include "cutlass/gemm/group_array_problem_shape.hpp"
-#include "cutlass/gemm/kernel/gemm_universal.hpp"
-#include "cutlass/tensor_ref.h"
-#include "cutlass/util/command_line.h"
-#include "cutlass/util/distribution.h"
-#include "cutlass/util/host_tensor.h"
-#include "cutlass/util/packed_stride.hpp"
-#include "cutlass/util/reference/device/gemm.h"
-#include "cutlass/util/reference/device/tensor_compare.h"
-#include "cutlass/util/reference/host/gett.hpp"
-#include "cutlass/util/reference/host/tensor_compare.h"
-#include "cutlass/util/reference/host/tensor_fill.h"
-#include "cutlass/util/reference/host/tensor_norm.h"
-#include "cutlass/util/tensor_view_io.h"
+#include "tilelang/epilogue/collective/collective_builder.hpp"
+#include "tilelang/epilogue/collective/default_epilogue.hpp"
+#include "tilelang/epilogue/thread/linear_combination.h"
+#include "tilelang/gemm/collective/collective_builder.hpp"
+#include "tilelang/gemm/device/gemm_universal_adapter.h"
+#include "tilelang/gemm/dispatch_policy.hpp"
+#include "tilelang/gemm/group_array_problem_shape.hpp"
+#include "tilelang/gemm/kernel/gemm_universal.hpp"
+#include "tilelang/tensor_ref.h"
+#include "tilelang/util/command_line.h"
+#include "tilelang/util/distribution.h"
+#include "tilelang/util/host_tensor.h"
+#include "tilelang/util/packed_stride.hpp"
+#include "tilelang/util/reference/device/gemm.h"
+#include "tilelang/util/reference/device/tensor_compare.h"
+#include "tilelang/util/reference/host/gett.hpp"
+#include "tilelang/util/reference/host/tensor_compare.h"
+#include "tilelang/util/reference/host/tensor_fill.h"
+#include "tilelang/util/reference/host/tensor_norm.h"
+#include "tilelang/util/tensor_view_io.h"
 #include "utils.h"
 
 using namespace cute;
@@ -165,15 +165,15 @@ void run_get_group_gemm_starts(
   //(ELEMENT_AB_TYPE, BS_TYPE, TENSOR_C_TYPE, C_TYPE, LayoutSFA, LayoutSFB,
   // ScaleConfig)
   __CALL_GET_STARTS_KERNEL_BLOCKSCALE(
-      cutlass::float_e2m1_t,
-      cutlass::float_ue4m3_t,
+      tilelang::float_e2m1_t,
+      tilelang::float_ue4m3_t,
       torch::kBFloat16,
-      cutlass::bfloat16_t,
+      tilelang::bfloat16_t,
       LayoutSFA,
       LayoutSFB,
       ScaleConfig)
   __CALL_GET_STARTS_KERNEL_BLOCKSCALE(
-      cutlass::float_e2m1_t, cutlass::float_ue4m3_t, torch::kFloat16, half, LayoutSFA, LayoutSFB, ScaleConfig)
+      tilelang::float_e2m1_t, tilelang::float_ue4m3_t, torch::kFloat16, half, LayoutSFA, LayoutSFB, ScaleConfig)
   else {
     TORCH_CHECK(false, "Invalid output type (must be float16 or bfloat16)");
   }
@@ -194,45 +194,45 @@ void run_fp4_blockwise_scaled_group_mm_sm120(
     int M,
     int N,
     int K) {
-  using ProblemShape = cutlass::gemm::GroupProblemShape<Shape<int32_t, int32_t, int32_t>>;
-  using ElementType = cutlass::float_e2m1_t;
-  using ElementSFType = cutlass::float_ue4m3_t;
-  using ElementA = cutlass::nv_float4_t<cutlass::float_e2m1_t>;
-  using ElementB = cutlass::nv_float4_t<cutlass::float_e2m1_t>;
+  using ProblemShape = tilelang::gemm::GroupProblemShape<Shape<int32_t, int32_t, int32_t>>;
+  using ElementType = tilelang::float_e2m1_t;
+  using ElementSFType = tilelang::float_ue4m3_t;
+  using ElementA = tilelang::nv_float4_t<tilelang::float_e2m1_t>;
+  using ElementB = tilelang::nv_float4_t<tilelang::float_e2m1_t>;
 
-  using ElementC = cutlass::bfloat16_t;
-  using ElementD = cutlass::bfloat16_t;
+  using ElementC = tilelang::bfloat16_t;
+  using ElementD = tilelang::bfloat16_t;
   using ElementAccumulator = float;
   // Layout definitions
-  using LayoutA = cutlass::layout::RowMajor;
-  using LayoutB = cutlass::layout::ColumnMajor;
-  using LayoutC = cutlass::layout::RowMajor;
-  using LayoutD = cutlass::layout::RowMajor;
+  using LayoutA = tilelang::layout::RowMajor;
+  using LayoutB = tilelang::layout::ColumnMajor;
+  using LayoutC = tilelang::layout::RowMajor;
+  using LayoutD = tilelang::layout::RowMajor;
 
   // Alignment constraints
   static constexpr int AlignmentA = 32;
   static constexpr int AlignmentB = 32;
-  static constexpr int AlignmentC = 128 / cutlass::sizeof_bits<ElementC>::value;
-  static constexpr int AlignmentD = 128 / cutlass::sizeof_bits<ElementD>::value;
+  static constexpr int AlignmentC = 128 / tilelang::sizeof_bits<ElementC>::value;
+  static constexpr int AlignmentD = 128 / tilelang::sizeof_bits<ElementD>::value;
 
   // Architecture definitions
-  using ArchTag = cutlass::arch::Sm120;
-  using OperatorClass = cutlass::arch::OpClassBlockScaledTensorOp;
-  using StageCountType = cutlass::gemm::collective::StageCountAuto;
+  using ArchTag = tilelang::arch::Sm120;
+  using OperatorClass = tilelang::arch::OpClassBlockScaledTensorOp;
+  using StageCountType = tilelang::gemm::collective::StageCountAuto;
   using ThreadBlockShape = Shape<_128, _128, _128>;
   // on the tile size
 
   using ClusterShape = Shape<_1, _1, _1>;
 
   using FusionOperation =
-      cutlass::epilogue::fusion::LinearCombination<ElementD, ElementAccumulator, ElementC, ElementAccumulator>;
+      tilelang::epilogue::fusion::LinearCombination<ElementD, ElementAccumulator, ElementC, ElementAccumulator>;
 
-  using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
+  using CollectiveEpilogue = typename tilelang::epilogue::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       ThreadBlockShape,
       ClusterShape,
-      cutlass::epilogue::collective::EpilogueTileAuto,
+      tilelang::epilogue::collective::EpilogueTileAuto,
       ElementAccumulator,
       ElementAccumulator,
       ElementC,
@@ -241,10 +241,10 @@ void run_fp4_blockwise_scaled_group_mm_sm120(
       ElementD,
       LayoutC*,
       AlignmentD,
-      cutlass::epilogue::collective::EpilogueScheduleAuto,
+      tilelang::epilogue::collective::EpilogueScheduleAuto,
       FusionOperation>::CollectiveOp;
 
-  using CollectiveMainloop = typename cutlass::gemm::collective::CollectiveBuilder<
+  using CollectiveMainloop = typename tilelang::gemm::collective::CollectiveBuilder<
       ArchTag,
       OperatorClass,
       ElementA,
@@ -256,13 +256,13 @@ void run_fp4_blockwise_scaled_group_mm_sm120(
       ElementAccumulator,
       ThreadBlockShape,
       ClusterShape,
-      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(
+      tilelang::gemm::collective::StageCountAutoCarveout<static_cast<int>(
           sizeof(typename CollectiveEpilogue::SharedStorage))>,
-      cutlass::gemm::KernelPtrArrayTmaWarpSpecializedPingpong>::CollectiveOp;
+      tilelang::gemm::KernelPtrArrayTmaWarpSpecializedPingpong>::CollectiveOp;
 
-  using GemmKernel = cutlass::gemm::kernel::GemmUniversal<ProblemShape, CollectiveMainloop, CollectiveEpilogue>;
+  using GemmKernel = tilelang::gemm::kernel::GemmUniversal<ProblemShape, CollectiveMainloop, CollectiveEpilogue>;
 
-  using Gemm1SM = cutlass::gemm::device::GemmUniversalAdapter<GemmKernel>;
+  using Gemm1SM = tilelang::gemm::device::GemmUniversalAdapter<GemmKernel>;
   using Gemm = Gemm1SM;
   using StrideA = typename Gemm::GemmKernel::InternalStrideA;
   using StrideB = typename Gemm::GemmKernel::InternalStrideB;
@@ -315,16 +315,16 @@ void run_fp4_blockwise_scaled_group_mm_sm120(
   UnderlyingProblemShape* problem_sizes_as_shapes = static_cast<UnderlyingProblemShape*>(problem_sizes.data_ptr());
 
   // Set the Scheduler info
-  cutlass::KernelHardwareInfo hw_info;
+  tilelang::KernelHardwareInfo hw_info;
 
-  using RasterOrderOptions = cutlass::gemm::kernel::detail::RasterOrderOptions;
+  using RasterOrderOptions = tilelang::gemm::kernel::detail::RasterOrderOptions;
   typename Gemm::GemmKernel::TileSchedulerArguments scheduler;
   scheduler.raster_order = RasterOrderOptions::AlongM;
   hw_info.device_id = a.get_device();
   static std::unordered_map<int, int> cached_sm_counts;
   if (cached_sm_counts.find(hw_info.device_id) == cached_sm_counts.end()) {
     cached_sm_counts[hw_info.device_id] =
-        cutlass::KernelHardwareInfo::query_device_multiprocessor_count(hw_info.device_id);
+        tilelang::KernelHardwareInfo::query_device_multiprocessor_count(hw_info.device_id);
   }
   hw_info.sm_count = min(cached_sm_counts[hw_info.device_id], INT_MAX);
 
@@ -353,7 +353,7 @@ void run_fp4_blockwise_scaled_group_mm_sm120(
 
   // Gemm Arguments
   typename GemmKernel::Arguments args{
-      cutlass::gemm::GemmUniversalMode::kGrouped,
+      tilelang::gemm::GemmUniversalMode::kGrouped,
       {num_experts, problem_sizes_as_shapes, nullptr},
       mainloop_args,
       epilogue_args,
@@ -366,14 +366,14 @@ void run_fp4_blockwise_scaled_group_mm_sm120(
   const cudaStream_t stream = at::cuda::getCurrentCUDAStream(a.get_device());
 
   auto can_implement_status = gemm_op.can_implement(args);
-  TORCH_CHECK(can_implement_status == cutlass::Status::kSuccess, "Failed to implement GEMM");
+  TORCH_CHECK(can_implement_status == tilelang::Status::kSuccess, "Failed to implement GEMM");
 
   // Run the GEMM
   auto status = gemm_op.initialize(args, workspace.data_ptr());
-  TORCH_CHECK(status == cutlass::Status::kSuccess, "Failed to initialize GEMM");
+  TORCH_CHECK(status == tilelang::Status::kSuccess, "Failed to initialize GEMM");
 
   status = gemm_op.run(args, workspace.data_ptr(), stream);
-  TORCH_CHECK(status == cutlass::Status::kSuccess, "Failed to run GEMM");
+  TORCH_CHECK(status == tilelang::Status::kSuccess, "Failed to run GEMM");
 }
 
 template <typename OutType>
@@ -392,42 +392,42 @@ void run_fp4_blockwise_scaled_group_mm_sm100(
     int M,
     int N,
     int K) {
-  using ProblemShape = cutlass::gemm::GroupProblemShape<Shape<int32_t, int32_t, int32_t>>;
-  using ElementType = cutlass::float_e2m1_t;
-  using ElementSFType = cutlass::float_ue4m3_t;
-  using ElementA = cutlass::nv_float4_t<cutlass::float_e2m1_t>;
-  using ElementB = cutlass::nv_float4_t<cutlass::float_e2m1_t>;
+  using ProblemShape = tilelang::gemm::GroupProblemShape<Shape<int32_t, int32_t, int32_t>>;
+  using ElementType = tilelang::float_e2m1_t;
+  using ElementSFType = tilelang::float_ue4m3_t;
+  using ElementA = tilelang::nv_float4_t<tilelang::float_e2m1_t>;
+  using ElementB = tilelang::nv_float4_t<tilelang::float_e2m1_t>;
 
   using ElementC = OutType;
   using ElementD = ElementC;
   using ElementAccumulator = float;
   // Layout definitions
-  using LayoutA = cutlass::layout::RowMajor;
-  using LayoutB = cutlass::layout::ColumnMajor;
-  using LayoutC = cutlass::layout::RowMajor;
+  using LayoutA = tilelang::layout::RowMajor;
+  using LayoutB = tilelang::layout::ColumnMajor;
+  using LayoutC = tilelang::layout::RowMajor;
   using LayoutD = LayoutC;
 
   // Alignment constraints
   static constexpr int AlignmentA = 32;
   static constexpr int AlignmentB = 32;
-  static constexpr int AlignmentC = 128 / cutlass::sizeof_bits<ElementC>::value;
-  static constexpr int AlignmentD = 128 / cutlass::sizeof_bits<ElementD>::value;
+  static constexpr int AlignmentC = 128 / tilelang::sizeof_bits<ElementC>::value;
+  static constexpr int AlignmentD = 128 / tilelang::sizeof_bits<ElementD>::value;
 
   // Architecture definitions
-  using ArchTag = cutlass::arch::Sm100;
-  using EpilogueOperatorClass = cutlass::arch::OpClassTensorOp;             // Epilogue Operator class tag
-  using MainloopOperatorClass = cutlass::arch::OpClassBlockScaledTensorOp;  // Mainloop Operator class tag
-  using StageCountType = cutlass::gemm::collective::StageCountAuto;         // Stage count maximized based
+  using ArchTag = tilelang::arch::Sm100;
+  using EpilogueOperatorClass = tilelang::arch::OpClassTensorOp;             // Epilogue Operator class tag
+  using MainloopOperatorClass = tilelang::arch::OpClassBlockScaledTensorOp;  // Mainloop Operator class tag
+  using StageCountType = tilelang::gemm::collective::StageCountAuto;         // Stage count maximized based
                                                                             // on the tile size
 
   using ClusterShape = Shape<_1, _1, _1>;
   struct MMA1SMConfig {
     using MmaTileShape = Shape<_128, _128, _128>;
-    using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecialized1SmNvf4Sm100;  // Kernel to launch
-    using EpilogueSchedule = cutlass::epilogue::PtrArrayTmaWarpSpecialized1Sm;           // Epilogue to launch
+    using KernelSchedule = tilelang::gemm::KernelPtrArrayTmaWarpSpecialized1SmNvf4Sm100;  // Kernel to launch
+    using EpilogueSchedule = tilelang::epilogue::PtrArrayTmaWarpSpecialized1Sm;           // Epilogue to launch
   };
 
-  using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
+  using CollectiveEpilogue = typename tilelang::epilogue::collective::CollectiveBuilder<
       ArchTag,
       EpilogueOperatorClass,
       typename MMA1SMConfig::MmaTileShape,
@@ -443,7 +443,7 @@ void run_fp4_blockwise_scaled_group_mm_sm100(
       AlignmentD,
       typename MMA1SMConfig::EpilogueSchedule>::CollectiveOp;
 
-  using CollectiveMainloop = typename cutlass::gemm::collective::CollectiveBuilder<
+  using CollectiveMainloop = typename tilelang::gemm::collective::CollectiveBuilder<
       ArchTag,
       MainloopOperatorClass,
       ElementA,
@@ -455,13 +455,13 @@ void run_fp4_blockwise_scaled_group_mm_sm100(
       ElementAccumulator,
       typename MMA1SMConfig::MmaTileShape,
       ClusterShape,
-      cutlass::gemm::collective::StageCountAutoCarveout<static_cast<int>(
+      tilelang::gemm::collective::StageCountAutoCarveout<static_cast<int>(
           sizeof(typename CollectiveEpilogue::SharedStorage))>,
       typename MMA1SMConfig::KernelSchedule>::CollectiveOp;
 
-  using GemmKernel = cutlass::gemm::kernel::GemmUniversal<ProblemShape, CollectiveMainloop, CollectiveEpilogue>;
+  using GemmKernel = tilelang::gemm::kernel::GemmUniversal<ProblemShape, CollectiveMainloop, CollectiveEpilogue>;
 
-  using Gemm1SM = cutlass::gemm::device::GemmUniversalAdapter<GemmKernel>;
+  using Gemm1SM = tilelang::gemm::device::GemmUniversalAdapter<GemmKernel>;
   using Gemm = Gemm1SM;
   using StrideA = typename Gemm::GemmKernel::InternalStrideA;
   using StrideB = typename Gemm::GemmKernel::InternalStrideB;
@@ -514,8 +514,8 @@ void run_fp4_blockwise_scaled_group_mm_sm100(
   UnderlyingProblemShape* problem_sizes_as_shapes = static_cast<UnderlyingProblemShape*>(problem_sizes.data_ptr());
 
   // Set the Scheduler info
-  cutlass::KernelHardwareInfo hw_info;
-  using RasterOrderOptions = typename cutlass::gemm::kernel::detail::PersistentTileSchedulerSm100GroupParams<
+  tilelang::KernelHardwareInfo hw_info;
+  using RasterOrderOptions = typename tilelang::gemm::kernel::detail::PersistentTileSchedulerSm100GroupParams<
       typename ProblemShape::UnderlyingProblemShape>::RasterOrderOptions;
   typename Gemm::GemmKernel::TileSchedulerArguments scheduler;
   scheduler.raster_order = RasterOrderOptions::AlongM;
@@ -523,7 +523,7 @@ void run_fp4_blockwise_scaled_group_mm_sm100(
   static std::unordered_map<int, int> cached_sm_counts;
   if (cached_sm_counts.find(hw_info.device_id) == cached_sm_counts.end()) {
     cached_sm_counts[hw_info.device_id] =
-        cutlass::KernelHardwareInfo::query_device_multiprocessor_count(hw_info.device_id);
+        tilelang::KernelHardwareInfo::query_device_multiprocessor_count(hw_info.device_id);
   }
   hw_info.sm_count = min(cached_sm_counts[hw_info.device_id], INT_MAX);
 
@@ -551,7 +551,7 @@ void run_fp4_blockwise_scaled_group_mm_sm100(
 
   // Gemm Arguments
   typename GemmKernel::Arguments args{
-      cutlass::gemm::GemmUniversalMode::kGrouped,
+      tilelang::gemm::GemmUniversalMode::kGrouped,
       {num_experts, problem_sizes_as_shapes, nullptr},
       mainloop_args,
       epilogue_args,
@@ -564,14 +564,14 @@ void run_fp4_blockwise_scaled_group_mm_sm100(
   const cudaStream_t stream = at::cuda::getCurrentCUDAStream(a.get_device());
 
   auto can_implement_status = gemm_op.can_implement(args);
-  TORCH_CHECK(can_implement_status == cutlass::Status::kSuccess, "Failed to implement GEMM");
+  TORCH_CHECK(can_implement_status == tilelang::Status::kSuccess, "Failed to implement GEMM");
 
   // Run the GEMM
   auto status = gemm_op.initialize(args, workspace.data_ptr());
-  TORCH_CHECK(status == cutlass::Status::kSuccess, "Failed to initialize GEMM");
+  TORCH_CHECK(status == tilelang::Status::kSuccess, "Failed to initialize GEMM");
 
   status = gemm_op.run(args, workspace.data_ptr(), stream);
-  TORCH_CHECK(status == cutlass::Status::kSuccess, "Failed to run GEMM");
+  TORCH_CHECK(status == tilelang::Status::kSuccess, "Failed to run GEMM");
 }
 
 // Undefine macros from utils.h to redefine with custom signatures
@@ -586,7 +586,7 @@ void run_fp4_blockwise_scaled_group_mm_sm100(
   CHECK_CONTIGUOUS(x, m);     \
   CHECK_TYPE(x, st, m)
 
-void cutlass_fp4_group_mm(
+void tilelang_fp4_group_mm(
     torch::Tensor& output,
     const torch::Tensor& a,
     const torch::Tensor& b,
@@ -633,7 +633,7 @@ void cutlass_fp4_group_mm(
   auto sm_version = getSMVersion();
   if (sm_version == 100 || sm_version == 103) {
     if (output.scalar_type() == torch::kBFloat16) {
-      run_fp4_blockwise_scaled_group_mm_sm100<cutlass::bfloat16_t>(
+      run_fp4_blockwise_scaled_group_mm_sm100<tilelang::bfloat16_t>(
           output,
           a,
           b,
@@ -649,7 +649,7 @@ void cutlass_fp4_group_mm(
           N,
           K);
     } else {
-      run_fp4_blockwise_scaled_group_mm_sm100<cutlass::half_t>(
+      run_fp4_blockwise_scaled_group_mm_sm100<tilelang::half_t>(
           output,
           a,
           b,
@@ -691,7 +691,7 @@ void cutlass_fp4_group_mm(
 #else
   TORCH_CHECK_NOT_IMPLEMENTED(
       false,
-      "No compiled cutlass_fp4_group_mm kernel, sgl-kernel must "
+      "No compiled tilelang_fp4_group_mm kernel, sgl-kernel must "
       "be compiled with ENABLE_NVFP4 for SM100+ and CUDA "
       "12.8 or above.");
 #endif

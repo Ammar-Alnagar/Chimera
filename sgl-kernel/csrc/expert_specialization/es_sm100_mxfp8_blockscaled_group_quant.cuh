@@ -114,22 +114,22 @@ __inline__ __device__ uint8_t cvt_warp_fp16_to_mxfp8(FragmentS& fragment_s, Frag
   u.elts[5] = __nv_fp8x2_e4m3(fp2_vals[5]);
   u.elts[6] = __nv_fp8x2_e4m3(fp2_vals[6]);
   u.elts[7] = __nv_fp8x2_e4m3(fp2_vals[7]);
-  fragment_d(Int<0>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[0]);
-  fragment_d(Int<1>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[1]);
-  fragment_d(Int<2>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[2]);
-  fragment_d(Int<3>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[3]);
-  fragment_d(Int<4>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[4]);
-  fragment_d(Int<5>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[5]);
-  fragment_d(Int<6>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[6]);
-  fragment_d(Int<7>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[7]);
-  fragment_d(Int<8>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[8]);
-  fragment_d(Int<9>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[9]);
-  fragment_d(Int<10>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[10]);
-  fragment_d(Int<11>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[11]);
-  fragment_d(Int<12>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[12]);
-  fragment_d(Int<13>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[13]);
-  fragment_d(Int<14>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[14]);
-  fragment_d(Int<15>{}) = cutlass::float_e4m3_t::bitcast(u.bytes[15]);
+  fragment_d(Int<0>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[0]);
+  fragment_d(Int<1>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[1]);
+  fragment_d(Int<2>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[2]);
+  fragment_d(Int<3>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[3]);
+  fragment_d(Int<4>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[4]);
+  fragment_d(Int<5>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[5]);
+  fragment_d(Int<6>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[6]);
+  fragment_d(Int<7>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[7]);
+  fragment_d(Int<8>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[8]);
+  fragment_d(Int<9>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[9]);
+  fragment_d(Int<10>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[10]);
+  fragment_d(Int<11>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[11]);
+  fragment_d(Int<12>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[12]);
+  fragment_d(Int<13>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[13]);
+  fragment_d(Int<14>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[14]);
+  fragment_d(Int<15>{}) = tilelang::float_e4m3_t::bitcast(u.bytes[15]);
   return fp8_sf_val;
 }
 
@@ -264,7 +264,7 @@ __global__ void mxfp8_group_quant(
     const int* problem_sizes,
     const int* expert_offsets,
     const int* blockscale_offsets,
-    cutlass::float_e4m3_t* quant_output,
+    tilelang::float_e4m3_t* quant_output,
     uint8_t* scale_factor,
     int groups,
     TiledCopyG2R tiled_copy_g2r,
@@ -289,7 +289,7 @@ __global__ void mxfp8_group_quant(
 
     auto quant_output_tensor = make_tensor(
         make_gmem_ptr(quant_output + expert_offset * k),
-        make_layout(make_shape(m, k), LayoutRight{}));  // (M, K):(K, 1) cutlass::float_e4m3_t
+        make_layout(make_shape(m, k), LayoutRight{}));  // (M, K):(K, 1) tilelang::float_e4m3_t
 
     auto scale_factor_shape = make_shape(ceil_div(m, 128) * 128, k / 32);
     auto scale_factor_layout = tile_to_shape(scale_factor_tile_layout, scale_factor_shape, LayoutRight{});
@@ -367,15 +367,15 @@ void launch_es_sm100_mxfp8_blockscaled_grouped_quant(
   SfR2SThrLayout r2s_thr_layout{};
   SfR2SValLayout r2s_val_layout{};
 
-  using CopyOpG2R = UniversalCopy<cutlass::AlignedArray<T_IN, size(val_layout)>>;
+  using CopyOpG2R = UniversalCopy<tilelang::AlignedArray<T_IN, size(val_layout)>>;
   using CopyAtomG2R = cute::Copy_Atom<CopyOpG2R, T_IN>;
   auto tiled_copy_g2r = cute::make_tiled_copy(CopyAtomG2R{}, thr_layout, val_layout);  // Tiler_MN: (16, 128)
 
-  using CopyOpR2G = UniversalCopy<cutlass::AlignedArray<cutlass::float_e4m3_t, size(val_layout)>>;
-  using CopyAtomR2G = cute::Copy_Atom<CopyOpR2G, cutlass::float_e4m3_t>;
+  using CopyOpR2G = UniversalCopy<tilelang::AlignedArray<tilelang::float_e4m3_t, size(val_layout)>>;
+  using CopyAtomR2G = cute::Copy_Atom<CopyOpR2G, tilelang::float_e4m3_t>;
   auto tiled_copy_r2g = cute::make_tiled_copy(CopyAtomR2G{}, thr_layout, val_layout);  // Tiler_MN: (16, 128)
 
-  using CopyOpR2S = UniversalCopy<cutlass::AlignedArray<uint8_t, size(r2s_val_layout)>>;
+  using CopyOpR2S = UniversalCopy<tilelang::AlignedArray<uint8_t, size(r2s_val_layout)>>;
   using CopyAtomR2S = cute::Copy_Atom<CopyOpR2S, uint8_t>;
   auto tiled_copy_r2s = cute::make_tiled_copy(CopyAtomR2S{}, r2s_thr_layout, r2s_val_layout);  // Tiler_MN: (16, 4)
 
@@ -396,7 +396,7 @@ void launch_es_sm100_mxfp8_blockscaled_grouped_quant(
           reinterpret_cast<const int*>(problem_sizes.data_ptr()),
           reinterpret_cast<const int*>(expert_offsets.data_ptr()),
           reinterpret_cast<const int*>(blockscale_offsets.data_ptr()),
-          reinterpret_cast<cutlass::float_e4m3_t*>(quant_output.data_ptr()),
+          reinterpret_cast<tilelang::float_e4m3_t*>(quant_output.data_ptr()),
           reinterpret_cast<uint8_t*>(scale_factor.data_ptr()),
           num_experts,
           tiled_copy_g2r,

@@ -2,7 +2,7 @@
 #include <cuda.h>
 
 #include "cute/tensor.hpp"
-#include "cutlass/util/packed_stride.hpp"
+#include "tilelang/util/packed_stride.hpp"
 #include "es_sm100_mxfp8_blockscaled_traits.cuh"
 
 namespace expert_specialization {
@@ -112,9 +112,9 @@ struct Sm100Mxfp8BlockScaledStrideFunctor {
     StrideA* stride_A = stride_A_base + expert_id;
     StrideB* stride_B = stride_B_base + expert_id;
     StrideD* stride_D = stride_D_base + expert_id;
-    *stride_A = cutlass::make_cute_packed_stride(StrideA{}, {m, k, 1});
-    *stride_B = cutlass::make_cute_packed_stride(StrideB{}, {n, k, 1});
-    *stride_D = cutlass::make_cute_packed_stride(StrideD{}, {m, n, 1});
+    *stride_A = tilelang::make_cute_packed_stride(StrideA{}, {m, k, 1});
+    *stride_B = tilelang::make_cute_packed_stride(StrideB{}, {n, k, 1});
+    *stride_D = tilelang::make_cute_packed_stride(StrideD{}, {m, n, 1});
   }
 };
 

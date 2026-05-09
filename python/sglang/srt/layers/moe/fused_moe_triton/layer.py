@@ -184,8 +184,8 @@ class FusedMoE(torch.nn.Module):
         self.num_experts = num_experts
         self.num_fused_shared_experts = num_fused_shared_experts
 
-        self.enable_flashinfer_cutlass_moe = (
-            get_moe_runner_backend().is_flashinfer_cutlass()
+        self.enable_flashinfer_tilelang_moe = (
+            get_moe_runner_backend().is_flashinfer_tilelang()
         )
         self.moe_ep_size = get_moe_expert_parallel_world_size()
         self.moe_ep_rank = get_moe_expert_parallel_rank()
@@ -274,7 +274,7 @@ class FusedMoE(torch.nn.Module):
             self.quant_method, ModelOptNvFp4FusedMoEMethod
         ) or (
             isinstance(self.quant_method, Fp8MoEMethod)
-            and get_moe_runner_backend().is_cutlass()
+            and get_moe_runner_backend().is_tilelang()
         )
 
         self.routing_method_type = routing_method_type
@@ -388,7 +388,7 @@ class FusedMoE(torch.nn.Module):
         # Narrow parameter and load.
         # w1, gate_proj: Load into first logical weight of w13.
         # w3, up_proj: Load into second logical weight of w13.
-        # trtllm cutlass kernel assumes differently
+        # trtllm tilelang kernel assumes differently
         switch_w13 = getattr(self.quant_method, "load_up_proj_weight_first", False)
         if (switch_w13 and shard_id == "w1") or (not switch_w13 and shard_id == "w3"):
             start = shard_size

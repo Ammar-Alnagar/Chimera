@@ -244,7 +244,7 @@ class FlashInferMLAAttnBackend(AttentionBackend):
             self.q_indptr_decode = q_indptr_decode_buf
 
         if is_sm100_supported():
-            self.fmha_backend = "cutlass"
+            self.fmha_backend = "tilelang"
         else:
             self.fmha_backend = "auto"
 

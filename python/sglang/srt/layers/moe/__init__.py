@@ -10,7 +10,7 @@ from sglang.srt.layers.moe.utils import (
     get_tbo_token_distribution_threshold,
     initialize_moe_config,
     is_tbo_enabled,
-    should_use_flashinfer_cutlass_moe_fp4_allgather,
+    should_use_flashinfer_tilelang_moe_fp4_allgather,
 )
 
 __all__ = [
@@ -23,7 +23,7 @@ __all__ = [
     "get_moe_a2a_backend",
     "get_moe_runner_backend",
     "get_deepep_mode",
-    "should_use_flashinfer_cutlass_moe_fp4_allgather",
+    "should_use_flashinfer_tilelang_moe_fp4_allgather",
     "is_tbo_enabled",
     "get_tbo_token_distribution_threshold",
     "get_deepep_config",

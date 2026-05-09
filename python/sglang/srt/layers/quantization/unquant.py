@@ -48,9 +48,9 @@ if _use_aiter:
     from aiter.ops.shuffle import shuffle_weight
 
 try:
-    from flashinfer.fused_moe import cutlass_fused_moe as flashinfer_cutlass_fused_moe
+    from flashinfer.fused_moe import tilelang_fused_moe as flashinfer_tilelang_fused_moe
 except ImportError:
-    flashinfer_cutlass_fused_moe = None
+    flashinfer_tilelang_fused_moe = None
 
 
 class UnquantizedEmbeddingMethod(QuantizeMethodBase):
@@ -150,7 +150,7 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase, MultiPlatformOp):
         self, use_triton_kernels: bool = False, use_flashinfer_trtllm_moe: bool = False
     ):
         super().__init__()
-        self.use_flashinfer_cutlass = get_moe_runner_backend().is_flashinfer_cutlass()
+        self.use_flashinfer_tilelang = get_moe_runner_backend().is_flashinfer_tilelang()
         self.use_triton_kernels = use_triton_kernels
         self.with_bias = False
         self.use_flashinfer_trtllm_moe = use_flashinfer_trtllm_moe
@@ -311,8 +311,8 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase, MultiPlatformOp):
 
     @property
     def load_up_proj_weight_first(self) -> bool:
-        # FlashInfer CUTLASS kernel assumes [Up, Gate] Proj as W13
-        return self.use_flashinfer_cutlass
+        # FlashInfer TILELANG kernel assumes [Up, Gate] Proj as W13
+        return self.use_flashinfer_tilelang
 
     def apply(
         self,
@@ -349,8 +349,8 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase, MultiPlatformOp):
                 w2_bias=getattr(layer, "w2_weight_bias", None),
             )
             return self.runner.run(dispatch_output, quant_info)
-        elif self.use_flashinfer_cutlass:
-            output = flashinfer_cutlass_fused_moe(
+        elif self.use_flashinfer_tilelang:
+            output = flashinfer_tilelang_fused_moe(
                 input=x,
                 token_selected_experts=topk_output.topk_ids,
                 token_final_scales=topk_output.topk_weights,

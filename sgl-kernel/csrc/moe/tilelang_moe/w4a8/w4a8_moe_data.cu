@@ -116,7 +116,7 @@ void compute_expert_offsets_w4a8(
 #undef compute_expert_offsets_w4a8_call
 }
 
-void get_cutlass_w4a8_moe_mm_data_caller(
+void get_tilelang_w4a8_moe_mm_data_caller(
     const torch::Tensor& topk_ids,
     torch::Tensor& expert_offsets,
     torch::Tensor& problem_sizes1,

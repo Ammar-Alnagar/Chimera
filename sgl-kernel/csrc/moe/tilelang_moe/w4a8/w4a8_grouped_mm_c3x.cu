@@ -4,7 +4,7 @@
 
 #include <type_traits>
 
-#include "cutlass/cutlass.h"
+#include "tilelang/tilelang.h"
 #include "w4a8_grouped_mm_c3x.cuh"
 
 using namespace cute;
@@ -17,17 +17,17 @@ template <int M, int N, int K, int A, int B, int C, Sched S>
 struct SM90W4A8Config {
   using KernelSchedule = std::conditional_t<
       S == Sched::PP,
-      cutlass::gemm::KernelPtrArrayTmaWarpSpecializedPingpong,
-      cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperative>;
+      tilelang::gemm::KernelPtrArrayTmaWarpSpecializedPingpong,
+      tilelang::gemm::KernelPtrArrayTmaWarpSpecializedCooperative>;
 
   using EpilogueSchedule = std::conditional_t<
       S == Sched::PP,
-      cutlass::epilogue::PtrArrayTmaWarpSpecializedPingpong,
-      cutlass::epilogue::PtrArrayTmaWarpSpecializedCooperative>;
+      tilelang::epilogue::PtrArrayTmaWarpSpecializedPingpong,
+      tilelang::epilogue::PtrArrayTmaWarpSpecializedCooperative>;
 
   using TileShape = cute::Shape<cute::Int<M>, cute::Int<N>, cute::Int<K>>;
   using ClusterShape = cute::Shape<cute::Int<A>, cute::Int<B>, cute::Int<C>>;
-  using Cutlass3xW4A8Gemm = cutlass_3x_w4a8_group_gemm<TileShape, ClusterShape, KernelSchedule, EpilogueSchedule>;
+  using TileLang3xW4A8Gemm = tilelang_3x_w4a8_group_gemm<TileShape, ClusterShape, KernelSchedule, EpilogueSchedule>;
 };
 
 template <int M, int N, int K, int A, int B, int C>
@@ -50,8 +50,8 @@ inline void invoke_gemm(
     torch::Tensor const& d_strides,
     torch::Tensor const& s_strides,
     int64_t chunk_size) {
-  using GemmT = typename Config::Cutlass3xW4A8Gemm;
-  cutlass_w4a8_group_gemm_caller<GemmT>(
+  using GemmT = typename Config::TileLang3xW4A8Gemm;
+  tilelang_w4a8_group_gemm_caller<GemmT>(
       d_tensors,
       a_tensors,
       b_tensors,
@@ -183,7 +183,7 @@ void dispatch_w4a8_moe_mm_sm90(
 
 }  // namespace
 
-void cutlass_w4a8_moe_mm_sm90(
+void tilelang_w4a8_moe_mm_sm90(
     torch::Tensor& d_tensors,
     torch::Tensor const& a_tensors,
     torch::Tensor const& b_tensors,

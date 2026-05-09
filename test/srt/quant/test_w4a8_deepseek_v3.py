@@ -141,7 +141,7 @@ class TestDeepseekV3W4Afp8DeepepNormal(CustomTestCase):
             "8",
             "--enable-dp-attention",
             "--moe-runner-backend",
-            "cutlass",
+            "tilelang",
         ]
         if not is_in_amd_ci():
             other_args += ["--mem-frac", "0.7"]
@@ -196,7 +196,7 @@ class TestDeepseekV3W4Afp8DeepepAutoMtp(CustomTestCase):
             "8",
             "--enable-dp-attention",
             "--moe-runner-backend",
-            "cutlass",
+            "tilelang",
             "--speculative-algorithm",
             "EAGLE",
             "--speculative-num-steps",

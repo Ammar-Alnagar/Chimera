@@ -1,6 +1,6 @@
 import pytest
 import torch
-from sgl_kernel import cutlass_scaled_fp4_mm, scaled_fp4_quant
+from sgl_kernel import tilelang_scaled_fp4_mm, scaled_fp4_quant
 
 skip_condition = torch.cuda.get_device_capability() < (10, 0)
 
@@ -143,7 +143,7 @@ def test_nvfp4_gemm(
         block_size,
         "cuda",
     )
-    out = cutlass_scaled_fp4_mm(
+    out = tilelang_scaled_fp4_mm(
         a_fp4, b_fp4, a_scale_interleaved, b_scale_interleaved, alpha, dtype
     )
 
