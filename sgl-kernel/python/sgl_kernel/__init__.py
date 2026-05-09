@@ -21,7 +21,8 @@ from sgl_kernel.attention import (
     merge_state,
     merge_state_v2,
 )
-from sgl_kernel.cutedsl_attention import cutedsl_mla_decode
+from sgl_kernel.tilelang_attention import tilelang_mla_decode
+from sgl_kernel.tilelang_attention import cutedsl_mla_decode  # backward compat
 from sgl_kernel.cutlass_moe import cutlass_w4a8_moe_mm, get_cutlass_w4a8_moe_mm_data
 from sgl_kernel.elementwise import (
     FusedSetKVBufferArg,
@@ -71,7 +72,8 @@ from sgl_kernel.gemm import (
     shuffle_rows,
     silu_and_mul_scaled_fp4_grouped_quant,
 )
-from sgl_kernel.cutedsl_gemm import cutedsl_fp8_blockwise_scaled_mm
+from sgl_kernel.tilelang_gemm import tilelang_fp8_blockwise_scaled_mm
+from sgl_kernel.tilelang_gemm import cutedsl_fp8_blockwise_scaled_mm  # backward compat
 from sgl_kernel.grammar import apply_token_bitmask_inplace_cuda
 from sgl_kernel.hadamard import (
     hadamard_transform,

@@ -153,8 +153,8 @@ suites = {
     #     TestFile("test_mistral_large3_basic.py", 275),  # Moved to nightly - large model
     # ],
     "per-commit-4-gpu-gb200": [
-        TestFile("test_cutedsl_moe.py", 300),
-        TestFile("test_deepseek_v3_cutedsl_4gpu.py", 1800),
+        TestFile("test_tilelang_moe.py", 300),
+        TestFile("test_deepseek_v3_tilelang_4gpu.py", 1800),
     ],
     "per-commit-4-gpu-deepep": [
         TestFile("ep/test_deepep_small.py", 531),

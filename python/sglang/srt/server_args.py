@@ -172,7 +172,8 @@ MOE_RUNNER_BACKEND_CHOICES = [
     "flashinfer_trtllm",
     "flashinfer_cutlass",
     "flashinfer_mxfp4",
-    "flashinfer_cutedsl",
+    "flashinfer_tilelang",
+    "flashinfer_cutedsl",  # deprecated alias for flashinfer_tilelang
     "cutlass",
 ]
 

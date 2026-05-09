@@ -8,7 +8,7 @@ Three major improvements have been implemented:
 
 1. **Docker Deployment** - Production-ready containerization
 2. **Enhanced Documentation** - Comprehensive diagrams and visual guides
-3. **CuteDSL Documentation** - In-depth guides for kernel development
+3. **TileLang Documentation** - In-depth guides for kernel development
 
 ---
 
@@ -84,7 +84,7 @@ Shows the complete stack from Python applications down to GPU hardware.
 #### Kernel Execution Flow
 ```mermaid
 sequenceDiagram
-    Application → Runtime → Wrapper → CuteDSL/Fallback → GPU
+    Application → Runtime → Wrapper → TileLang/Fallback → GPU
 ```
 Illustrates the kernel execution path with fallback mechanism.
 
@@ -98,7 +98,7 @@ Depicts production deployment with load balancing and shared storage.
 #### Kernel Strategy
 ```mermaid
 flowchart LR
-    Kernel API → Decision → CuteDSL Path | Fallback Path
+    Kernel API → Decision → TileLang Path | Fallback Path
 ```
 Visualizes the two-path kernel strategy.
 
@@ -121,7 +121,7 @@ Details the container startup and initialization process.
 - **Architecture Overview** - High-level system design
 - **Kernel Execution Flow** - How requests are processed
 - **System Deployment Architecture** - Production topology
-- **Kernel Strategy** - CuteDSL vs fallback visualization
+- **Kernel Strategy** - TileLang vs fallback visualization
 - **Deployment** - Complete deployment guide with:
   - Docker run examples
   - Docker Compose examples
@@ -132,15 +132,15 @@ Details the container startup and initialization process.
 
 ---
 
-## 3. CuteDSL Documentation
+## 3. TileLang Documentation
 
 ### New Documentation Files
 
-#### `docs/developer_guide/cutedsl_integration.md`
-Comprehensive guide to understanding and using CuteDSL in Chimera.
+#### `docs/developer_guide/tilelang_integration.md`
+Comprehensive guide to understanding and using TileLang in Chimera.
 
 **Contents:**
-- **Overview** - What is CuteDSL and why Chimera uses it
+- **Overview** - What is TileLang and why Chimera uses it
 - **Kernel Architecture** - Layered design with diagrams
 - **Implementation Pattern** - Step-by-step kernel development
 - **Available Kernels** - Complete kernel reference
@@ -156,12 +156,12 @@ Comprehensive guide to understanding and using CuteDSL in Chimera.
 
 **Key Sections:**
 
-1. **What is CuteDSL?**
+1. **What is TileLang?**
    - Domain-specific language for tensor operations
    - Abstraction over CUDA kernel development
    - Automatic optimization for GPU architectures
 
-2. **Why CuteDSL in Chimera?**
+2. **Why TileLang in Chimera?**
    - Performance on Hopper/Blackwell
    - Maintainability (100-200 lines vs 500-1000)
    - Composability of kernel operations
@@ -172,19 +172,19 @@ Comprehensive guide to understanding and using CuteDSL in Chimera.
    C++ Functor → Torch Binding → Python Wrapper → User Code
    ```
 
-4. **Available CuteDSL Kernels**
+4. **Available TileLang Kernels**
    - GEMM operations (FP8, FP4)
    - Attention operations (MLA decode)
    - Expert specialization (MoE)
 
-#### `docs/developer_guide/cutedsl_visual_guide.md`
-Visual companion with 14 detailed diagrams explaining CuteDSL concepts.
+#### `docs/developer_guide/tilelang_visual_guide.md`
+Visual companion with 14 detailed diagrams explaining TileLang concepts.
 
 **Diagrams Include:**
 
 1. **Kernel Abstraction Layers** - 5-level hierarchy from application to hardware
 2. **Data Flow Sequence** - Python to GPU execution path
-3. **CuteDSL vs Traditional CUDA** - Comparison of development approaches
+3. **TileLang vs Traditional CUDA** - Comparison of development approaches
 4. **Kernel Fallback Strategy** - Decision tree for graceful degradation
 5. **FP8 Blockwise GEMM Architecture** - Kernel stage breakdown
 6. **Multi-Stage Pipelining** - Gantt chart of pipeline execution
@@ -209,8 +209,8 @@ docker/
 └── compose.chimera.yaml            # Docker Compose configuration
 
 docs/developer_guide/
-├── cutedsl_integration.md          # Comprehensive integration guide
-└── cutedsl_visual_guide.md         # Visual diagram companion
+├── tilelang_integration.md          # Comprehensive integration guide
+└── tilelang_visual_guide.md         # Visual diagram companion
 
 REPO_ROOT/
 └── ENHANCEMENTS_SUMMARY.md         # This file
@@ -251,8 +251,8 @@ curl http://localhost:30000/generate \
 
 ### For Kernel Developers
 
-1. Read `docs/developer_guide/cutedsl_integration.md` for comprehensive guide
-2. Review `docs/developer_guide/cutedsl_visual_guide.md` for visual explanations
+1. Read `docs/developer_guide/tilelang_integration.md` for comprehensive guide
+2. Review `docs/developer_guide/tilelang_visual_guide.md` for visual explanations
 3. Examine existing kernels in `sgl-kernel/csrc/`
 4. Implement new kernels following the documented pattern
 5. Add tests in `sgl-kernel/tests/`
@@ -342,8 +342,8 @@ When updating base dependencies:
 4. Update documentation if needed
 
 ### Adding New Kernels
-When adding new CuteDSL kernels:
-1. Update `cutedsl_integration.md` kernel table
+When adding new TileLang kernels:
+1. Update `tilelang_integration.md` kernel table
 2. Add visual diagram if complex
 3. Include example in documentation
 4. Update kernel selection decision tree
@@ -360,8 +360,8 @@ All diagrams use Mermaid syntax:
 
 For questions or issues:
 - **Deployment**: See `docker/Dockerfile.chimera` comments
-- **CuteDSL**: See `docs/developer_guide/cutedsl_integration.md`
-- **Architecture**: See `docs/developer_guide/cutedsl_visual_guide.md`
+- **TileLang**: See `docs/developer_guide/tilelang_integration.md`
+- **Architecture**: See `docs/developer_guide/tilelang_visual_guide.md`
 - **General**: See `README.md` and `docs/`
 
 ---

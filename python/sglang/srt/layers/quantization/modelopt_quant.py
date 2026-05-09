@@ -144,8 +144,9 @@ if is_cuda() and (not is_sm120_supported()) and (fp4_quantize is not None):
         return
 
 
-CUTEDSL_MOE_SCALAR_INPUT_SCALE = get_bool_env_var(
-    "SGLANG_CUTEDSL_MOE_SCALAR_INPUT_SCALE", "true"
+TILELANG_MOE_SCALAR_INPUT_SCALE = get_bool_env_var(
+    "SGLANG_TILELANG_MOE_SCALAR_INPUT_SCALE",
+    get_bool_env_var("SGLANG_CUTEDSL_MOE_SCALAR_INPUT_SCALE", "true"),
 )
 
 # TODO make it true by default when the DeepEP PR is merged
@@ -1269,11 +1270,16 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
         return get_moe_runner_backend().is_flashinfer_cutlass()
 
     @property
-    def enable_flashinfer_cutedsl_moe(self) -> bool:
+    def enable_flashinfer_tilelang_moe(self) -> bool:
         from sglang.srt.layers.moe import get_moe_runner_backend
 
-        """Access the global enable_flashinfer_cutedsl_moe setting."""
-        return get_moe_runner_backend().is_flashinfer_cutedsl()
+        """Access the global enable_flashinfer_tilelang_moe setting."""
+        return get_moe_runner_backend().is_flashinfer_tilelang()
+
+    @property
+    def enable_flashinfer_cutedsl_moe(self) -> bool:
+        # Deprecated: use enable_flashinfer_tilelang_moe instead
+        return self.enable_flashinfer_tilelang_moe
 
     def create_weights(
         self,
@@ -1432,10 +1438,10 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
         if self.enable_flashinfer_cutlass_moe or self.enable_flashinfer_trtllm_moe:
             w13_input_scale = layer.w13_input_scale.max().to(torch.float32)
             w2_input_scale = layer.w2_input_scale.max().to(torch.float32)
-        elif self.enable_flashinfer_cutedsl_moe:
+        elif self.enable_flashinfer_tilelang_moe:
             # All-expert-one-input-scale is mathematically different from default per-expert-input-scale
             # Thus we allow users to switch the flag to do thorough testing
-            if CUTEDSL_MOE_SCALAR_INPUT_SCALE:
+            if TILELANG_MOE_SCALAR_INPUT_SCALE:
                 w13_input_scale = (
                     layer.w13_input_scale.max()
                     .to(torch.float32)
@@ -1749,20 +1755,20 @@ class ModelOptNvFp4FusedMoEMethod(FusedMoEMethodBase):
             moe_runner_config.activation == "silu"
         ), "Only SiLU activation is supported."
 
-        assert self.enable_flashinfer_cutedsl_moe, "only support flashinfer cutedsl moe"
+        assert self.enable_flashinfer_tilelang_moe, "only support flashinfer tilelang moe"
         assert (
             not moe_runner_config.apply_router_weight_on_input
         ), "apply_router_weight_on_input is not supported for Flashinfer"
 
-        from sglang.srt.layers.moe.flashinfer_cutedsl_moe import (
-            flashinfer_cutedsl_moe_masked,
+        from sglang.srt.layers.moe.flashinfer_tilelang_moe import (
+            flashinfer_tilelang_moe_masked,
         )
 
         down_gemm_overlap_args: Optional[DownGemmOverlapArgs] = getattr(
             layer, "down_gemm_overlap_args", None
         )
 
-        out = flashinfer_cutedsl_moe_masked(
+        out = flashinfer_tilelang_moe_masked(
             hidden_states=x,
             input_global_scale=(
                 None if MOE_NVFP4_DISPATCH else layer.w13_input_scale_quant

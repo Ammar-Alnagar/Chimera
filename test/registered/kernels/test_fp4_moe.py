@@ -182,7 +182,7 @@ def torch_moe_nvfp4(a, w1, w2, topk, topk_weight, topk_ids):
     ).sum(dim=1)
 
 
-def flashinfer_cutedsl_grouped_gemm_nt_masked(
+def flashinfer_tilelang_grouped_gemm_nt_masked(
     hidden_states: torch.Tensor,  # 3d
     input_global_scale: torch.Tensor,  # (l,)
     weights: torch.Tensor,

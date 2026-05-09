@@ -1,8 +1,8 @@
-# CuteDSL Visual Guide
+# TileLang Visual Guide
 
 ## Understanding Chimera's Kernel Strategy Through Diagrams
 
-This companion document provides visual explanations of how CuteDSL works within Chimera.
+This companion document provides visual explanations of how TileLang works within Chimera.
 
 ## 1. Kernel Abstraction Layers
 
@@ -13,9 +13,9 @@ flowchart TB
     end
 
     subgraph "Level 3: Python API"
-        B1[cutedsl_fp8_blockwise_scaled_mm]
-        B2[cutedsl_mla_decode]
-        B3[cutedsl_es_grouped_mm]
+        B1[tilelang_fp8_blockwise_scaled_mm]
+        B2[tilelang_mla_decode]
+        B3[tilelang_es_grouped_mm]
     end
 
     subgraph "Level 2: Torch Bindings"
@@ -23,8 +23,8 @@ flowchart TB
         C2[PyTorch Dispatch]
     end
 
-    subgraph "Level 1: CuteDSL Implementation"
-        D1[CuteDSL Functors]
+    subgraph "Level 1: TileLang Implementation"
+        D1[TileLang Functors]
         D2[Layout Algebra]
         D3[Thread Mapping]
     end
@@ -66,28 +66,28 @@ sequenceDiagram
     participant Wrapper as Python Wrapper
     participant Torch as PyTorch C++
     participant Dispatcher as Kernel Dispatcher
-    participant CuteDSL as CuteDSL Functor
+    participant TileLang as TileLang Functor
     participant GPU as NVIDIA GPU
 
-    User->>Wrapper: cutedsl_fp8_gemm(A, B, scales_a, scales_b)
+    User->>Wrapper: tilelang_fp8_gemm(A, B, scales_a, scales_b)
     Note over User,Wrapper: High-level API call
     
     Wrapper->>Wrapper: Validate tensor shapes
     Wrapper->>Wrapper: Check dtype compatibility
     
-    Wrapper->>Torch: torch.ops.sgl_kernel.cutedsl_gemm()
+    Wrapper->>Torch: torch.ops.sgl_kernel.tilelang_gemm()
     Note over Wrapper,Torch: Cross language boundary
     
     Torch->>Dispatcher: Dispatch to kernel
     
     alt First Call (JIT)
-        Dispatcher->>CuteDSL: Instantiate template
-        CuteDSL->>CuteDSL: Generate PTX for GPU arch
-        CuteDSL-->>Dispatcher: Compiled kernel
+        Dispatcher->>TileLang: Instantiate template
+        TileLang->>TileLang: Generate PTX for GPU arch
+        TileLang-->>Dispatcher: Compiled kernel
     end
     
-    Dispatcher->>CuteDSL: Launch configuration
-    CuteDSL->>GPU: CUDA kernel launch
+    Dispatcher->>TileLang: Launch configuration
+    TileLang->>GPU: CUDA kernel launch
     
     Note over GPU: Tensor Core Execution
     GPU->>GPU: Load A, B from global memory
@@ -95,8 +95,8 @@ sequenceDiagram
     GPU->>GPU: Matrix multiply accumulate
     GPU->>GPU: Store result to global memory
     
-    GPU-->>CuteDSL: Kernel complete
-    CuteDSL-->>Dispatcher: Return status
+    GPU-->>TileLang: Kernel complete
+    TileLang-->>Dispatcher: Return status
     Dispatcher-->>Torch: Result tensor
     Torch-->>Wrapper: torch.Tensor
     Wrapper-->>User: Output tensor
@@ -104,7 +104,7 @@ sequenceDiagram
     Note over User,GPU: Total latency: 10-100 μs
 ```
 
-## 3. CuteDSL vs Traditional CUDA
+## 3. TileLang vs Traditional CUDA
 
 ```mermaid
 flowchart LR
@@ -116,7 +116,7 @@ flowchart LR
         A5[~500-1000 lines of code]
     end
 
-    subgraph "CuteDSL Kernel"
+    subgraph "TileLang Kernel"
         B1[Tensor layout abstraction]
         B2[Automatic thread mapping]
         B3[Compiler-managed shared memory]
@@ -146,7 +146,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Start[Kernel Request] --> Check1{CuteDSL<br/>Installed?}
+    Start[Kernel Request] --> Check1{TileLang<br/>Installed?}
     Check1 -->|No| Fallback1[Use torch.ops.sgl_kernel]
     Check1 -->|Yes| Check2{GPU Architecture<br/>Supported?}
     
@@ -157,7 +157,7 @@ flowchart TD
     Check3 -->|Yes| Check4{Memory<br/>Available?}
     
     Check4 -->|No| Fallback2[Use Smaller Tiles<br/>or Fallback]
-    Check4 -->|Yes| Execute[Execute CuteDSL Kernel]
+    Check4 -->|Yes| Execute[Execute TileLang Kernel]
     
     Execute --> Success{Success?}
     Success -->|Yes| Return[Return Result]
@@ -183,7 +183,7 @@ flowchart TB
         B["Tensor B (N×K)<br/>FP8 + Scale Factors"]
     end
 
-    subgraph "CuteDSL Kernel Stages"
+    subgraph "TileLang Kernel Stages"
         S1["Stage 1: Load<br/>Global → Shared Memory"]
         S2["Stage 2: Scale<br/>Apply block scales"]
         S3["Stage 3: Compute<br/>Tensor Core MMA"]
@@ -211,7 +211,7 @@ flowchart TB
 
 ```mermaid
 gantt
-    title CuteDSL Kernel Pipelining (4 stages)
+    title TileLang Kernel Pipelining (4 stages)
     dateFormat X
     axisFormat %L
     
@@ -275,7 +275,7 @@ flowchart TB
     style T1 fill:#F44336,color:#fff
 ```
 
-## 8. Memory Movement in CuteDSL
+## 8. Memory Movement in TileLang
 
 ```mermaid
 flowchart LR
@@ -286,7 +286,7 @@ flowchart LR
         M4["Tensor Core<br/>Accumulators"]
     end
 
-    subgraph "CuteDSL Operations"
+    subgraph "TileLang Operations"
         O1["TMA Load<br/>Global → Shared"]
         O2["Async Copy<br/>Shared → Register"]
         O3["WGMMA<br/>Register → Accumulator"]
@@ -318,10 +318,10 @@ flowchart TB
         C["Expert Routing<br/>Group by expert"]
     end
 
-    subgraph "CuteDSL Grouped GEMM"
-        D["Expert 0<br/>cutedsl_es_fp8_gemm"]
-        E["Expert 1<br/>cutedsl_es_fp8_gemm"]
-        F["Expert N<br/>cutedsl_es_fp8_gemm"]
+    subgraph "TileLang Grouped GEMM"
+        D["Expert 0<br/>tilelang_es_fp8_gemm"]
+        E["Expert 1<br/>tilelang_es_fp8_gemm"]
+        F["Expert N<br/>tilelang_es_fp8_gemm"]
     end
 
     subgraph "Output"
@@ -346,7 +346,7 @@ flowchart TB
 
 ```mermaid
 xychart-beta
-    title "FP8 GEMM Performance: CuteDSL vs Traditional"
+    title "FP8 GEMM Performance: TileLang vs Traditional"
     x-axis ["128²", "256²", "512²", "1024²", "2048²", "4096²"]
     y-axis "TFLOPS" 0 --> 500
     bar [50, 120, 280, 420, 480, 490]
@@ -354,7 +354,7 @@ xychart-beta
 ```
 
 **Legend**:
-- **Bar**: CuteDSL (CUTLASS 4.x)
+- **Bar**: TileLang (TileLang)
 - **Line**: Traditional CUDA kernels
 
 ## 11. Build and Deployment Pipeline
@@ -362,7 +362,7 @@ xychart-beta
 ```mermaid
 flowchart LR
     subgraph "Development"
-        A1[Write CuteDSL Code]
+        A1[Write TileLang Code]
         A2[Unit Tests]
         A3[Benchmark Tests]
     end
@@ -419,14 +419,14 @@ flowchart TD
     GEMM -->|FP8| FP8{Block Scaling?}
     GEMM -->|FP16/BF16| Standard[Use Standard GEMM]
     
-    FP8 -->|Yes| FP8Block[cutedsl_fp8_blockwise_scaled_mm]
-    FP8 -->|No| FP8PerToken[cutedsl_fp8_per_token_scaled_mm]
+    FP8 -->|Yes| FP8Block[tilelang_fp8_blockwise_scaled_mm]
+    FP8 -->|No| FP8PerToken[tilelang_fp8_per_token_scaled_mm]
     
-    Attn -->|MLA Decode| MLA[cutedsl_mla_decode]
+    Attn -->|MLA Decode| MLA[tilelang_mla_decode]
     Attn -->|Standard| FlashAttn[Use Flash Attention]
     
-    MoE -->|FP8 Blockwise| MoEFP8[cutedsl_es_fp8_blockwise_grouped_mm]
-    MoE -->|SM100 MXFP8| MoEMX[cutedsl_es_sm100_mxfp8_blockscaled_mm]
+    MoE -->|FP8 Blockwise| MoEFP8[tilelang_es_fp8_blockwise_grouped_mm]
+    MoE -->|SM100 MXFP8| MoEMX[tilelang_es_sm100_mxfp8_blockscaled_mm]
     
     style FP8Block fill:#4CAF50,color:#fff
     style FP8PerToken fill:#4CAF50,color:#fff
@@ -443,14 +443,14 @@ flowchart TD
 flowchart TD
     Start[Kernel Call] --> Try{Try Block}
     
-    Try --> Execute[Execute CuteDSL Kernel]
+    Try --> Execute[Execute TileLang Kernel]
     Execute --> Check{Success?}
     
     Check -->|Yes| Return[Return Result]
     
     Check -->|No| Catch{Exception Type?}
     
-    Catch -->|ImportError| Log1[Log: CuteDSL not available]
+    Catch -->|ImportError| Log1[Log: TileLang not available]
     Catch -->|RuntimeError| Log2[Log: Kernel execution failed]
     Catch -->|CUDAError| Log3[Log: GPU error occurred]
     
@@ -478,10 +478,10 @@ flowchart TB
     end
 
     subgraph "Transformer Layers"
-        B1["Layer 1<br/>Attention + CuteDSL GEMM"]
-        B2["Layer 2<br/>Attention + CuteDSL GEMM"]
+        B1["Layer 1<br/>Attention + TileLang GEMM"]
+        B2["Layer 2<br/>Attention + TileLang GEMM"]
         B3["..."]
-        B4["Layer N<br/>Attention + CuteDSL GEMM"]
+        B4["Layer N<br/>Attention + TileLang GEMM"]
     end
 
     subgraph "Postprocessing"

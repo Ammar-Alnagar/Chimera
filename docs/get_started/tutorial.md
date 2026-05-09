@@ -480,7 +480,7 @@ engine = Engine(
 ┌─────────────────────────────────────────────────┐
 │              Kernel Layer                        │
 │  ┌───────────┐  ┌───────────┐  ┌─────────────┐ │
-│  │  CuteDSL  │  │ CUTLASS   │  │  FlashInfer │ │
+│  │  TileLang  │  │ CUTLASS   │  │  FlashInfer │ │
 │  └───────────┘  └───────────┘  └─────────────┘ │
 └───────────────────┬─────────────────────────────┘
                     │
@@ -576,7 +576,7 @@ print(response.text)
 
 2. **Performance Tuning**: See `docs/developer_guide/performance_tuning.md` for optimization tips
 
-3. **CuteDSL Guide**: See `docs/developer_guide/cutedsl_integration.md` for kernel development
+3. **TileLang Guide**: See `docs/developer_guide/tilelang_integration.md` for kernel development
 
 4. **Troubleshooting**: See `docs/references/troubleshooting.md` for common issues
 

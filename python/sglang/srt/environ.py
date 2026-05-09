@@ -464,6 +464,9 @@ def _convert_SGL_to_SGLANG():
         "SGLANG_MOE_NVFP4_DISPATCH", "SGLANG_CUTEDSL_MOE_NVFP4_DISPATCH"
     )
     _print_deprecated_env(
+        "SGLANG_MOE_NVFP4_DISPATCH", "SGLANG_TILELANG_MOE_NVFP4_DISPATCH"
+    )
+    _print_deprecated_env(
         "SGLANG_ENABLE_TP_MEMORY_INBALANCE_CHECK",
         "SGL_DISABLE_TP_MEMORY_INBALANCE_CHECK",
     )

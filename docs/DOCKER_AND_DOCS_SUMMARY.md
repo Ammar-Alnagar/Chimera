@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document summarizes the comprehensive documentation expansion for the Chimera project. In addition to the original three requests (Dockerfile, README diagrams, CuteDSL docs), we've created a complete documentation suite covering all aspects of Chimera usage.
+This document summarizes the comprehensive documentation expansion for the Chimera project. In addition to the original three requests (Dockerfile, README diagrams, TileLang docs), we've created a complete documentation suite covering all aspects of Chimera usage.
 
 ---
 
@@ -60,11 +60,11 @@ docker compose -f docker/compose.chimera.yaml up -d
 
 ### 2. Core Documentation (8 files)
 
-#### `docs/developer_guide/cutedsl_integration.md` (700 lines, 19 KB)
-**Comprehensive CuteDSL integration guide.**
+#### `docs/developer_guide/tilelang_integration.md` (700 lines, 19 KB)
+**Comprehensive TileLang integration guide.**
 
 **Contents:**
-- What is CuteDSL and why Chimera uses it
+- What is TileLang and why Chimera uses it
 - Kernel architecture with diagrams
 - Implementation patterns (C++ → Python)
 - Available kernels reference table
@@ -77,25 +77,25 @@ docker compose -f docker/compose.chimera.yaml up -d
 
 **Key Sections:**
 - Kernel implementation pattern
-- Available CuteDSL kernels table
+- Available TileLang kernels table
 - Python wrapper examples
 - Build configuration options
 - Performance tuning parameters
 
 ---
 
-#### `docs/developer_guide/cutedsl_visual_guide.md` (512 lines, 13 KB)
+#### `docs/developer_guide/tilelang_visual_guide.md` (512 lines, 13 KB)
 **Visual companion with 14 detailed Mermaid diagrams.**
 
 **Diagrams:**
 1. Kernel Abstraction Layers (5-level hierarchy)
 2. Data Flow: Python to GPU (sequence diagram)
-3. CuteDSL vs Traditional CUDA (comparison)
+3. TileLang vs Traditional CUDA (comparison)
 4. Kernel Fallback Strategy (decision tree)
 5. FP8 Blockwise GEMM Architecture
 6. Multi-Stage Pipelining (Gantt chart)
 7. Thread Hierarchy Mapping
-8. Memory Movement in CuteDSL
+8. Memory Movement in TileLang
 9. MoE Expert Specialization Flow
 10. Performance Comparison Chart
 11. Build and Deployment Pipeline
@@ -152,7 +152,7 @@ docker compose -f docker/compose.chimera.yaml up -d
 - `SamplingParams` with all options
 - HTTP endpoints (`/generate`, `/health`, `/metrics`, etc.)
 - OpenAI-compatible endpoints
-- Kernel functions (`cutedsl_*`)
+- Kernel functions (`tilelang_*`)
 - Environment variables
 
 **Examples:**
@@ -349,8 +349,8 @@ docs/
 ├── developer_guide/
 │   ├── benchmark_and_profiling.md (existing)
 │   ├── contribution_guide.md (existing)
-│   ├── cutedsl_integration.md ✨ NEW
-│   ├── cutedsl_visual_guide.md ✨ NEW
+│   ├── tilelang_integration.md ✨ NEW
+│   ├── tilelang_visual_guide.md ✨ NEW
 │   └── performance_tuning.md ✨ NEW
 ├── advanced_features/
 │   ├── [existing advanced features docs]
@@ -380,8 +380,8 @@ docker/
 3. `docs/references/troubleshooting.md` - When you need help
 
 ### For Developers
-1. `docs/developer_guide/cutedsl_integration.md` - Kernel development
-2. `docs/developer_guide/cutedsl_visual_guide.md` - Visual explanations
+1. `docs/developer_guide/tilelang_integration.md` - Kernel development
+2. `docs/developer_guide/tilelang_visual_guide.md` - Visual explanations
 3. `docs/developer_guide/performance_tuning.md` - Optimization
 4. `docs/references/api_reference.md` - API documentation
 
@@ -402,9 +402,9 @@ docker/
 
 ### Related Documentation
 
-**CuteDSL Topic:**
-- Main Guide: `cutedsl_integration.md`
-- Visual Guide: `cutedsl_visual_guide.md`
+**TileLang Topic:**
+- Main Guide: `tilelang_integration.md`
+- Visual Guide: `tilelang_visual_guide.md`
 - Performance: `performance_tuning.md` → Kernel-Level Tuning
 - API: `api_reference.md` → Kernel API
 
@@ -430,7 +430,7 @@ tutorial.md → install.md → api_reference.md (basics) → use_cases.md (simpl
 
 ### Path 2: Kernel Developer
 ```
-cutedsl_integration.md → cutedsl_visual_guide.md → performance_tuning.md → api_reference.md (kernel API)
+tilelang_integration.md → tilelang_visual_guide.md → performance_tuning.md → api_reference.md (kernel API)
 ```
 
 ### Path 3: Production Deployment
@@ -440,7 +440,7 @@ Dockerfile.chimera → compose.chimera.yaml → monitoring.md → troubleshootin
 
 ### Path 4: Performance Optimization
 ```
-performance_tuning.md → monitoring.md → benchmark_and_profiling.md → cutedsl_integration.md (tuning)
+performance_tuning.md → monitoring.md → benchmark_and_profiling.md → tilelang_integration.md (tuning)
 ```
 
 ---
@@ -513,13 +513,13 @@ docker compose -f docker/compose.chimera.yaml up -d
 ### Before
 - README: Basic text, no diagrams
 - Docker: Complex, hard to customize
-- CuteDSL: Minimal documentation
+- TileLang: Minimal documentation
 - Gaps: No tutorial, no API ref, no monitoring guide
 
 ### After
 - README: 6 diagrams, deployment section
 - Docker: Simplified, well-documented
-- CuteDSL: 2 comprehensive guides + visuals
+- TileLang: 2 comprehensive guides + visuals
 - Complete: Tutorial, API ref, monitoring, troubleshooting, use cases
 
 ### Metrics
@@ -541,7 +541,7 @@ This documentation expansion provides:
    - Kubernetes references
    - Health checks and monitoring
 
-2. **Comprehensive CuteDSL Documentation**
+2. **Comprehensive TileLang Documentation**
    - Integration guide with examples
    - Visual guide with 14 diagrams
    - Build and tuning instructions

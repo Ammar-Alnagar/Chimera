@@ -157,7 +157,7 @@ nvidia-smi --query-gpu=name,compute_cap --format=csv
 
 2. **Verify kernel compatibility:**
 ```python
-# Check if CuteDSL is available
+# Check if TileLang is available
 import sgl_kernel
 print(dir(sgl_kernel))
 ```
@@ -647,8 +647,8 @@ python -m sglang.launch_server --model-path model2 --port 30001
 
 #### Q: How do I contribute kernels?
 
-**A:** See `docs/developer_guide/cutedsl_integration.md`:
-1. Implement kernel in C++/CuteDSL
+**A:** See `docs/developer_guide/tilelang_integration.md`:
+1. Implement kernel in C++/TileLang
 2. Add Python wrapper
 3. Write tests
 4. Submit PR
@@ -724,7 +724,7 @@ import sgl_kernel
 print(dir(sgl_kernel))
 
 # Test kernel directly
-from sgl_kernel import cutedsl_fp8_blockwise_scaled_mm
+from sgl_kernel import tilelang_fp8_blockwise_scaled_mm
 # ... run test
 
 # Check for fallback
@@ -754,7 +754,7 @@ python -c "import requests; print(requests.get('http://localhost:30000/health').
 1. **Documentation:**
    - [API Reference](api_reference.md)
    - [Performance Tuning](performance_tuning.md)
-   - [CuteDSL Guide](cutedsl_integration.md)
+   - [TileLang Guide](tilelang_integration.md)
 
 2. **GitHub:**
    - Issues: https://github.com/sgl-project/sglang/issues

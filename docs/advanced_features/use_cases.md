@@ -322,8 +322,8 @@ class RAGService:
 rag = RAGService("meta-llama/Llama-3.1-8B-Instruct")
 
 documents = [
-    "Chimera is an LLM serving stack with CuteDSL kernels.",
-    "CuteDSL provides optimized kernels for Hopper/Blackwell GPUs.",
+    "Chimera is an LLM serving stack with TileLang kernels.",
+    "TileLang provides optimized kernels for Hopper/Blackwell GPUs.",
     "FP8 quantization can improve throughput by 2-3x.",
 ]
 
@@ -397,7 +397,7 @@ class RAGWithCitations:
 rag = RAGWithCitations("meta-llama/Llama-3.1-8B-Instruct")
 
 documents = {
-    "doc1": "Chimera uses CuteDSL for kernel optimization.",
+    "doc1": "Chimera uses TileLang for kernel optimization.",
     "doc2": "FP8 support is available on Hopper and Blackwell GPUs.",
     "doc3": "Tensor parallelism enables multi-GPU inference.",
 }

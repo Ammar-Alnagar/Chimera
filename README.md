@@ -1,6 +1,6 @@
 # Chimera
 
-Chimera is a high-performance LLM serving stack spun off from SGLang, with a kernel strategy centered on **CuteDSL** and **CUTLASS 4.x**.
+Chimera is a high-performance LLM serving stack spun off from SGLang, with a kernel strategy centered on **TileLang** — a Pythonic DSL for high-performance GPU kernels.
 
 This repository keeps SGLang's serving/runtime strengths while prioritizing newer NVIDIA kernel paths for:
 - MLA decode
@@ -24,9 +24,8 @@ flowchart TB
     end
 
     subgraph "Kernel Layer"
-        C1[CuteDSL Kernels]
-        C2[CUTLASS 4.x]
-        C3[Fallback Kernels]
+        C1[TileLang Kernels]
+        C2[Fallback Kernels]
     end
 
     subgraph "Hardware"
@@ -42,25 +41,22 @@ flowchart TB
     B2 --> B3
     B3 --> C1
     B3 --> C2
-    B3 --> C3
     C1 --> D1
     C2 --> D1
-    C3 --> D1
     D1 --> D2
     D1 --> D3
 
     style C1 fill:#4CAF50,color:#fff
-    style C2 fill:#4CAF50,color:#fff
-    style C3 fill:#FF9800,color:#fff
+    style C2 fill:#FF9800,color:#fff
 ```
 
 ## Why Chimera
 
-Chimera focuses on one goal: predictable, production-grade throughput on modern NVIDIA architectures by tightening the integration between Python-side launch logic and CUTLASS/CuteDSL kernel implementations.
+Chimera focuses on one goal: predictable, production-grade throughput on modern NVIDIA architectures by tightening the integration between Python-side launch logic and TileLang JIT-compiled kernel implementations.
 
 Key directions:
-- CUTLASS 4.x-first kernel development
-- CuteDSL launch path integration for new kernels
+- TileLang-first kernel development (Pythonic DSL, JIT-compiled via TVM)
+- TileLang launch path integration for new kernels
 - Safe runtime fallbacks to existing `torch.ops.sgl_kernel.*` operators
 - Incremental migration without breaking caller APIs
 
@@ -71,15 +67,15 @@ sequenceDiagram
     participant App as Application
     participant Runtime as Chimera Runtime
     participant Wrapper as Kernel Wrapper
-    participant CuteDSL as CuteDSL/CUTLASS
+    participant TileLang as TileLang JIT
     participant Fallback as Fallback Path
 
     App->>Runtime: Generate/Prefill Request
     Runtime->>Wrapper: Invoke Kernel Operation
     
-    alt CuteDSL Available
-        Wrapper->>CuteDSL: Execute cutedsl_* kernel
-        CuteDSL-->>Wrapper: Result Tensor
+    alt TileLang Available
+        Wrapper->>TileLang: Execute tilelang_* kernel
+        TileLang-->>Wrapper: Result Tensor
         Wrapper-->>Runtime: Return Result
     else Fallback Required
         Wrapper->>Fallback: Execute torch.ops.sgl_kernel
@@ -89,7 +85,7 @@ sequenceDiagram
     
     Runtime-->>App: Output Response
     
-    Note over CuteDSL,Fallback: Transparent to user<br/>Same API signature
+    Note over TileLang,Fallback: Transparent to user<br/>Same API signature
 ```
 
 ## System Deployment Architecture
@@ -144,7 +140,7 @@ flowchart LR
 ## Repository Layout
 
 - `python/sglang/` - runtime, server, scheduling, and model integration layers
-- `sgl-kernel/` - CUDA/CUTLASS kernels and Python wrappers
+- `sgl-kernel/` - CUDA kernels, TileLang wrappers, and Python bindings
 - `sgl-model-gateway/` - gateway components and bindings
 - `benchmark/` - performance and behavior benchmarks
 - `docs/` - project documentation
@@ -157,8 +153,8 @@ Chimera uses a two-path model while kernels are being migrated:
 flowchart LR
     subgraph "Python Wrapper"
         A[Kernel API Call]
-        B{CuteDSL<br/>Available?}
-        C[cutedsl_*<br/>Execution]
+        B{TileLang<br/>Available?}
+        C[tilelang_*<br/>Execution]
         D[torch.ops.sgl_kernel<br/>Fallback]
         E[Return Result]
     end
@@ -173,13 +169,13 @@ flowchart LR
     style D fill:#FF9800,color:#fff
 ```
 
-1. **CuteDSL/CUTLASS 4.x path (preferred)**:
-   - Python wrapper calls `sgl_kernel.cutedsl_*` entrypoints.
-   - Optimized for Hopper/Blackwell architectures
-   - Leverages latest CUTLASS 4.x features
+1. **TileLang path (preferred)**:
+   - Python wrapper calls `sgl_kernel.tilelang_*` entrypoints.
+   - JIT-compiled via TVM to optimized CUDA for Hopper/Blackwell architectures
+   - Written entirely in Python using `@tilelang.jit` decorator
 
 2. **Stable ops fallback (always available)**:
-   - Wrapper falls back to `torch.ops.sgl_kernel.*` when CuteDSL path is unavailable.
+   - Wrapper falls back to `torch.ops.sgl_kernel.*` when TileLang path is unavailable.
    - Ensures backward compatibility
    - Provides safe migration path
 
@@ -192,7 +188,7 @@ This keeps runtime behavior stable during bring-up and avoids hard failures from
 Core dependencies include:
 - CUDA Toolkit
 - PyTorch
-- CUTLASS (fetched in `sgl-kernel/CMakeLists.txt`)
+- TileLang (`pip install tilelang>=0.1.9`)
 - FlashInfer / Triton / Flash-Attention / DeepGEMM (as configured in `sgl-kernel`)
 
 ## Quick Start
@@ -217,7 +213,7 @@ pytest sgl-kernel/tests/test_es_fp8_blockwise_moe.py
 
 ## Current Focus Areas
 
-- Complete CuteDSL implementations for:
+- Complete TileLang implementations for:
   - MLA decode
   - FP8 blockwise scaled MM
   - Expert-specialized grouped MM
@@ -234,8 +230,8 @@ For kernel wrapper APIs in `sgl-kernel/python/sgl_kernel/`:
 ## Contributing
 
 Contributions are welcome, especially in:
-- CUTLASS 4.x kernel implementations
-- CuteDSL launch and scheduling logic
+- TileLang kernel implementations
+- TileLang launch and scheduling logic
 - correctness/performance test coverage
 - architecture-specific tuning and profiling
 

@@ -163,7 +163,7 @@ Enable paged attention for better memory utilization:
 Chimera automatically selects optimal kernels, but you can influence selection:
 
 ```python
-# Force CuteDSL kernels (Hopper/Blackwell)
+# Force TileLang kernels (Hopper/Blackwell)
 os.environ["SGL_KERNEL_FORCE_CUTEDSL"] = "1"
 
 # Enable FlashInfer attention
@@ -199,7 +199,7 @@ Enable fused operators where available:
 --enable-fused-norm
 ```
 
-### 4. CuteDSL Kernel Tuning
+### 4. TileLang Kernel Tuning
 
 For custom kernel configurations:
 
@@ -459,7 +459,7 @@ python benchmark/multi_turn.py \
 
 ### Kernel Optimization
 
-- [ ] Verify CuteDSL kernels are active
+- [ ] Verify TileLang kernels are active
 - [ ] Enable FlashInfer attention
 - [ ] Enable operator fusion
 - [ ] Configure pipeline stages
@@ -590,7 +590,7 @@ import sgl_kernel
 
 config = {
     "gemm": {
-        "use_cutedsl": True,
+        "use_tilelang": True,
         "pipeline_stages": 4,
         "async_copy": True,
     },
@@ -646,7 +646,7 @@ config_qa = {
 - [NVIDIA Performance Guide](https://docs.nvidia.com/deeplearning/performance/)
 - [CUTLASS Optimization Guide](https://github.com/NVIDIA/cutlass)
 - [PyTorch Performance Tips](https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html)
-- [Chimera Kernel Documentation](cutedsl_integration.md)
+- [Chimera Kernel Documentation](tilelang_integration.md)
 
 ---
 

@@ -8,7 +8,7 @@ from sgl_kernel import scaled_fp4_quant
 from torch.nn import functional as F
 
 from sglang.srt.layers.activation import SiluAndMul
-from sglang.srt.layers.moe.flashinfer_cutedsl_moe import flashinfer_cutedsl_moe_masked
+from sglang.srt.layers.moe.flashinfer_tilelang_moe import flashinfer_tilelang_moe_masked
 from sglang.srt.layers.moe.topk import TopKConfig, select_experts
 
 SKIP_TEST = torch.cuda.get_device_capability() < (10, 0)
@@ -296,9 +296,9 @@ def check_moe(
     torch.testing.assert_close(torch_output, test_output, atol=1e-1, rtol=1e-1)
 
 
-class TestFlashinferCutedslMoe(unittest.TestCase):
+class TestFlashinferTilelangMoe(unittest.TestCase):
     @unittest.skipIf(SKIP_TEST, SKIP_REASON)
-    def test_flashinfer_cutedsl_moe_masked(self):
+    def test_flashinfer_tilelang_moe_masked(self):
         # Test parameters
         test_cases = [
             (2, 128, 256, 1),
@@ -387,7 +387,7 @@ class TestFlashinferCutedslMoe(unittest.TestCase):
                     w1_alpha = 1.0 / (input_global_scale * w1_global_scale)
                     w2_alpha = 1.0 / (a2_global_scale * w2_global_scale)
 
-                    out = flashinfer_cutedsl_moe_masked(
+                    out = flashinfer_tilelang_moe_masked(
                         (hidden_states_3d.to(hidden_states.device), None),
                         input_global_scale,
                         w1_fp4.permute(2, 0, 1),

@@ -32,9 +32,9 @@ class SboFlags:
     def enable_combine_down_gemm_two_stream_overlap(cls):
         return (
             is_sbo_enabled()
-            # currently only cutedsl backend supports it
+            # currently only tilelang backend supports it
             and (
-                get_moe_runner_backend().is_flashinfer_cutedsl()
+                get_moe_runner_backend().is_flashinfer_tilelang()
                 or (get_moe_runner_backend().is_deep_gemm() and not is_blackwell())
             )
         )

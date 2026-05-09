@@ -613,13 +613,13 @@ for chunk in stream:
 
 ### GEMM Operations
 
-#### `cutedsl_fp8_blockwise_scaled_mm`
+#### `tilelang_fp8_blockwise_scaled_mm`
 
 FP8 blockwise scaled matrix multiplication.
 
 ```python
 import torch
-from sgl_kernel import cutedsl_fp8_blockwise_scaled_mm
+from sgl_kernel import tilelang_fp8_blockwise_scaled_mm
 
 # Input tensors (FP8)
 mat_a = torch.randn(128, 512, dtype=torch.float8_e4m3fn).cuda()
@@ -630,7 +630,7 @@ scales_a = torch.randn(1, 4, dtype=torch.float32).cuda()
 scales_b = torch.randn(2, 4, dtype=torch.float32).cuda()
 
 # Execute
-output = cutedsl_fp8_blockwise_scaled_mm(
+output = tilelang_fp8_blockwise_scaled_mm(
     mat_a=mat_a,
     mat_b=mat_b,
     scales_a=scales_a,
@@ -641,12 +641,12 @@ output = cutedsl_fp8_blockwise_scaled_mm(
 print(f"Output shape: {output.shape}")  # (128, 256)
 ```
 
-#### `cutedsl_mla_decode`
+#### `tilelang_mla_decode`
 
 Multi-head latent attention decode.
 
 ```python
-from sgl_kernel import cutedsl_mla_decode
+from sgl_kernel import tilelang_mla_decode
 
 out = torch.zeros(8, 32, 128, dtype=torch.float16).cuda()
 q_nope = torch.randn(8, 32, 128, dtype=torch.float16).cuda()
@@ -656,7 +656,7 @@ seq_lens = torch.tensor([1024] * 8, dtype=torch.int32).cuda()
 page_table = torch.arange(8, dtype=torch.int32).cuda()
 workspace = torch.empty(1048576, dtype=torch.uint8).cuda()
 
-cutedsl_mla_decode(
+tilelang_mla_decode(
     out=out,
     q_nope=q_nope,
     q_pe=q_pe,
@@ -669,12 +669,12 @@ cutedsl_mla_decode(
 )
 ```
 
-#### `cutedsl_es_fp8_blockwise_scaled_grouped_mm`
+#### `tilelang_es_fp8_blockwise_scaled_grouped_mm`
 
 FP8 expert-specialized grouped GEMM for MoE.
 
 ```python
-from sgl_kernel import cutedsl_es_fp8_blockwise_scaled_grouped_mm
+from sgl_kernel import tilelang_es_fp8_blockwise_scaled_grouped_mm
 
 # MoE configuration
 num_experts = 8
@@ -699,7 +699,7 @@ stride_b = torch.tensor([b.stride(0), b.stride(1), b.stride(2)], dtype=torch.int
 stride_d = torch.tensor([hidden_dim], dtype=torch.int64).cuda()
 workspace = torch.empty(16777216, dtype=torch.uint8).cuda()
 
-cutedsl_es_fp8_blockwise_scaled_grouped_mm(
+tilelang_es_fp8_blockwise_scaled_grouped_mm(
     output=output,
     a=a,
     b=b,

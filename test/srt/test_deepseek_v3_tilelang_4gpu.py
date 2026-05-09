@@ -14,7 +14,7 @@ from sglang.test.test_utils import (
 )
 
 
-class TestDeepseekR1Nvfp4CuteDSLDeepEP(CustomTestCase):
+class TestDeepseekR1Nvfp4TileLangDeepEP(CustomTestCase):
     @classmethod
     def setUpClass(cls):
         cls.model = try_cached_model(DEFAULT_DEEPSEEK_NVFP4_MODEL_FOR_TEST)
@@ -46,7 +46,7 @@ class TestDeepseekR1Nvfp4CuteDSLDeepEP(CustomTestCase):
             "--moe-a2a-backend",
             "deepep",
             "--moe-runner-backend",
-            "flashinfer_cutedsl",
+            "flashinfer_tilelang",
             "--deepep-mode",
             "low_latency",
         ]
@@ -117,7 +117,7 @@ class TestDummyWithSBO(CustomTestCase):
             "--moe-a2a-backend",
             "deepep",
             "--moe-runner-backend",
-            "flashinfer_cutedsl",
+            "flashinfer_tilelang",
             "--deepep-mode",
             "low_latency",
             "--json-model-override-args",

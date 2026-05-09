@@ -21,7 +21,7 @@ classifiers = [
   "Environment :: GPU :: NVIDIA CUDA"
 ]
 dependencies = [
-  "nvidia-cutlass-dsl==4.4.2",
+  "tilelang>=0.1.9",
 ]
 
 [project.urls]

@@ -128,12 +128,12 @@ class DeepEPMoE(FusedMoE):
             self.deepep_mode.enable_low_latency()
             and not _is_npu
             and not (
-                get_moe_runner_backend().is_flashinfer_cutedsl()
+                get_moe_runner_backend().is_flashinfer_tilelang()
                 and self.quant_config.get_name() == "modelopt_fp4"
             )
         ):
             # NPU supports low_latency deepep without deepgemm
-            # FP4 quantization with flashinfer_cutedsl also supports low_latency deepep without deepgemm
+            # FP4 quantization with flashinfer_tilelang also supports low_latency deepep without deepgemm
             assert (
                 deep_gemm_wrapper.ENABLE_JIT_DEEPGEMM
             ), f"DeepEP {self.deepep_mode} mode requires deep_gemm"
@@ -229,10 +229,10 @@ class DeepEPMoE(FusedMoE):
                 assert False, "forward_deepgemm_contiguous is deprecated"
         elif DispatchOutputChecker.format_is_deepep_ll(dispatch_output):
             if (
-                get_moe_runner_backend().is_flashinfer_cutedsl()
+                get_moe_runner_backend().is_flashinfer_tilelang()
                 and self.quant_config.get_name() == "modelopt_fp4"
             ):
-                output = self.forward_flashinfer_cutedsl(dispatch_output)
+                output = self.forward_flashinfer_tilelang(dispatch_output)
             elif self.use_w4afp8:
                 output = self.forward_cutlass_w4afp8_masked(dispatch_output)
             else:
@@ -297,7 +297,7 @@ class DeepEPMoE(FusedMoE):
             expert_mask=self.expert_mask,
         )
 
-    def forward_flashinfer_cutedsl(
+    def forward_flashinfer_tilelang(
         self,
         dispatch_output: DeepEPLLDispatchOutput,
     ):

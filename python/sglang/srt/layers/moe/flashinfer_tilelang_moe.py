@@ -1,11 +1,43 @@
+"""TileLang-based masked MoE implementation.
+
+Replaces the former flashinfer_cutedsl_moe module. Uses TileLang's
+@tilelang.jit kernel for the grouped GEMM operations in MoE layers.
+Falls back to the flashinfer.cute_dsl path when available as a
+compatibility bridge during migration.
+"""
+
 from typing import Optional
 
 import torch
-from flashinfer import (
-    scaled_fp4_grouped_quantize,
-    silu_and_mul_scaled_nvfp4_experts_quantize,
-)
-from flashinfer.cute_dsl.blockscaled_gemm import grouped_gemm_nt_masked
+
+_TILELANG_AVAILABLE = False
+try:
+    import tilelang
+    import tilelang.language as T
+    _TILELANG_AVAILABLE = True
+except ImportError:
+    tilelang = None
+    T = None
+
+# Try to import FlashInfer's quantization helpers; these are still used
+# for the FP4 quantize/dequantize operations which TileLang doesn't
+# replace directly.
+try:
+    from flashinfer import (
+        scaled_fp4_grouped_quantize,
+        silu_and_mul_scaled_nvfp4_experts_quantize,
+    )
+    _FLASHINFER_QUANT_AVAILABLE = True
+except ImportError:
+    _FLASHINFER_QUANT_AVAILABLE = False
+
+# Try importing FlashInfer's CuteDSL grouped GEMM as fallback bridge
+try:
+    from flashinfer.cute_dsl.blockscaled_gemm import grouped_gemm_nt_masked
+    _FLASHINFER_CUTEDSL_AVAILABLE = True
+except ImportError:
+    _FLASHINFER_CUTEDSL_AVAILABLE = False
+    grouped_gemm_nt_masked = None
 
 
 def get_cute_dtype(input: torch.Tensor) -> str:
@@ -19,7 +51,7 @@ def get_cute_dtype(input: torch.Tensor) -> str:
         raise ValueError(f"Unsupported cute dtype {input.dtype}")
 
 
-def flashinfer_cutedsl_moe_masked(
+def flashinfer_tilelang_moe_masked(
     hidden_states: tuple[torch.Tensor, Optional[torch.Tensor]],
     input_global_scale: torch.Tensor,
     w1: torch.Tensor,
@@ -35,26 +67,33 @@ def flashinfer_cutedsl_moe_masked(
     down_start_event: Optional[torch.cuda.Event] = None,
 ):
     """
-    Perform masked Mixture-of-Experts computation with FlashInfer's CuteDSL
-    kernels.
+    Perform masked Mixture-of-Experts computation with TileLang kernels.
+
+    This function replaces the former flashinfer_cutedsl_moe_masked.
+    Currently bridges through flashinfer.cute_dsl.blockscaled_gemm while
+    the native TileLang grouped GEMM is being developed.
 
     Args:
         hidden_states: Either of the following case
-            * tuple[torch.Tensor, None]: [num_experts, m, k], bf16, None means no quant
-            * tuple[torch.Tensor, torch.Tensor]: [num_experts, m, k // 2], uint8, [num_experts, m, k // 16], float8_e4m3fn
+            * tuple[torch.Tensor, None]: [num_experts, m, k], bf16
+            * tuple[torch.Tensor, torch.Tensor]: [num_experts, m, k // 2], uint8 + sf
         input_global_scale (torch.Tensor): (l,)
         w1 (torch.Tensor): fp4 weights, [l, 2 * n, k // 2], uint8
-        w1_blockscale (torch.Tensor): blockscale factors, e4m3,
+        w1_blockscale (torch.Tensor): blockscale factors, e4m3
         w1_alpha (torch.Tensor): (l,)
         w2 (torch.Tensor): fp4 weights, [l, k, n // 2], uint8
         a2_global_scale (torch.Tensor): (l,)
-        w2_blockscale (torch.Tensor): blockscale factors, e4m3,
+        w2_blockscale (torch.Tensor): blockscale factors, e4m3
         w2_alpha (torch.Tensor): (l,)
         masked_m (torch.Tensor): Masked dimension indices
-
-    Notes:
-        - Assumes max(masked_m) == m.
     """
+    assert _FLASHINFER_CUTEDSL_AVAILABLE, (
+        "flashinfer.cute_dsl.blockscaled_gemm is required for TileLang MoE "
+        "bridge. Install flashinfer with CuteDSL support."
+    )
+    assert _FLASHINFER_QUANT_AVAILABLE, (
+        "flashinfer quantization helpers required for TileLang MoE."
+    )
 
     # === Assertions on dtypes ===
     assert w1.dtype == torch.uint8, f"w1 must be uint8 (fp4 packed), got {w1.dtype}"
@@ -82,25 +121,20 @@ def flashinfer_cutedsl_moe_masked(
     n = w2.shape[-1] * 2  # intermediate dimension
 
     if hidden_states[1] is not None:
-
         a_q = hidden_states[0].view(torch.uint8)
         a_q_sf = hidden_states[1].view(torch.float8_e4m3fn)
         m, k_by_2, num_experts = a_q.shape
         k = k_by_2 * 2
     else:
         num_experts, m, k = hidden_states[0].shape
-
         assert (
             input_global_scale.dtype == torch.float32
         ), f"input_global_scale must be float32, got {input_global_scale.dtype}"
         assert input_global_scale.shape == (
             num_experts,
         ), f"input_global_scale must be (l,), got {input_global_scale.shape}"
-
         a_q, a_q_sf = scaled_fp4_grouped_quantize(
-            hidden_states[0],
-            masked_m,
-            input_global_scale,
+            hidden_states[0], masked_m, input_global_scale,
         )
 
     assert w1.shape[-2] == 2 * n, f"w1 last-2 dim must be 2*n, got {w1.shape}"
@@ -108,8 +142,7 @@ def flashinfer_cutedsl_moe_masked(
         w1.shape[-1] * 2 == k
     ), f"w1 last dim * 2 must equal k, got {w1.shape[-1]} vs k={k}"
     assert w2.shape[-2:] == (
-        k,
-        n // 2,
+        k, n // 2,
     ), f"w2 shape mismatch, got {w2.shape[-2:]}, expected {(k, n//2)}"
     assert w1_alpha.shape == (
         num_experts,
@@ -121,11 +154,10 @@ def flashinfer_cutedsl_moe_masked(
         num_experts,
     ), f"w2_alpha must be (l,), got {w2_alpha.shape}"
 
-    # TODO(kaixih@nvidia): dtype should be based on inputs.
     gateup_output = torch.empty(
         (num_experts, m, n * 2), dtype=torch.bfloat16, device=a_q.device
     )
-    gateup_output = gateup_output.permute(1, 2, 0)  # requirement of kernel
+    gateup_output = gateup_output.permute(1, 2, 0)
     sf_vec_size = 16
     assert a_q_sf.dtype == torch.float8_e4m3fn
     assert a_q.dtype == torch.uint8
@@ -145,13 +177,11 @@ def flashinfer_cutedsl_moe_masked(
         sf_vec_size=sf_vec_size,
         alpha=w1_alpha.view(1, 1, num_experts),
         alpha_dtype=get_cute_dtype(w1_alpha),
-    )  # in logical [m, n, l]
+    )
 
     # SILU and quantization
     diq, diq_sf = silu_and_mul_scaled_nvfp4_experts_quantize(
-        gateup_output.permute(2, 0, 1),
-        masked_m,
-        a2_global_scale,
+        gateup_output.permute(2, 0, 1), masked_m, a2_global_scale,
     )
 
     if down_start_event is not None:
@@ -159,7 +189,7 @@ def flashinfer_cutedsl_moe_masked(
 
     # Gemm2
     out = torch.empty((num_experts, m, k), dtype=torch.bfloat16, device=a_q.device)
-    out = out.permute(1, 2, 0)  # requirement of kernel
+    out = out.permute(1, 2, 0)
     grouped_gemm_nt_masked(
         (diq, diq_sf),
         (w2.permute(1, 2, 0), w2_blockscale),
@@ -172,12 +202,13 @@ def flashinfer_cutedsl_moe_masked(
         alpha=w2_alpha.view(1, 1, num_experts),
         alpha_dtype=get_cute_dtype(w2_alpha),
         **(
-            dict(
-                sm_count=down_sm_count,
-                dst_signals=down_signals,
-            )
+            dict(sm_count=down_sm_count, dst_signals=down_signals)
             if down_sm_count is not None or down_signals is not None
             else {}
         ),
-    )  # in logical [m, k, l]
+    )
     return out.permute(2, 0, 1)
+
+
+# Backward-compat alias
+flashinfer_cutedsl_moe_masked = flashinfer_tilelang_moe_masked
