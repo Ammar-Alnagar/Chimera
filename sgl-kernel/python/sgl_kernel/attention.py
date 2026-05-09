@@ -105,9 +105,9 @@ def cutlass_mla_decode(
 
     out = q_nope.new_empty((B_q, MAX_HEADS, D_latent))
 
-    from sgl_kernel.cutedsl_attention import cutedsl_mla_decode
+    from sgl_kernel.tilelang_attention import tilelang_mla_decode
 
-    cutedsl_mla_decode(
+    tilelang_mla_decode(
         out,
         q_nope,
         q_pe,
