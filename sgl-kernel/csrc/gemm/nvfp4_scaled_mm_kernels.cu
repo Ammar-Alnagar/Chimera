@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 #include <torch/all.h>
 
 #include "utils.h"
@@ -344,7 +344,7 @@ void runGemm(
     int64_t m,
     int64_t n,
     int64_t k,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   typename T::Gemm gemm;
   auto arguments = args_from_options<T>(D, A, B, A_sf, B_sf, alpha, m, n, k);
 
@@ -422,7 +422,7 @@ void runGemmSm120(
     int M,
     int N,
     int K,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   Gemm gemm;
 
   auto arguments = args_from_options_sm120<Gemm>(D, A, B, A_sf, B_sf, alpha, M, N, K);
@@ -450,7 +450,7 @@ void tilelangFp4GemmDispatch(
     int64_t m,
     int64_t n,
     int64_t k,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   if (m <= 128) {
     // m in [1, 128]
     runGemm<Fp4GemmSm100<KernelConfigM128<OutType>>>(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
@@ -475,7 +475,7 @@ void tilelangFp4GemmDispatch<float>(
     int64_t m,
     int64_t n,
     int64_t k,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   runGemm<Fp4GemmSm100<KernelConfigFp32>>(D, A, B, A_sf, B_sf, alpha, m, n, k, stream);
 }
 
@@ -490,7 +490,7 @@ void tilelang_fp4_bf16_gemm_dispatch_sm120(
     int m,
     int n,
     int k,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   uint32_t const mp2 = std::max(static_cast<uint32_t>(16), next_pow_2(m));
   if (mp2 <= 256) {
     runGemmSm120<Fp4GemmSm120<sm120_fp4_config_M256, tilelang::bfloat16_t>::Gemm>(
@@ -511,7 +511,7 @@ void tilelang_fp4_f16_gemm_dispatch_sm120(
     int m,
     int n,
     int k,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   uint32_t const mp2 = std::max(static_cast<uint32_t>(16), next_pow_2(m));
   if (mp2 <= 256) {
     runGemmSm120<Fp4GemmSm120<sm120_fp4_config_M256, tilelang::half_t>::Gemm>(
@@ -534,7 +534,7 @@ void tilelangFp4GemmDispatch(
     int64_t m,
     int64_t n,
     int64_t k,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   TORCH_CHECK(
       false,
       "Unsupported TILELANG version. Set VLLM_TILELANG_SRC_DIR to "
@@ -548,10 +548,10 @@ void tilelangFp4GemmDispatch(
 #undef CHECK_INPUT
 
 #define CHECK_TYPE(x, st, m) TORCH_CHECK(x.scalar_type() == st, "Inconsistency of Tensor type:", m)
-#define CHECK_TH_CUDA(x, m) TORCH_CHECK(x.is_cuda(), m, "must be a CUDA tensor")
+#define CHECK_TH_RTRITON(x, m) TORCH_CHECK(x.is_rtriton(), m, "must be a RTRITON tensor")
 #define CHECK_CONTIGUOUS(x, m) TORCH_CHECK(x.is_contiguous(), m, "must be contiguous")
 #define CHECK_INPUT(x, st, m) \
-  CHECK_TH_CUDA(x, m);        \
+  CHECK_TH_RTRITON(x, m);        \
   CHECK_CONTIGUOUS(x, m);     \
   CHECK_TYPE(x, st, m)
 
@@ -657,8 +657,8 @@ void tilelang_scaled_fp4_mm_sm100a_sm120a(
       ")");
 
   auto out_dtype = D.dtype();
-  at::cuda::CUDAGuard device_guard{(char)A.get_device()};
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream(A.get_device());
+  at::rtriton::RTRITONGuard device_guard{(char)A.get_device()};
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream(A.get_device());
 
   // Check SM version and dispatch accordingly
   auto sm_version = getSMVersion();

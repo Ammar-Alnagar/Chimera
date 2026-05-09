@@ -44,7 +44,7 @@ class YiVLForCausalLM(LlavaLlamaForCausalLM):
             self.config._name_or_path,
             torch_dtype=torch.float16,
             subfolder=self.vision_tower_subfolder,
-        ).to("cuda")
+        ).to("rtriton")
 
         self.vision_tower.eval()
 

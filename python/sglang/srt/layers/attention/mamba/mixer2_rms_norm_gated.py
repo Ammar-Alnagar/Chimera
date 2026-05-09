@@ -96,7 +96,7 @@ class Mixer2RMSNormGated(MultiPlatformOp):
 
         return self.weight * x.to(input_dtype)
 
-    def forward_cuda(
+    def forward_rtriton(
         self,
         x: torch.Tensor,
         gate: torch.Tensor,

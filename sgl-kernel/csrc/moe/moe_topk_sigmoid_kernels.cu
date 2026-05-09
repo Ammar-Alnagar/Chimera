@@ -16,14 +16,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 #include <torch/all.h>
 
 #ifndef USE_ROCM
 #include <cub/cub.cuh>
 #include <cub/util_type.cuh>
-#include <cuda/functional>
+#include <rtriton/functional>
 #else
 #include <hipcub/hipcub.hpp>
 #include <hipcub/util_type.hpp>
@@ -34,11 +34,11 @@ limitations under the License.
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-// Define reduction operators based on CUDA version
-// CUDA 13 (12.9+) deprecated cub::Max/Min in favor of cuda::maximum/minimum
-#if CUDA_VERSION >= 12090
-using MaxReduceOp = cuda::maximum<>;
-using MinReduceOp = cuda::minimum<>;
+// Define reduction operators based on RTRITON version
+// RTRITON 13 (12.9+) deprecated cub::Max/Min in favor of rtriton::maximum/minimum
+#if RTRITON_VERSION >= 12090
+using MaxReduceOp = rtriton::maximum<>;
+using MinReduceOp = rtriton::minimum<>;
 #else
 using MaxReduceOp = cub::Max;
 using MinReduceOp = cub::Min;
@@ -401,7 +401,7 @@ void topkGatingSigmoidLauncherHelper(
     const int end_expert,
     const bool renormalize,
     const float* correction_bias,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   static constexpr std::size_t MAX_BYTES_PER_LDG = 16;
 
   static constexpr int BYTES_PER_LDG = MIN(MAX_BYTES_PER_LDG, sizeof(T) * EXPERTS);
@@ -441,7 +441,7 @@ void topkGatingSigmoidKernelLauncher(
     const int topk,
     const bool renormalize,
     const float* correction_bias,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   static constexpr int WARPS_PER_TB = 4;
   switch (num_experts) {
     case 1:
@@ -530,8 +530,8 @@ void topk_sigmoid(
   const bool needs_workspace = !is_pow_2 || num_experts > 256;
   const int64_t workspace_size = needs_workspace ? num_tokens * num_experts : 0;
 
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(gating_output));
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(gating_output));
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   torch::Tensor sigmoid_workspace =
       torch::empty({workspace_size}, gating_output.options().dtype(at::ScalarType::Float));
 

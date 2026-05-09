@@ -37,7 +37,7 @@ def run_cubloaty(binary_file):
 
     if result.returncode != 0:
         if (
-            "No CUDA binary sections found" in result.stderr
+            "No RTRITON binary sections found" in result.stderr
             or "does not contain device code" in result.stderr
         ):
             return {}
@@ -112,7 +112,7 @@ def generate_report(all_kernels, output_file):
 
     lines = []
     lines.append("=" * 140)
-    lines.append("CUDA Kernel Size Analysis")
+    lines.append("RTRITON Kernel Size Analysis")
     lines.append("=" * 140)
     lines.append("")
     lines.append(f"Total kernels: {len(all_kernels)}")
@@ -197,7 +197,7 @@ def generate_report(all_kernels, output_file):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Analyze CUDA kernel sizes in sgl-kernel whl file"
+        description="Analyze RTRITON kernel sizes in sgl-kernel whl file"
     )
     parser.add_argument("whl", type=str, help="Path to whl file")
     parser.add_argument(

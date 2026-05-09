@@ -24,7 +24,7 @@ from sgl_kernel.testing.rotary_embedding import (
                 8000,
                 True,
                 torch.bfloat16,
-                "cuda",
+                "rtriton",
                 batch_size,
                 seq_len,
                 64,
@@ -42,18 +42,18 @@ from sgl_kernel.testing.rotary_embedding import (
             for save_kv_cache in (False, True)
         ],
         # Other cases
-        (64, 64, 32, 8000, True, torch.bfloat16, "cuda", 32, 32, 1, 1, False),
-        (256, 128, 4096, 10000, True, torch.bfloat16, "cuda", 2, 512, 4, 2, False),
-        (512, 128, 311, 10000, True, torch.bfloat16, "cuda", 3, 39, 4, 2, False),
-        (128, 128, 2048, 10000, False, torch.bfloat16, "cuda", 2, 512, 32, 8, False),
-        (128, 128, 2048, 10000, False, torch.bfloat16, "cuda", 2, 512, 16, 4, False),
-        (512, 128, 311, 10000, False, torch.bfloat16, "cuda", 3, 39, 4, 2, False),
-        (64, 64, 32, 8000, True, torch.float32, "cuda", 32, 32, 1, 1, False),
-        (256, 128, 4096, 10000, True, torch.float32, "cuda", 2, 512, 4, 2, False),
-        (512, 128, 311, 10000, True, torch.float32, "cuda", 3, 39, 4, 2, False),
-        (128, 128, 2048, 10000, False, torch.float32, "cuda", 2, 512, 32, 8, False),
-        (128, 128, 2048, 10000, False, torch.float32, "cuda", 2, 512, 16, 4, False),
-        (512, 128, 311, 10000, False, torch.float32, "cuda", 3, 39, 4, 2, False),
+        (64, 64, 32, 8000, True, torch.bfloat16, "rtriton", 32, 32, 1, 1, False),
+        (256, 128, 4096, 10000, True, torch.bfloat16, "rtriton", 2, 512, 4, 2, False),
+        (512, 128, 311, 10000, True, torch.bfloat16, "rtriton", 3, 39, 4, 2, False),
+        (128, 128, 2048, 10000, False, torch.bfloat16, "rtriton", 2, 512, 32, 8, False),
+        (128, 128, 2048, 10000, False, torch.bfloat16, "rtriton", 2, 512, 16, 4, False),
+        (512, 128, 311, 10000, False, torch.bfloat16, "rtriton", 3, 39, 4, 2, False),
+        (64, 64, 32, 8000, True, torch.float32, "rtriton", 32, 32, 1, 1, False),
+        (256, 128, 4096, 10000, True, torch.float32, "rtriton", 2, 512, 4, 2, False),
+        (512, 128, 311, 10000, True, torch.float32, "rtriton", 3, 39, 4, 2, False),
+        (128, 128, 2048, 10000, False, torch.float32, "rtriton", 2, 512, 32, 8, False),
+        (128, 128, 2048, 10000, False, torch.float32, "rtriton", 2, 512, 16, 4, False),
+        (512, 128, 311, 10000, False, torch.float32, "rtriton", 3, 39, 4, 2, False),
     ],
 )
 def test_correctness(
@@ -117,7 +117,7 @@ def test_correctness(
             cache_v=inputs["value"].view(-1, num_kv_heads, head_size),
         )
 
-    query_flashinfer_out, key_flashinfer_out = rope_flashinfer.forward_cuda(
+    query_flashinfer_out, key_flashinfer_out = rope_flashinfer.forward_rtriton(
         inputs["pos_ids"],
         query_flashinfer,
         key_flashinfer,
@@ -135,7 +135,7 @@ def test_correctness(
         ),
     )
 
-    query_sglkernel_out, key_sglkernel_out = rope_sglkernel.forward_cuda(
+    query_sglkernel_out, key_sglkernel_out = rope_sglkernel.forward_rtriton(
         inputs["pos_ids"],
         query_sglkernel,
         key_sglkernel,

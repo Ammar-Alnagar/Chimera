@@ -4,8 +4,8 @@ from types import SimpleNamespace
 
 import requests
 
-from sglang.srt.utils import is_cuda, is_hip, kill_process_tree
-from sglang.test.ci.ci_register import register_amd_ci, register_cuda_ci
+from sglang.srt.utils import is_rtriton, is_hip, kill_process_tree
+from sglang.test.ci.ci_register import register_amd_ci, register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_eval_few_shot_gsm8k
 from sglang.test.test_utils import (
     DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
@@ -16,7 +16,7 @@ from sglang.test.test_utils import (
 )
 
 # DeepSeek-V3 MLA tests with torch compile, FA3, and MTP speculative decoding
-register_cuda_ci(est_time=442, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=442, suite="stage-b-test-small-1-gpu")
 register_amd_ci(
     est_time=221,
     suite="stage-a-test-1",
@@ -30,8 +30,8 @@ class TestMLADeepseekV3(CustomTestCase):
         cls.model = "lmsys/sglang-ci-dsv3-test"
         cls.base_url = DEFAULT_URL_FOR_TEST
         other_args = ["--trust-remote-code", "--chunked-prefill-size", "256"]
-        if is_cuda():
-            other_args.extend(["--enable-torch-compile", "--cuda-graph-max-bs", "2"])
+        if is_rtriton():
+            other_args.extend(["--enable-torch-compile", "--rtriton-graph-max-bs", "2"])
         cls.process = popen_launch_server(
             cls.model,
             cls.base_url,
@@ -67,8 +67,8 @@ class TestMLADeepseekV3DisableFusedFunc(CustomTestCase):
         cls.model = "lmsys/sglang-ci-dsv3-test"
         cls.base_url = DEFAULT_URL_FOR_TEST
         other_args = ["--trust-remote-code", "--chunked-prefill-size", "256"]
-        if is_cuda():
-            other_args.extend(["--cuda-graph-max-bs", "2"])
+        if is_rtriton():
+            other_args.extend(["--rtriton-graph-max-bs", "2"])
         cls.process = popen_launch_server(
             cls.model,
             cls.base_url,
@@ -109,7 +109,7 @@ class TestMLADeepseekV3Fa3Fp8Kvcache(CustomTestCase):
             "--kv-cache-dtype",
             "fp8_e4m3",
         ]
-        if is_cuda():
+        if is_rtriton():
             other_args.extend(["--attention-backend", "fa3"])
         cls.process = popen_launch_server(
             cls.model,
@@ -145,7 +145,7 @@ class TestDeepseekV3MTP(CustomTestCase):
         cls.base_url = DEFAULT_URL_FOR_TEST
         other_args = [
             "--trust-remote-code",
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             "2",
             "--disable-radix",
             "--enable-torch-compile",

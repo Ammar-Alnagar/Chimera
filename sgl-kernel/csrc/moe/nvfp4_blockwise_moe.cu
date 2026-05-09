@@ -1,6 +1,6 @@
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <c10/cuda/CUDAStream.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <c10/rtriton/RTRITONStream.h>
 #include <tilelang/arch/arch.h>
 #include <torch/all.h>
 
@@ -153,7 +153,7 @@ void run_get_group_gemm_starts(
     int N,
     int K) {
   int num_experts = (int)expert_offsets.size(0);
-  auto stream = at::cuda::getCurrentCUDAStream(a_tensors.device().index());
+  auto stream = at::rtriton::getCurrentRTRITONStream(a_tensors.device().index());
 
   TORCH_CHECK(out_tensors.size(1) == N, "Output tensor shape doesn't match expected shape");
   TORCH_CHECK(
@@ -363,7 +363,7 @@ void run_fp4_blockwise_scaled_group_mm_sm120(
   size_t workspace_size = Gemm::get_workspace_size(args);
   auto const workspace_options = torch::TensorOptions().dtype(torch::kUInt8).device(a.device());
   auto workspace = torch::empty(workspace_size, workspace_options);
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream(a.get_device());
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream(a.get_device());
 
   auto can_implement_status = gemm_op.can_implement(args);
   TORCH_CHECK(can_implement_status == tilelang::Status::kSuccess, "Failed to implement GEMM");
@@ -561,7 +561,7 @@ void run_fp4_blockwise_scaled_group_mm_sm100(
   size_t workspace_size = Gemm::get_workspace_size(args);
   auto const workspace_options = torch::TensorOptions().dtype(torch::kUInt8).device(a.device());
   auto workspace = torch::empty(workspace_size, workspace_options);
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream(a.get_device());
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream(a.get_device());
 
   auto can_implement_status = gemm_op.can_implement(args);
   TORCH_CHECK(can_implement_status == tilelang::Status::kSuccess, "Failed to implement GEMM");
@@ -579,10 +579,10 @@ void run_fp4_blockwise_scaled_group_mm_sm100(
 #undef CHECK_INPUT
 
 #define CHECK_TYPE(x, st, m) TORCH_CHECK(x.scalar_type() == st, ": Inconsistency of Tensor type:", m)
-#define CHECK_TH_CUDA(x, m) TORCH_CHECK(x.is_cuda(), m, ": must be a CUDA tensor.")
+#define CHECK_TH_RTRITON(x, m) TORCH_CHECK(x.is_rtriton(), m, ": must be a RTRITON tensor.")
 #define CHECK_CONTIGUOUS(x, m) TORCH_CHECK(x.is_contiguous(), m, ": must be contiguous.")
 #define CHECK_INPUT(x, st, m) \
-  CHECK_TH_CUDA(x, m);        \
+  CHECK_TH_RTRITON(x, m);        \
   CHECK_CONTIGUOUS(x, m);     \
   CHECK_TYPE(x, st, m)
 
@@ -692,7 +692,7 @@ void tilelang_fp4_group_mm(
   TORCH_CHECK_NOT_IMPLEMENTED(
       false,
       "No compiled tilelang_fp4_group_mm kernel, sgl-kernel must "
-      "be compiled with ENABLE_NVFP4 for SM100+ and CUDA "
+      "be compiled with ENABLE_NVFP4 for SM100+ and RTRITON "
       "12.8 or above.");
 #endif
 }

@@ -14,7 +14,7 @@ from typing import Callable, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
-import cuda.bindings.driver as cuda
+import rtriton.bindings.driver as rtriton
 import tilelang
 import tilelang.cute as cute
 import torch
@@ -128,7 +128,7 @@ def _flash_attn_fwd(
         assert learnable_sink.shape == (num_head,)
         assert learnable_sink.dtype == torch.bfloat16, "learnable_sink must be bfloat16"
     assert all(
-        t is None or t.is_cuda
+        t is None or t.is_rtriton
         for t in (
             q,
             k,
@@ -140,7 +140,7 @@ def _flash_attn_fwd(
             page_table,
             learnable_sink,
         )
-    ), "inputs must be on CUDA device"
+    ), "inputs must be on RTRITON device"
     assert num_head % num_head_kv == 0, "num_head must be divisible by num_head_kv"
     assert head_dim <= 256, "head_dim must be less than or equal to 256"
     alignment = 16 // q.element_size()
@@ -185,7 +185,7 @@ def _flash_attn_fwd(
         assert (
             out.device == device
         ), f"out tensor device {out.device} does not match input device {device}"
-        assert out.is_cuda, "out tensor must be on CUDA device"
+        assert out.is_rtriton, "out tensor must be on RTRITON device"
 
     if lse is None:
         lse = (
@@ -203,7 +203,7 @@ def _flash_attn_fwd(
         assert (
             lse.device == device
         ), f"lse tensor device {lse.device} does not match input device {device}"
-        assert lse.is_cuda, "lse tensor must be on CUDA device"
+        assert lse.is_rtriton, "lse tensor must be on RTRITON device"
 
     dtype = torch2cute_dtype_map[q.dtype]
     q_tensor, k_tensor, v_tensor, o_tensor = [
@@ -249,7 +249,7 @@ def _flash_attn_fwd(
         else:
             causal, local = False, True
     compute_capability = (
-        torch.cuda.get_device_capability()[0]
+        torch.rtriton.get_device_capability()[0]
         if _compute_capability is None
         else _compute_capability
     )
@@ -257,7 +257,7 @@ def _flash_attn_fwd(
         9,
         10,
     ], "Unsupported compute capability. Supported: 9.x, 10.x"
-    current_stream = cuda.CUstream(torch.cuda.current_stream().cuda_stream)
+    current_stream = rtriton.CUstream(torch.rtriton.current_stream().rtriton_stream)
 
     if compute_capability == 9:  # TODO: tune block size according to hdim
         # Perf heuristic from upstream: hdim=128, noncausal, non-local benefits from larger n_block
@@ -499,14 +499,14 @@ def warmup_flash_attn(f):
                 wk["softcap"] = 0.0
             # Apply combo
             wk.update(combo)
-            with torch.cuda.stream(torch.cuda.current_stream()):
+            with torch.rtriton.stream(torch.rtriton.current_stream()):
                 try:
                     f(*wa, **wk)
                 except Exception as e:
                     # Some combos can be invalid for specific head dims / arch. Ignore and continue.
                     logger.debug("Warmup combo skipped: %s", e)
             del wa, wk
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
             gc.collect()
 
     def wrapper(*args, **kwargs):

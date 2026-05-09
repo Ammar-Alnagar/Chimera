@@ -5,8 +5,8 @@
 #include <sgl_kernel/vec.cuh>
 #include <sgl_kernel/warp.cuh>
 
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
+#include <rtriton_bf16.h>
+#include <rtriton_fp16.h>
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/container/tensor.h>
 
@@ -144,16 +144,16 @@ struct QKNormKernel {
     TensorMatcher({N, Q, D})  // q input
         .with_strides({Sq, D, 1})
         .with_dtype<nv_bfloat16, half>(dtype)
-        .with_device<kDLCUDA>(device)
+        .with_device<kDLRTRITON>(device)
         .verify(q);
     TensorMatcher({N, K, D})  // k input
         .with_strides({Sk, D, 1})
         .with_dtype<nv_bfloat16, half>(dtype)
-        .with_device<kDLCUDA>(device)
+        .with_device<kDLRTRITON>(device)
         .verify(k);
     TensorMatcher({D})  // weight
         .with_dtype<nv_bfloat16, half>(dtype)
-        .with_device<kDLCUDA>(device)
+        .with_device<kDLRTRITON>(device)
         .verify(q_weight)
         .verify(k_weight);
 

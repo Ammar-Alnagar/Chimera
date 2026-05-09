@@ -5,10 +5,10 @@ from typing import Optional, Tuple
 import torch
 
 from sglang.srt.layers.moe.tilelang_moe_params import TileLangMoEParams
-from sglang.srt.utils import is_cuda, is_sm90_supported
+from sglang.srt.utils import is_rtriton, is_sm90_supported
 
-_is_cuda = is_cuda()
-if _is_cuda:
+_is_rtriton = is_rtriton()
+if _is_rtriton:
     from sgl_kernel import (
         apply_shuffle_mul_sum,
         tilelang_fp4_group_mm,
@@ -106,7 +106,7 @@ def tilelang_fused_experts_fp8(
 
     Raises:
         AssertionError: If input shapes, dtypes, or flags are inconsistent or unsupported.
-        NotImplementedError: If CUDA is not available or `sgl_kernel` is not properly installed.
+        NotImplementedError: If RTRITON is not available or `sgl_kernel` is not properly installed.
     """
     assert use_fp8_blockscale, "Only support fp8 blockscale for now"
     assert topk_weights.shape == topk_ids.shape, "topk shape mismatch"
@@ -120,7 +120,7 @@ def tilelang_fused_experts_fp8(
     assert w1_q.shape[0] == w2_scale.shape[0], "w2 scales expert number mismatch"
     assert a.dtype in [torch.half, torch.bfloat16], "Invalid output dtype"
 
-    if is_cuda:
+    if is_rtriton:
         from sglang.srt.layers.quantization.fp8_kernel import (
             sglang_per_token_group_quant_fp8,
         )

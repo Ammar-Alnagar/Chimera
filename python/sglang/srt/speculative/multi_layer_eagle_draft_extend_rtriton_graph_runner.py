@@ -22,10 +22,10 @@ from typing import TYPE_CHECKING, Callable
 import torch
 
 from sglang.srt.layers.dp_attention import DpPaddingMode, set_dp_buffer_len
-from sglang.srt.model_executor.cuda_graph_runner import (
-    CUDA_GRAPH_CAPTURE_FAILED_MSG,
-    CudaGraphRunner,
-    DeepEPCudaGraphRunnerAdapter,
+from sglang.srt.model_executor.rtriton_graph_runner import (
+    RTRITON_GRAPH_CAPTURE_FAILED_MSG,
+    RtritonGraphRunner,
+    DeepEPRtritonGraphRunnerAdapter,
     LogitsProcessorOutput,
     get_batch_sizes_to_capture,
     get_global_graph_memory_pool,
@@ -59,7 +59,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class MultiLayerEagleDraftExtendCudaGraphRunner:
+class MultiLayerEagleDraftExtendRtritonGraphRunner:
     def __init__(self, eagle_worker: MultiLayerEagleDraftWorker, step: int):
         # Parse args
         self.step = step
@@ -70,7 +70,7 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
         self.graphs = {}
         self.output_buffers = {}
         self.enable_torch_compile = model_runner.server_args.enable_torch_compile
-        self.disable_padding = model_runner.server_args.disable_cuda_graph_padding
+        self.disable_padding = model_runner.server_args.disable_rtriton_graph_padding
         self.require_gathered_buffer = require_gathered_buffer(model_runner.server_args)
         self.require_mlp_tp_gather = require_mlp_tp_gather(model_runner.server_args)
         self.require_mlp_sync = require_mlp_sync(model_runner.server_args)
@@ -83,12 +83,12 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
             model_runner.server_args.speculative_num_draft_tokens
         )
         self.topk = model_runner.server_args.speculative_eagle_topk
-        self.enable_profile_cuda_graph = (
-            model_runner.server_args.enable_profile_cuda_graph
+        self.enable_profile_rtriton_graph = (
+            model_runner.server_args.enable_profile_rtriton_graph
         )
         self.capture_bs, self.compile_bs = get_batch_sizes_to_capture(model_runner)
         self.padded_static_len = -1
-        self.deepep_adapter = DeepEPCudaGraphRunnerAdapter()
+        self.deepep_adapter = DeepEPRtritonGraphRunnerAdapter()
 
         # For Attention Backend
         self.num_tokens_per_bs = self.speculative_num_steps + 1 + step
@@ -97,19 +97,19 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
 
         self.eagle_worker.draft_extend_attn_backend_list[
             self.step
-        ].init_cuda_graph_state(self.max_bs, self.max_num_token)
+        ].init_rtriton_graph_state(self.max_bs, self.max_num_token)
         self.seq_len_fill_value = self.eagle_worker.draft_extend_attn_backend_list[
             self.step
-        ].get_cuda_graph_seq_len_fill_value()
+        ].get_rtriton_graph_seq_len_fill_value()
 
     def init_buffers_and_capture(
         self,
-        cuda_graph_buffers,
+        rtriton_graph_buffers,
         offset,
-        next_cuda_graph_runner,
+        next_rtriton_graph_runner,
     ):
-        self.next_cuda_graph_runner = next_cuda_graph_runner
-        self.seq_lens_cpu = cuda_graph_buffers["seq_lens_cpu"]
+        self.next_rtriton_graph_runner = next_rtriton_graph_runner
+        self.seq_lens_cpu = rtriton_graph_buffers["seq_lens_cpu"]
         self.extend_seq_lens_cpu = [self.num_tokens_per_bs] * self.max_bs
 
         if self.enable_torch_compile:
@@ -119,23 +119,23 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
         with torch.device(self.model_runner.device):
             # sliced buffers
             # slice according to max_num_token
-            self.input_ids = cuda_graph_buffers["input_ids"][
+            self.input_ids = rtriton_graph_buffers["input_ids"][
                 offset : offset + self.max_num_token
             ]
-            self.out_cache_loc = cuda_graph_buffers["out_cache_loc"][
+            self.out_cache_loc = rtriton_graph_buffers["out_cache_loc"][
                 offset : offset + self.max_num_token
             ]
-            self.swa_out_cache_loc = cuda_graph_buffers["swa_out_cache_loc"][
+            self.swa_out_cache_loc = rtriton_graph_buffers["swa_out_cache_loc"][
                 offset : offset + self.max_num_token
             ]
-            self.positions = cuda_graph_buffers["positions"][
+            self.positions = rtriton_graph_buffers["positions"][
                 offset : offset + self.max_num_token
             ]
 
             # shared states
-            self.seq_lens = cuda_graph_buffers["seq_lens"]
-            self.req_pool_indices = cuda_graph_buffers["req_pool_indices"]
-            self.accept_length = cuda_graph_buffers["accept_length"]
+            self.seq_lens = rtriton_graph_buffers["seq_lens"]
+            self.req_pool_indices = rtriton_graph_buffers["req_pool_indices"]
+            self.accept_length = rtriton_graph_buffers["accept_length"]
 
             self.extend_seq_lens = torch.full(
                 (self.max_bs,),
@@ -205,41 +205,41 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
                 self.capture()
         except RuntimeError as e:
             raise Exception(
-                f"Capture cuda graph failed: {e}\n{CUDA_GRAPH_CAPTURE_FAILED_MSG}"
+                f"Capture rtriton graph failed: {e}\n{RTRITON_GRAPH_CAPTURE_FAILED_MSG}"
             )
 
     def can_run(self, forward_batch: ForwardBatch):
         if self.require_mlp_tp_gather:
-            cuda_graph_bs = (
+            rtriton_graph_bs = (
                 max(forward_batch.global_num_tokens_cpu) // self.num_tokens_per_bs
                 if self.model_runner.spec_algorithm.is_eagle()
                 else max(forward_batch.global_num_tokens_cpu)
             )
         else:
-            cuda_graph_bs = forward_batch.seq_lens.numel()
+            rtriton_graph_bs = forward_batch.seq_lens.numel()
 
         is_bs_supported = (
-            cuda_graph_bs in self.graphs
+            rtriton_graph_bs in self.graphs
             if self.disable_padding
-            else cuda_graph_bs <= self.max_bs
+            else rtriton_graph_bs <= self.max_bs
         )
 
         if self.require_mlp_sync:
-            is_bs_supported = is_bs_supported and forward_batch.can_run_dp_cuda_graph
+            is_bs_supported = is_bs_supported and forward_batch.can_run_dp_rtriton_graph
 
         return is_bs_supported
 
     def _create_graph(self):
-        return torch.cuda.CUDAGraph()
+        return torch.rtriton.RTRITONGraph()
 
     def _capture_init(self, run_once_fn):
         for _ in range(2):
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
             self.model_runner.tp_group.barrier()
             run_once_fn()
 
     def _capture_graph(self, graph, pool, stream, run_once_fn):
-        with torch.cuda.graph(graph, pool=pool, stream=stream):
+        with torch.rtriton.graph(graph, pool=pool, stream=stream):
             out = run_once_fn()
         return out
 
@@ -247,7 +247,7 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
         self.graphs[self.bs].replay()
 
     def capture(self):
-        CudaGraphRunner.capture(self)
+        RtritonGraphRunner.capture(self)
 
     def get_forward_batch(self, bs: int) -> ForwardBatch:
         num_tokens = bs * self.num_tokens_per_bs
@@ -328,7 +328,7 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
             mrope_positions=mrope_positions,
             global_num_tokens_gpu=self.global_num_tokens_gpu,
             global_num_tokens_for_logprob_gpu=self.global_num_tokens_for_logprob_gpu,
-            dp_padding_mode=DpPaddingMode.get_default_mode_in_cuda_graph(),
+            dp_padding_mode=DpPaddingMode.get_default_mode_in_rtriton_graph(),
             global_dp_buffer_len=global_dp_buffer_len,
             spec_algorithm=self.model_runner.spec_algorithm,
             spec_info=spec_info,
@@ -356,7 +356,7 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
 
         self.eagle_worker.draft_extend_attn_backend_list[
             self.step
-        ].init_forward_metadata_capture_cuda_graph(
+        ].init_forward_metadata_capture_rtriton_graph(
             bs=bs,
             num_tokens=num_tokens,
             req_pool_indices=forward_batch.req_pool_indices,
@@ -398,7 +398,7 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
             probs = torch.softmax(ret.next_token_logits[select_index], dim=-1)
             ret.topk_p, ret.topk_index = fast_topk(probs, self.topk, dim=-1)
 
-            if self.next_cuda_graph_runner is not None:
+            if self.next_rtriton_graph_runner is not None:
                 padding_lens = (
                     self.speculative_num_draft_tokens - self.accept_length[:bs]
                 )
@@ -410,13 +410,13 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
                     self.out_cache_loc,
                     self.extend_seq_lens,
                     self.extend_start_loc,
-                    self.next_cuda_graph_runner.input_ids,
-                    self.next_cuda_graph_runner.positions,
-                    self.next_cuda_graph_runner.hidden_states,
-                    self.next_cuda_graph_runner.out_cache_loc,
-                    self.next_cuda_graph_runner.extend_seq_lens,
-                    self.next_cuda_graph_runner.extend_start_loc,
-                    self.next_cuda_graph_runner.seq_lens,
+                    self.next_rtriton_graph_runner.input_ids,
+                    self.next_rtriton_graph_runner.positions,
+                    self.next_rtriton_graph_runner.hidden_states,
+                    self.next_rtriton_graph_runner.out_cache_loc,
+                    self.next_rtriton_graph_runner.extend_seq_lens,
+                    self.next_rtriton_graph_runner.extend_start_loc,
+                    self.next_rtriton_graph_runner.seq_lens,
                     padding_lens,
                     forward_batch.batch_size,
                     self.step,
@@ -424,9 +424,9 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
                     forward_batch.req_to_token_pool.req_to_token,
                     self.eagle_worker.req_to_hidden_states_pool,
                 )
-                self.next_cuda_graph_runner.swa_out_cache_loc.copy_(
+                self.next_rtriton_graph_runner.swa_out_cache_loc.copy_(
                     self.model_runner.token_to_kv_pool.translate_loc_from_full_to_swa(
-                        self.next_cuda_graph_runner.out_cache_loc
+                        self.next_rtriton_graph_runner.out_cache_loc
                     )
                 )
 
@@ -504,7 +504,7 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
 
         self.eagle_worker.draft_extend_attn_backend_list[
             self.step
-        ].init_forward_metadata_replay_cuda_graph(
+        ].init_forward_metadata_replay_rtriton_graph(
             bs=bs,
             req_pool_indices=self.req_pool_indices,
             seq_lens=self.seq_lens,
@@ -542,7 +542,7 @@ class MultiLayerEagleDraftExtendCudaGraphRunner:
         return out
 
 
-class MultiLayerEagleMultiStepDraftExtendCudaGraphRunner:
+class MultiLayerEagleMultiStepDraftExtendRtritonGraphRunner:
     def __init__(self, eagle_worker: MultiLayerEagleDraftWorker):
         self.eagle_worker = eagle_worker
         self.device = eagle_worker.device
@@ -553,7 +553,7 @@ class MultiLayerEagleMultiStepDraftExtendCudaGraphRunner:
         )
 
         self.runners = []
-        self.cuda_graph_buffers = {}
+        self.rtriton_graph_buffers = {}
         self.seq_len_fill_value = 1
         self.max_bs = 1
         self.offsets = [0]
@@ -561,7 +561,7 @@ class MultiLayerEagleMultiStepDraftExtendCudaGraphRunner:
         self._init_and_capture()
 
     def _init_and_capture(self):
-        if self.eagle_worker.server_args.disable_cuda_graph:
+        if self.eagle_worker.server_args.disable_rtriton_graph:
             self.runners = [None] * self.speculative_num_steps
             return
 
@@ -571,7 +571,7 @@ class MultiLayerEagleMultiStepDraftExtendCudaGraphRunner:
         # 1. Capture loop
         for step in range(self.speculative_num_steps):
             if self.draft_extend_attn_backend_list[step]:
-                runner = MultiLayerEagleDraftExtendCudaGraphRunner(
+                runner = MultiLayerEagleDraftExtendRtritonGraphRunner(
                     self.eagle_worker, step
                 )
                 self.runners.append(runner)
@@ -584,7 +584,7 @@ class MultiLayerEagleMultiStepDraftExtendCudaGraphRunner:
                 self.runners.append(None)
 
         # 2. Allocate buffers
-        self.cuda_graph_buffers["seq_lens_cpu"] = torch.full(
+        self.rtriton_graph_buffers["seq_lens_cpu"] = torch.full(
             (self.max_bs,),
             self.seq_len_fill_value,
             dtype=torch.int32,
@@ -592,29 +592,29 @@ class MultiLayerEagleMultiStepDraftExtendCudaGraphRunner:
 
         with torch.device(self.device):
             # Sliced buffers
-            self.cuda_graph_buffers["input_ids"] = torch.zeros(
+            self.rtriton_graph_buffers["input_ids"] = torch.zeros(
                 (self.offsets[-1],), dtype=torch.int64
             )
-            self.cuda_graph_buffers["out_cache_loc"] = torch.ones(
+            self.rtriton_graph_buffers["out_cache_loc"] = torch.ones(
                 (self.offsets[-1],), dtype=torch.int64
             )
-            self.cuda_graph_buffers["swa_out_cache_loc"] = torch.ones(
+            self.rtriton_graph_buffers["swa_out_cache_loc"] = torch.ones(
                 (self.offsets[-1],), dtype=torch.int64
             )
-            self.cuda_graph_buffers["positions"] = torch.zeros(
+            self.rtriton_graph_buffers["positions"] = torch.zeros(
                 (self.offsets[-1],), dtype=torch.int64
             )
 
             # Shared states
-            self.cuda_graph_buffers["seq_lens"] = torch.full(
+            self.rtriton_graph_buffers["seq_lens"] = torch.full(
                 (self.max_bs,),
                 self.seq_len_fill_value,
                 dtype=torch.int32,
             )
-            self.cuda_graph_buffers["req_pool_indices"] = torch.zeros(
+            self.rtriton_graph_buffers["req_pool_indices"] = torch.zeros(
                 (self.max_bs,), dtype=torch.int32
             )
-            self.cuda_graph_buffers["accept_length"] = torch.full(
+            self.rtriton_graph_buffers["accept_length"] = torch.full(
                 (self.max_bs,), 1, dtype=torch.int32
             )
 
@@ -623,11 +623,11 @@ class MultiLayerEagleMultiStepDraftExtendCudaGraphRunner:
                 tic = time.perf_counter()
                 before_mem = get_available_gpu_memory(self.device, self.gpu_id)
                 logger.info(
-                    f"Capture draft extend cuda graph begin (step {step}). This can take up to several minutes. avail mem={before_mem:.2f} GB"
+                    f"Capture draft extend rtriton graph begin (step {step}). This can take up to several minutes. avail mem={before_mem:.2f} GB"
                 )
 
                 self.runners[step].init_buffers_and_capture(
-                    self.cuda_graph_buffers,
+                    self.rtriton_graph_buffers,
                     self.offsets[step],
                     (
                         self.runners[step + 1]
@@ -638,16 +638,16 @@ class MultiLayerEagleMultiStepDraftExtendCudaGraphRunner:
 
                 after_mem = get_available_gpu_memory(self.device, self.gpu_id)
                 logger.info(
-                    f"Capture draft extend cuda graph end. Time elapsed: {time.perf_counter() - tic:.2f} s. mem usage={(before_mem - after_mem):.2f} GB. avail mem={after_mem:.2f} GB."
+                    f"Capture draft extend rtriton graph end. Time elapsed: {time.perf_counter() - tic:.2f} s. mem usage={(before_mem - after_mem):.2f} GB. avail mem={after_mem:.2f} GB."
                 )
 
     def reset_buffers(self, forward_batch, batch_result):
-        self.cuda_graph_buffers["input_ids"].zero_()
-        self.cuda_graph_buffers["seq_lens"].fill_(self.seq_len_fill_value)
-        self.cuda_graph_buffers["out_cache_loc"].zero_()
-        self.cuda_graph_buffers["swa_out_cache_loc"].zero_()
-        self.cuda_graph_buffers["positions"].zero_()
-        self.cuda_graph_buffers["accept_length"][: forward_batch.batch_size].copy_(
+        self.rtriton_graph_buffers["input_ids"].zero_()
+        self.rtriton_graph_buffers["seq_lens"].fill_(self.seq_len_fill_value)
+        self.rtriton_graph_buffers["out_cache_loc"].zero_()
+        self.rtriton_graph_buffers["swa_out_cache_loc"].zero_()
+        self.rtriton_graph_buffers["positions"].zero_()
+        self.rtriton_graph_buffers["accept_length"][: forward_batch.batch_size].copy_(
             batch_result.accept_lens
         )
 

@@ -16,9 +16,9 @@ class TestRMSNorm(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _run_rms_norm_test(self, num_tokens, hidden_size, add_residual, dtype, seed):
         torch.manual_seed(seed)
@@ -66,9 +66,9 @@ class TestGemmaRMSNorm(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _run_gemma_rms_norm_test(
         self, num_tokens, hidden_size, add_residual, dtype, seed
@@ -120,9 +120,9 @@ class TestLayerNorm(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _run_layer_norm_test(
         self, num_tokens, hidden_size, use_affine, use_bias, dtype, seed, param_dtype
@@ -155,9 +155,9 @@ class TestLayerNorm(CustomTestCase):
             layer.weight.data = layer.weight.data.to(torch.float32)
             layer.bias.data = layer.bias.data.to(torch.float32)
             with torch.inference_mode():
-                cuda_out = layer(x.to(torch.bfloat16)).to(x.dtype)
+                rtriton_out = layer(x.to(torch.bfloat16)).to(x.dtype)
 
-            self.assertTrue(torch.allclose(cuda_out, ref_out, atol=2e-2, rtol=1e-3))
+            self.assertTrue(torch.allclose(rtriton_out, ref_out, atol=2e-2, rtol=1e-3))
 
     def test_layer_norm(self):
         for params in itertools.product(

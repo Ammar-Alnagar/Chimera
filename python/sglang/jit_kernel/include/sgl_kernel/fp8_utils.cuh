@@ -1,9 +1,9 @@
 #pragma once
 
-#ifdef __CUDACC__
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
-#include <cuda_fp8.h>
+#ifdef __RTRITONCC__
+#include <rtriton_bf16.h>
+#include <rtriton_fp16.h>
+#include <rtriton_fp8.h>
 #endif
 
 namespace device {

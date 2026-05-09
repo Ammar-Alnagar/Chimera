@@ -14,8 +14,8 @@ limitations under the License.
 ==============================================================================*/
 
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 
 #include <THC/THCAtomics.cuh>
 
@@ -40,7 +40,7 @@ __global__ void count_and_sort_expert_tokens_kernel(
   }
 }
 
-#ifdef __CUDA_ARCH__
+#ifdef __RTRITON_ARCH__
 __device__ __forceinline__ int warp_exclusive_scan(int v, unsigned mask = 0xffffffffu) {
   int original = v;
 #pragma unroll
@@ -108,7 +108,7 @@ __global__ void moe_align_block_size_kernel(
     scan_buf[tid] = padded_count;
   }
 
-#ifndef __CUDA_ARCH__  // HIP
+#ifndef __RTRITON_ARCH__  // HIP
 
   if (tid >= num_experts && tid < scan_size) {
     scan_buf[tid] = 0;
@@ -161,7 +161,7 @@ __global__ void moe_align_block_size_kernel(
   }
   __syncthreads();
 
-#else  // CUDA
+#else  // RTRITON
 
   // Intra warp prefix sum
   int32_t* warp_sums = scan_buf + scan_size;  // [<= 32]
@@ -323,7 +323,7 @@ void moe_align_block_size(
     torch::Tensor num_tokens_post_pad,
     torch::Tensor cumsum_buffer,
     bool pad_sorted_token_ids) {
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
 
   int threads = 1024;
   threads = ((threads + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;

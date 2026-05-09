@@ -63,7 +63,7 @@ def copy_list_to_gpu_no_ce(arr: List[int]):
     from sgl_kernel.elementwise import copy_to_gpu_no_ce
 
     tensor_cpu = torch.tensor(arr, dtype=torch.int32, device="cpu")
-    tensor_gpu = torch.empty_like(tensor_cpu, device="cuda")
+    tensor_gpu = torch.empty_like(tensor_cpu, device="rtriton")
     copy_to_gpu_no_ce(tensor_cpu, tensor_gpu)
     return tensor_gpu
 
@@ -549,7 +549,7 @@ def pre_permute_deepep_normal_to_deep_gemm(
             dtype=torch.int32,
             pin_memory=True,
             device="cpu",
-        ).cuda(non_blocking=True)
+        ).rtriton(non_blocking=True)
     expert_start_loc = torch.empty_like(num_recv_tokens_per_expert_gpu)
 
     ep_scatter(

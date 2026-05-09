@@ -387,10 +387,10 @@ class Envs:
     SGLANG_RESIZE_RESAMPLE = EnvStr("")
     SGLANG_MM_BUFFER_SIZE_MB = EnvInt(0)
     SGLANG_MM_PRECOMPUTE_HASH = EnvBool(False)
-    SGLANG_VIT_ENABLE_CUDA_GRAPH = EnvBool(False)
+    SGLANG_VIT_ENABLE_RTRITON_GRAPH = EnvBool(False)
 
-    # VLM Item CUDA IPC Transport
-    SGLANG_USE_CUDA_IPC_TRANSPORT = EnvBool(False)
+    # VLM Item RTRITON IPC Transport
+    SGLANG_USE_RTRITON_IPC_TRANSPORT = EnvBool(False)
     SGLANG_MM_FEATURE_CACHE_MB = EnvInt(4 * 1024)
     SGLANG_MM_ITEM_MEM_POOL_RECYCLE_INTERVAL_SEC = EnvFloat(0.05)
 
@@ -398,7 +398,7 @@ class Envs:
     SGLANG_ENABLE_MM_SPLITTING = EnvBool(False)
 
     # Release & Resume Memory
-    SGLANG_MEMORY_SAVER_CUDA_GRAPH = EnvBool(False)
+    SGLANG_MEMORY_SAVER_RTRITON_GRAPH = EnvBool(False)
 
     # Sparse Embeddings
     SGLANG_EMBEDDINGS_SPARSE_HEAD = EnvStr(None)

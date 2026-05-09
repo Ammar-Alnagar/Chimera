@@ -1,6 +1,6 @@
-#include <ATen/cuda/CUDAContext.h>
-#include <ATen/cuda/CUDADataType.h>
-#include <cuda_runtime.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <ATen/rtriton/RTRITONDataType.h>
+#include <rtriton_runtime.h>
 
 #include "pytorch_extension_utils.h"
 #include "utils.cuh"
@@ -80,7 +80,7 @@ inline void check_tensor(const at::Tensor& t, int64_t shape0, int64_t shape1, in
   TORCH_CHECK_EQ(t.size(1), shape1);
   TORCH_CHECK_EQ(t.size(2), shape2);
   TORCH_CHECK_EQ(t.dtype(), dtype);
-  TORCH_CHECK(t.device().is_cuda());
+  TORCH_CHECK(t.device().is_rtriton());
   TORCH_CHECK_EQ(((int64_t)t.data_ptr()) % 16, 0);  // alignment
 }
 
@@ -94,7 +94,7 @@ void concat_mla_k(at::Tensor k, at::Tensor k_nope, at::Tensor k_rope) {
   TORCH_CHECK_EQ(k_nope.stride(2), 1);
   TORCH_CHECK_EQ(k_rope.stride(2), 1);
 
-  const auto stream = at::cuda::getCurrentCUDAStream().stream();
+  const auto stream = at::rtriton::getCurrentRTRITONStream().stream();
 
   constexpr int num_warps_per_block = 32;
   const int grid_size = ceil_div(num_tokens * NUM_HEAD_CHUNKS, num_warps_per_block);
@@ -110,8 +110,8 @@ void concat_mla_k(at::Tensor k, at::Tensor k_nope, at::Tensor k_rope) {
       k_nope.stride(0),
       k_nope.stride(1),
       k_rope.stride(0));
-  cudaError_t err = cudaGetLastError();
-  TORCH_CHECK(err == cudaSuccess, "CUDA kernel launch failed: ", cudaGetErrorString(err));
+  rtritonError_t err = rtritonGetLastError();
+  TORCH_CHECK(err == rtritonSuccess, "RTRITON kernel launch failed: ", rtritonGetErrorString(err));
 }
 
 // ============================== concat_mla_absorb_q ==============================
@@ -180,7 +180,7 @@ inline void check_tensor_concat_mla_absorb_q(const at::Tensor& t, int64_t shape2
   TORCH_CHECK_EQ(t.size(2), shape2);
   TORCH_CHECK_EQ(t.stride(2), 1);
   TORCH_CHECK_EQ(t.dtype(), at::kBFloat16);
-  TORCH_CHECK(t.device().is_cuda());
+  TORCH_CHECK(t.device().is_rtriton());
   TORCH_CHECK_EQ(((int64_t)t.data_ptr()) % 16, 0);  // alignment
 }
 
@@ -190,7 +190,7 @@ void concat_mla_absorb_q(at::Tensor a, at::Tensor b, at::Tensor out) {
   check_tensor_concat_mla_absorb_q(b, B_LAST_DIM);
   check_tensor_concat_mla_absorb_q(out, A_LAST_DIM + B_LAST_DIM);
 
-  const auto stream = at::cuda::getCurrentCUDAStream().stream();
+  const auto stream = at::rtriton::getCurrentRTRITONStream().stream();
 
   TORCH_CHECK_EQ(a.size(0) * a.size(1), b.size(0) * b.size(1));
   TORCH_CHECK_EQ(a.size(1), b.size(1));
@@ -212,6 +212,6 @@ void concat_mla_absorb_q(at::Tensor a, at::Tensor b, at::Tensor out) {
       b.stride(1),
       out.stride(0),
       out.stride(1));
-  cudaError_t err = cudaGetLastError();
-  TORCH_CHECK(err == cudaSuccess, "CUDA kernel launch failed: ", cudaGetErrorString(err));
+  rtritonError_t err = rtritonGetLastError();
+  TORCH_CHECK(err == rtritonSuccess, "RTRITON kernel launch failed: ", rtritonGetErrorString(err));
 }

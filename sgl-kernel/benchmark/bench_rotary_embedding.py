@@ -55,7 +55,7 @@ configs = [
     )
 )
 def benchmark(batch_size, seq_len, save_kv_cache, provider):
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
 
     num_q_heads = 32
     num_kv_heads = 8
@@ -85,7 +85,7 @@ def benchmark(batch_size, seq_len, save_kv_cache, provider):
 
     query_flashinfer, key_flashinfer = inputs["query"].clone(), inputs["key"].clone()
 
-    bench_fn = lambda: rope_flashinfer.forward_cuda(
+    bench_fn = lambda: rope_flashinfer.forward_rtriton(
         inputs["pos_ids"],
         query_flashinfer,
         key_flashinfer,

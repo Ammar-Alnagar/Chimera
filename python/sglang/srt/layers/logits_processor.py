@@ -888,7 +888,7 @@ class LogitsProcessor(nn.Module):
             # GGUF models
             # TODO: use weight_packed_linear for GGUF models
             if self.use_fp32_lm_head:
-                with torch.cuda.amp.autocast(enabled=False):
+                with torch.rtriton.amp.autocast(enabled=False):
                     logits = lm_head.quant_method.apply(
                         lm_head, hidden_states.to(torch.float32), embedding_bias
                     )

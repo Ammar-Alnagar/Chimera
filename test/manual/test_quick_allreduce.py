@@ -86,7 +86,7 @@ class TestQuickAllReduce(CustomTestCase):
         for quant_mode_world_size_part in self.QUANT_MODE_WORLD_SIZE_PART:
             quant_mode = quant_mode_world_size_part[0]
             world_size = quant_mode_world_size_part[1]
-            if world_size > torch.cuda.device_count():
+            if world_size > torch.rtriton.device_count():
                 continue
             multi_process_parallel(world_size, self, self.graph_allreduce, quant_mode)
 
@@ -98,17 +98,17 @@ class TestQuickAllReduce(CustomTestCase):
         for quant_mode_world_size_part in self.QUANT_MODE_WORLD_SIZE_PART:
             quant_mode = quant_mode_world_size_part[0]
             world_size = quant_mode_world_size_part[1]
-            if world_size > torch.cuda.device_count():
+            if world_size > torch.rtriton.device_count():
                 continue
             multi_process_parallel(world_size, self, self.eager_allreduce, quant_mode)
 
     @ray.remote(num_gpus=1, max_calls=1)
     def graph_allreduce(self, world_size, rank, distributed_init_port, quant_mode):
-        os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+        os.environ.pop("RTRITON_VISIBLE_DEVICES", None)
         os.environ["ROCM_QUICK_REDUCE_QUANTIZATION"] = quant_mode
         os.environ["ROCM_QUICK_REDUCE_CAST_BF16_TO_FP16"] = "0"
-        device = torch.device(f"cuda:{rank}")
-        torch.cuda.set_device(device)
+        device = torch.device(f"rtriton:{rank}")
+        torch.rtriton.set_device(device)
         distributed_init_method = f"tcp://localhost:{distributed_init_port}"
         init_distributed_environment(
             world_size=world_size,
@@ -127,7 +127,7 @@ class TestQuickAllReduce(CustomTestCase):
         data = torch.zeros(1)
         data = data.to(device=device)
         torch.distributed.all_reduce(data, group=group)
-        torch.cuda.synchronize()
+        torch.rtriton.synchronize()
         del data
 
         for sz in self.TEST_SIZES:
@@ -140,18 +140,18 @@ class TestQuickAllReduce(CustomTestCase):
                             23,
                             (sz,),
                             dtype=dtype,
-                            device=torch.cuda.current_device(),
+                            device=torch.rtriton.current_device(),
                         )
                         inp2 = torch.randint(
                             -23,
                             1,
                             (sz,),
                             dtype=dtype,
-                            device=torch.cuda.current_device(),
+                            device=torch.rtriton.current_device(),
                         )
-                        torch.cuda.synchronize()
-                        graph = torch.cuda.CUDAGraph()
-                        with torch.cuda.graph(
+                        torch.rtriton.synchronize()
+                        graph = torch.rtriton.RTRITONGraph()
+                        with torch.rtriton.graph(
                             graph, stream=graph_capture_context.stream
                         ):
                             out1 = tensor_model_parallel_all_reduce(inp1)
@@ -173,11 +173,11 @@ class TestQuickAllReduce(CustomTestCase):
 
     @ray.remote(num_gpus=1, max_calls=1)
     def eager_allreduce(self, world_size, rank, distributed_init_port, quant_mode):
-        os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+        os.environ.pop("RTRITON_VISIBLE_DEVICES", None)
         os.environ["ROCM_QUICK_REDUCE_QUANTIZATION"] = quant_mode
         os.environ["ROCM_QUICK_REDUCE_CAST_BF16_TO_FP16"] = "0"
-        device = torch.device(f"cuda:{rank}")
-        torch.cuda.set_device(device)
+        device = torch.device(f"rtriton:{rank}")
+        torch.rtriton.set_device(device)
         distributed_init_method = f"tcp://localhost:{distributed_init_port}"
         init_distributed_environment(
             world_size=world_size,
@@ -196,7 +196,7 @@ class TestQuickAllReduce(CustomTestCase):
                         23,
                         (sz,),
                         dtype=dtype,
-                        device=torch.cuda.current_device(),
+                        device=torch.rtriton.current_device(),
                     )
                     out1 = tensor_model_parallel_all_reduce(inp1)
                     dist.all_reduce(inp1, group=group)
@@ -211,8 +211,8 @@ class TestQuickAllReduce(CustomTestCase):
 
 
 def qr_variable_input(rank, world_size):
-    device = torch.device(f"cuda:{rank}")
-    torch.cuda.set_device(device)
+    device = torch.device(f"rtriton:{rank}")
+    torch.rtriton.set_device(device)
     qr_max_size = None  # MB
     _ptr = ops.init_custom_qr(rank, world_size, qr_max_size)
     ranks = []
@@ -239,11 +239,11 @@ def qr_variable_input(rank, world_size):
         if num % 2 == 0:
             s2 = 1024
             inp1 = torch.zeros(
-                (s1, s2), dtype=dtype, device=torch.cuda.current_device()
+                (s1, s2), dtype=dtype, device=torch.rtriton.current_device()
             )
         else:
             s2 = 2048
-            inp1 = torch.ones((s1, s2), dtype=dtype, device=torch.cuda.current_device())
+            inp1 = torch.ones((s1, s2), dtype=dtype, device=torch.rtriton.current_device())
         result = torch.empty_like(inp1)
         # FP = 0 INT8 = 1 INT6 = 2 INT4 = 3 NONE = 4
         ops.qr_all_reduce(_ptr, inp1, result, 3, cast_bf2half=True)
@@ -274,7 +274,7 @@ class TestQuickreduceVariableInput(CustomTestCase):
     def test_custom_quick_allreduce_variable_input(self):
         for tp_size in self.TP_SIZES:
             world_size = tp_size
-            if world_size > torch.cuda.device_count():
+            if world_size > torch.rtriton.device_count():
                 return
 
             multiprocessing.set_start_method("spawn", force=True)

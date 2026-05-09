@@ -85,7 +85,7 @@ class EngineWrapper:
 
 
 def get_gpu_memory_gb(gpu_id=0):
-    return torch.cuda.device_memory_used() / 1024**3
+    return torch.rtriton.device_memory_used() / 1024**3
 
 
 class TestMultiInstanceReleaseMemoryOccupation(CustomTestCase):
@@ -140,16 +140,16 @@ def _run_sglang_subprocess(
         os.environ["MASTER_PORT"] = str(master_port)
         dist.init_process_group(
             rank=rank,
-            device_id=torch.device(f"cuda:{rank}"),
+            device_id=torch.device(f"rtriton:{rank}"),
             world_size=dp_size * tp_size,
         )
-        torch.cuda.set_device(rank)
+        torch.rtriton.set_device(rank)
 
         base_gpu_id = rank // tp_size * tp_size
         mesh_kwargs = dict(
             mesh_shape=(dp_size, tp_size, 1), mesh_dim_names=["dp", "tp", "pp"]
         )
-        inference_device_mesh_device = init_device_mesh("cuda", **mesh_kwargs)
+        inference_device_mesh_device = init_device_mesh("rtriton", **mesh_kwargs)
         inference_device_mesh_cpu = init_device_mesh("cpu", **mesh_kwargs)
         print(
             f"subprocess[{rank=},{base_gpu_id=},{rank=},{tp_size=}] {inference_device_mesh_device=} {inference_device_mesh_cpu=}"
@@ -194,9 +194,9 @@ def _run_sglang_subprocess(
         hf_model = AutoModelForCausalLM.from_pretrained(
             DEFAULT_SMALL_MODEL_NAME_FOR_TEST_BASE,
             torch_dtype="bfloat16",
-            device_map=f"cuda:{rank}",
+            device_map=f"rtriton:{rank}",
             trust_remote_code=True,
-        ).cuda()
+        ).rtriton()
         _curr_usage = get_gpu_memory_gb(rank)
         assert (
             _curr_usage > _mem_usage
@@ -215,9 +215,9 @@ def _run_sglang_subprocess(
         print(f"GPU{rank} Memory usage after resuming Sgl weights: {_mem_usage}")
         del hf_model
         hf_model = None
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
         time.sleep(3)
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
         _curr_usage = get_gpu_memory_gb(rank)
         assert (
             _curr_usage < _mem_usage

@@ -23,10 +23,10 @@ from sglang.srt.model_loader.weight_utils import default_weight_loader
 from sglang.srt.models.glm4_moe import Glm4MoeModel
 from sglang.srt.models.glm4v import Glm4vForConditionalGeneration, Glm4vVisionModel
 from sglang.srt.server_args import get_global_server_args
-from sglang.srt.utils import add_prefix, get_device_sm, is_cuda, log_info_on_rank0
+from sglang.srt.utils import add_prefix, get_device_sm, is_rtriton, log_info_on_rank0
 from sglang.srt.utils.hf_transformers_utils import get_processor
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _device_sm = get_device_sm()
 
 logger = logging.getLogger(__name__)
@@ -93,9 +93,9 @@ class Glm4vMoeForConditionalGeneration(Glm4vForConditionalGeneration):
         disable_reason = None
         if not getattr(self.config, "n_shared_experts", None):
             disable_reason = "No shared experts are defined in the config."
-        elif not _is_cuda:
-            disable_reason = "Shared experts fusion currently requires CUDA devices."
-        elif _is_cuda and (_device_sm is not None) and (_device_sm < 80):
+        elif not _is_rtriton:
+            disable_reason = "Shared experts fusion currently requires RTRITON devices."
+        elif _is_rtriton and (_device_sm is not None) and (_device_sm < 80):
             disable_reason = "Shared experts fusion requires SM80 or newer GPUs."
         elif get_moe_expert_parallel_world_size() > 1:
             disable_reason = "Shared experts fusion is not supported together with expert parallelism yet."

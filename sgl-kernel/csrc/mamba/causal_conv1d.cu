@@ -2,13 +2,13 @@
 // adapted from https://github.com/Dao-AILab/causal-conv1d/blob/main/csrc/causal_conv1d_fwd.cu
 // and https://github.com/Dao-AILab/causal-conv1d/blob/main/csrc/causal_conv1d_update.cu
 #include <torch/all.h>
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 
 #include "causal_conv1d.h"
 #include <c10/util/BFloat16.h>
 #include <c10/util/Half.h>
-#include <c10/cuda/CUDAException.h>  // For C10_CUDA_CHECK and C10_CUDA_KERNEL_LAUNCH_CHECK
+#include <c10/rtriton/RTRITONException.h>  // For C10_RTRITON_CHECK and C10_RTRITON_KERNEL_LAUNCH_CHECK
 
 #include <cub/block/block_load.cuh>
 #include <cub/block/block_store.cuh>
@@ -45,10 +45,10 @@
 
 
 template<typename input_t, typename weight_t>
-void causal_conv1d_fwd_cuda(ConvParamsBase &params, cudaStream_t stream);
+void causal_conv1d_fwd_rtriton(ConvParamsBase &params, rtritonStream_t stream);
 
 template<typename input_t, typename weight_t>
-void causal_conv1d_update_cuda(ConvParamsBase &params, cudaStream_t stream);
+void causal_conv1d_update_rtriton(ConvParamsBase &params, rtritonStream_t stream);
 
 void set_conv_params_fwd(ConvParamsBase &params,
                          // sizes
@@ -114,8 +114,8 @@ void causal_conv1d_fwd(const at::Tensor &x, const at::Tensor &weight,
     TORCH_CHECK(input_type == at::ScalarType::Float || input_type == at::ScalarType::Half || input_type == at::ScalarType::BFloat16);
     TORCH_CHECK(weight_type == at::ScalarType::Float || weight_type == at::ScalarType::Half || weight_type == at::ScalarType::BFloat16);
 
-    TORCH_CHECK(x.is_cuda());
-    TORCH_CHECK(weight.is_cuda());
+    TORCH_CHECK(x.is_rtriton());
+    TORCH_CHECK(weight.is_rtriton());
 
     const bool varlen = query_start_loc.has_value() ? true : false;
     const auto sizes = x.sizes();
@@ -136,7 +136,7 @@ void causal_conv1d_fwd(const at::Tensor &x, const at::Tensor &weight,
     if (bias_.has_value()) {
         auto bias = bias_.value();
         TORCH_CHECK(bias.scalar_type() == weight_type);
-        TORCH_CHECK(bias.is_cuda());
+        TORCH_CHECK(bias.is_rtriton());
         TORCH_CHECK(bias.stride(-1) == 1);
         CHECK_SHAPE(bias, dim);
     }
@@ -145,7 +145,7 @@ void causal_conv1d_fwd(const at::Tensor &x, const at::Tensor &weight,
     if (has_initial_state.has_value()) {
         auto has_initial_state_ = has_initial_state.value();
         TORCH_CHECK(has_initial_state_.scalar_type() == at::ScalarType::Bool);
-        TORCH_CHECK(has_initial_state_.is_cuda());
+        TORCH_CHECK(has_initial_state_.is_rtriton());
         CHECK_SHAPE(has_initial_state_, batch_size);
     }
 
@@ -153,14 +153,14 @@ void causal_conv1d_fwd(const at::Tensor &x, const at::Tensor &weight,
     if (query_start_loc.has_value()) {
         auto query_start_loc_ = query_start_loc.value();
         TORCH_CHECK(query_start_loc_.scalar_type() == at::ScalarType::Int);
-        TORCH_CHECK(query_start_loc_.is_cuda());
+        TORCH_CHECK(query_start_loc_.is_rtriton());
     }
 
 
     if (cache_indices.has_value()) {
         auto cache_indices_ = cache_indices.value();
         TORCH_CHECK(cache_indices_.scalar_type() == at::ScalarType::Int);
-        TORCH_CHECK(cache_indices_.is_cuda());
+        TORCH_CHECK(cache_indices_.is_rtriton());
         CHECK_SHAPE(cache_indices_, batch_size);
     }
 
@@ -179,7 +179,7 @@ void causal_conv1d_fwd(const at::Tensor &x, const at::Tensor &weight,
     if (conv_states.has_value()) {
         auto conv_states_ = conv_states.value();
         TORCH_CHECK(conv_states_.scalar_type() == input_type);
-        TORCH_CHECK(conv_states_.is_cuda());
+        TORCH_CHECK(conv_states_.is_rtriton());
         params.conv_states_ptr = conv_states_.data_ptr();
         params.conv_states_batch_stride = conv_states_.stride(0);
         params.conv_states_c_stride = conv_states_.stride(-2);
@@ -188,12 +188,12 @@ void causal_conv1d_fwd(const at::Tensor &x, const at::Tensor &weight,
         params.conv_states_ptr = nullptr;
     }
 
-    // Otherwise the kernel will be launched from cuda:0 device
+    // Otherwise the kernel will be launched from rtriton:0 device
     // Cast to char to avoid compiler warning about narrowing
-    at::cuda::CUDAGuard device_guard{(char)x.get_device()};
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
+    at::rtriton::RTRITONGuard device_guard{(char)x.get_device()};
+    auto stream = at::rtriton::getCurrentRTRITONStream().stream();
     DISPATCH_WTYPE_ITYPE_FLOAT_AND_HALF_AND_BF16(x.scalar_type(), "causal_conv1d_fwd", [&] {
-            causal_conv1d_fwd_cuda<input_t, weight_t>(params, stream);
+            causal_conv1d_fwd_rtriton<input_t, weight_t>(params, stream);
     });
 }
 
@@ -215,9 +215,9 @@ void causal_conv1d_update(const at::Tensor &x,
     TORCH_CHECK(weight_type == input_type, "weight type must equal to input type, other variations are disabled due to binary size limitations");
     TORCH_CHECK(conv_state.scalar_type() == input_type);
 
-    TORCH_CHECK(x.is_cuda());
-    TORCH_CHECK(conv_state.is_cuda());
-    TORCH_CHECK(weight.is_cuda());
+    TORCH_CHECK(x.is_rtriton());
+    TORCH_CHECK(conv_state.is_rtriton());
+    TORCH_CHECK(weight.is_rtriton());
 
     const auto sizes = x.sizes();
     const int batch_size = sizes[0];
@@ -235,7 +235,7 @@ void causal_conv1d_update(const at::Tensor &x,
     if (bias_.has_value()) {
         auto bias = bias_.value();
         TORCH_CHECK(bias.scalar_type() == weight_type);
-        TORCH_CHECK(bias.is_cuda());
+        TORCH_CHECK(bias.is_rtriton());
         TORCH_CHECK(bias.stride(-1) == 1);
         CHECK_SHAPE(bias, dim);
     }
@@ -257,7 +257,7 @@ void causal_conv1d_update(const at::Tensor &x,
     if (cache_seqlens_.has_value()) {
         auto cache_seqlens = cache_seqlens_.value();
         TORCH_CHECK(cache_seqlens.scalar_type() == torch::kInt32);
-        TORCH_CHECK(cache_seqlens.is_cuda());
+        TORCH_CHECK(cache_seqlens.is_rtriton());
         TORCH_CHECK(cache_seqlens.stride(-1) == 1);
         CHECK_SHAPE(cache_seqlens, batch_size);
         params.cache_seqlens = cache_seqlens.data_ptr<int32_t>();
@@ -268,7 +268,7 @@ void causal_conv1d_update(const at::Tensor &x,
     if (conv_state_indices_.has_value()) {
         auto conv_state_indices = conv_state_indices_.value();
         TORCH_CHECK(conv_state_indices.scalar_type() == torch::kInt32)
-        TORCH_CHECK(conv_state_indices.is_cuda());
+        TORCH_CHECK(conv_state_indices.is_rtriton());
         TORCH_CHECK(conv_state_indices.stride(0) == 1)
         CHECK_SHAPE(conv_state_indices, batch_size);
 
@@ -281,12 +281,12 @@ void causal_conv1d_update(const at::Tensor &x,
         params.conv_state_indices_ptr = nullptr;
     }
 
-    // Otherwise the kernel will be launched from cuda:0 device
+    // Otherwise the kernel will be launched from rtriton:0 device
     // Cast to char to avoid compiler warning about narrowing
-    at::cuda::CUDAGuard device_guard{(char)x.get_device()};
-    auto stream = at::cuda::getCurrentCUDAStream().stream();
+    at::rtriton::RTRITONGuard device_guard{(char)x.get_device()};
+    auto stream = at::rtriton::getCurrentRTRITONStream().stream();
     DISPATCH_WTYPE_ITYPE_FLOAT_AND_HALF_AND_BF16(x.scalar_type(), "causal_conv1d_update", [&] {
-            causal_conv1d_update_cuda<input_t, weight_t>(params, stream);
+            causal_conv1d_update_rtriton<input_t, weight_t>(params, stream);
     });
 }
 
@@ -497,7 +497,7 @@ void causal_conv1d_fwd_kernel(ConvParamsBase params) {
 
 
 template<int kNThreads, int kWidth, typename input_t, typename weight_t>
-void causal_conv1d_fwd_launch(ConvParamsBase &params, cudaStream_t stream) {
+void causal_conv1d_fwd_launch(ConvParamsBase &params, rtritonStream_t stream) {
     static constexpr int kNElts = sizeof(input_t) == 4 ? 4 : 8;
     const bool kVarlen = params.query_start_loc_ptr != nullptr;
     BOOL_SWITCH(params.seqlen % kNElts == 0 && !kVarlen, kIsVecLoad, [&] {
@@ -509,23 +509,23 @@ void causal_conv1d_fwd_launch(ConvParamsBase &params, cudaStream_t stream) {
 
         if (kSmemSize >= 48 * 1024) {
             #ifndef USE_ROCM
-            C10_CUDA_CHECK(cudaFuncSetAttribute(
-                kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemSize));
+            C10_RTRITON_CHECK(rtritonFuncSetAttribute(
+                kernel, rtritonFuncAttributeMaxDynamicSharedMemorySize, kSmemSize));
             #else
-            // There is a slight signature discrepancy in HIP and CUDA "FuncSetAttribute" function.
-            C10_CUDA_CHECK(cudaFuncSetAttribute(
-                (void *) kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemSize));
+            // There is a slight signature discrepancy in HIP and RTRITON "FuncSetAttribute" function.
+            C10_RTRITON_CHECK(rtritonFuncSetAttribute(
+                (void *) kernel, rtritonFuncAttributeMaxDynamicSharedMemorySize, kSmemSize));
             std::cerr << "Warning (causal_conv1d fwd launch): attempting to set maxDynamicSharedMemorySize on an AMD GPU which is currently a non-op (in ROCm versions <= 6.1). This might lead to undefined behavior. \n" << std::endl;
             #endif
         }
         kernel<<<grid, Ktraits::kNThreads, kSmemSize, stream>>>(params);
 
-        C10_CUDA_KERNEL_LAUNCH_CHECK();
+        C10_RTRITON_KERNEL_LAUNCH_CHECK();
     });
 }
 
 template<typename input_t, typename weight_t>
-void causal_conv1d_fwd_cuda(ConvParamsBase &params, cudaStream_t stream) {
+void causal_conv1d_fwd_rtriton(ConvParamsBase &params, rtritonStream_t stream) {
     if (params.width == 2) {
         causal_conv1d_fwd_launch<128, 2, input_t, weight_t>(params, stream);
     } else if (params.width == 3) {
@@ -536,9 +536,9 @@ void causal_conv1d_fwd_cuda(ConvParamsBase &params, cudaStream_t stream) {
 }
 
 
-template void causal_conv1d_fwd_cuda<float, float>(ConvParamsBase &params, cudaStream_t stream);
-template void causal_conv1d_fwd_cuda<at::Half, at::Half>(ConvParamsBase &params, cudaStream_t stream);
-template void causal_conv1d_fwd_cuda<at::BFloat16, at::BFloat16>(ConvParamsBase &params, cudaStream_t stream);
+template void causal_conv1d_fwd_rtriton<float, float>(ConvParamsBase &params, rtritonStream_t stream);
+template void causal_conv1d_fwd_rtriton<at::Half, at::Half>(ConvParamsBase &params, rtritonStream_t stream);
+template void causal_conv1d_fwd_rtriton<at::BFloat16, at::BFloat16>(ConvParamsBase &params, rtritonStream_t stream);
 
 
 
@@ -643,18 +643,18 @@ void causal_conv1d_update_kernel(ConvParamsBase params) {
 }
 
 template<int kNThreads, int kWidth, typename input_t, typename weight_t>
-void causal_conv1d_update_launch(ConvParamsBase &params, cudaStream_t stream) {
+void causal_conv1d_update_launch(ConvParamsBase &params, rtritonStream_t stream) {
     using Ktraits = Causal_conv1d_update_kernel_traits<kNThreads, kWidth, input_t, weight_t>;
     dim3 grid(params.batch, (params.dim + kNThreads - 1) / kNThreads);
     auto kernel = params.cache_seqlens == nullptr
         ? &causal_conv1d_update_kernel<Ktraits, false>
         : &causal_conv1d_update_kernel<Ktraits, true>;
     kernel<<<grid, Ktraits::kNThreads, 0, stream>>>(params);
-    C10_CUDA_KERNEL_LAUNCH_CHECK();
+    C10_RTRITON_KERNEL_LAUNCH_CHECK();
 }
 
 template<typename input_t, typename weight_t>
-void causal_conv1d_update_cuda(ConvParamsBase &params, cudaStream_t stream) {
+void causal_conv1d_update_rtriton(ConvParamsBase &params, rtritonStream_t stream) {
     if (params.width == 2) {
         causal_conv1d_update_launch<64, 2, input_t, weight_t>(params, stream);
     } else if (params.width == 3) {
@@ -664,6 +664,6 @@ void causal_conv1d_update_cuda(ConvParamsBase &params, cudaStream_t stream) {
     }
 }
 
-template void causal_conv1d_update_cuda<float, float>(ConvParamsBase &params, cudaStream_t stream);
-template void causal_conv1d_update_cuda<at::Half, at::Half>(ConvParamsBase &params, cudaStream_t stream);
-template void causal_conv1d_update_cuda<at::BFloat16, at::BFloat16>(ConvParamsBase &params, cudaStream_t stream);
+template void causal_conv1d_update_rtriton<float, float>(ConvParamsBase &params, rtritonStream_t stream);
+template void causal_conv1d_update_rtriton<at::Half, at::Half>(ConvParamsBase &params, rtritonStream_t stream);
+template void causal_conv1d_update_rtriton<at::BFloat16, at::BFloat16>(ConvParamsBase &params, rtritonStream_t stream);

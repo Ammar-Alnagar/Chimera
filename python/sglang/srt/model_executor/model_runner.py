@@ -105,8 +105,8 @@ from sglang.srt.lora.lora_registry import LoRARef
 from sglang.srt.mem_cache.allocator import BaseTokenToKVPoolAllocator
 from sglang.srt.mem_cache.memory_pool import ReqToTokenPool
 from sglang.srt.model_executor.cpu_graph_runner import CPUGraphRunner
-from sglang.srt.model_executor.cuda_graph_runner import (
-    CudaGraphRunner,
+from sglang.srt.model_executor.rtriton_graph_runner import (
+    RtritonGraphRunner,
     set_torch_compile_config,
 )
 from sglang.srt.model_executor.forward_batch_info import (
@@ -120,8 +120,8 @@ from sglang.srt.model_executor.input_buffers import GraphInputBuffers
 from sglang.srt.model_executor.model_runner_kv_cache_mixin import (
     ModelRunnerKVCacheMixin,
 )
-from sglang.srt.model_executor.piecewise_cuda_graph_runner import (
-    PiecewiseCudaGraphRunner,
+from sglang.srt.model_executor.piecewise_rtriton_graph_runner import (
+    PiecewiseRtritonGraphRunner,
 )
 from sglang.srt.model_loader.loader import DefaultModelLoader, get_model_loader
 from sglang.srt.model_loader.remote_instance_weight_loader_utils import (
@@ -155,7 +155,7 @@ from sglang.srt.utils import (
     require_gathered_buffer,
     require_mlp_tp_gather,
     reserve_rope_cache_for_long_sequences,
-    set_cuda_arch,
+    set_rtriton_arch,
     slow_rank_detector,
 )
 from sglang.srt.utils.nvtx_pytorch_hooks import PytHooks
@@ -560,7 +560,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         # Init routed experts capturer
         self.init_routed_experts_capturer()
 
-        if self.device == "cuda":
+        if self.device == "rtriton":
             self.init_cublas()
             self.init_attention_backend()
             self.kernel_warmup()
@@ -581,8 +581,8 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 self.eagle_aux_hidden_state_layer_ids
             )
 
-        # Initialize piecewise CUDA graph
-        self.init_piecewise_cuda_graphs()
+        # Initialize piecewise RTRITON graph
+        self.init_piecewise_rtriton_graphs()
 
     def init_routed_experts_capturer(self):
         # TODO: the redundant logic with TpModelWorker
@@ -640,10 +640,10 @@ class ModelRunner(ModelRunnerKVCacheMixin):
 
         if server_args.enable_double_sparsity:
             logger.info(
-                "Double sparsity optimization is turned on. Use triton backend without CUDA graph."
+                "Double sparsity optimization is turned on. Use triton backend without RTRITON graph."
             )
             server_args.attention_backend = "triton"
-            server_args.disable_cuda_graph = True
+            server_args.disable_rtriton_graph = True
 
         if self.is_multimodal:
             if not self.is_multimodal_chunked_prefill_supported:
@@ -704,11 +704,11 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             torch.get_device_module(self.device).set_device(self.gpu_id)
         except Exception:
             logger.warning(
-                f"Context: {self.device=} {self.gpu_id=} {os.environ.get('CUDA_VISIBLE_DEVICES')=} {self.tp_rank=} {self.tp_size=}"
+                f"Context: {self.device=} {self.gpu_id=} {os.environ.get('RTRITON_VISIBLE_DEVICES')=} {self.tp_rank=} {self.tp_size=}"
             )
             raise
 
-        if self.device == "cuda":
+        if self.device == "rtriton":
             if self.server_args.elastic_ep_backend == "mooncake":
                 backend = "mooncake"
                 if self.server_args.mooncake_ib_device:
@@ -775,7 +775,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 pipeline_model_parallel_size=self.pp_size,
                 expert_model_parallel_size=self.moe_ep_size,
                 duplicate_tp_group=self.server_args.enable_pdmux,
-                torch_compile=self.server_args.enable_piecewise_cuda_graph,
+                torch_compile=self.server_args.enable_piecewise_rtriton_graph,
             )
             initialize_dp_attention(
                 server_args=self.server_args,
@@ -819,17 +819,17 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         # This can reduce thread conflicts and speed up weight loading.
         if self.device != "cpu":
             torch.set_num_threads(1)
-        if self.device == "cuda":
-            if torch.cuda.get_device_capability()[0] < 8:
+        if self.device == "rtriton":
+            if torch.rtriton.get_device_capability()[0] < 8:
                 logger.info(
                     "Compute capability below sm80. Use float16 due to lack of bfloat16 support."
                 )
                 self.server_args.dtype = "float16"
                 self.model_config.dtype = torch.float16
-                if torch.cuda.get_device_capability()[1] < 5:
+                if torch.rtriton.get_device_capability()[1] < 5:
                     raise RuntimeError("SGLang only supports sm75 and above.")
 
-        set_cuda_arch()
+        set_rtriton_arch()
 
         # Prepare the model config
         from sglang.srt.configs.modelopt_config import ModelOptConfig
@@ -971,7 +971,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 self.pp_rank,
             )
 
-        # Pre-expand RoPE cache before CUDA Graph capture
+        # Pre-expand RoPE cache before RTRITON Graph capture
         reserve_rope_cache_for_long_sequences(
             self.model,
             self.server_args,
@@ -1029,7 +1029,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         model_path: str,
         load_format: str,
         weight_name_filter: Optional[Callable[[str], bool]] = None,
-        recapture_cuda_graph: bool = False,
+        recapture_rtriton_graph: bool = False,
     ) -> tuple[bool, str]:
         """Update engine weights in-place from the disk."""
         logger.info(
@@ -1085,7 +1085,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         self.server_args.load_format = load_format
         self.load_config = load_config
 
-        if recapture_cuda_graph and self.device == "cuda":
+        if recapture_rtriton_graph and self.device == "rtriton":
             self.init_device_graphs()
 
         logger.info("Update weights end.")
@@ -1117,7 +1117,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             f"group_rank={group_rank}, world_size={world_size}, group_name={group_name}, backend={backend}"
         )
 
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
         success = False
         message = ""
         try:
@@ -1127,7 +1127,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 world_size=world_size,
                 rank=group_rank,
                 group_name=group_name,
-                device_id=torch.device("cuda", self.gpu_id),
+                device_id=torch.device("rtriton", self.gpu_id),
             )
             dist.barrier(group=self._weights_send_group[group_name])
             success = True
@@ -1138,7 +1138,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             message = f"Failed to init group: {e}."
             logger.error(message)
 
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
         return success, message
 
     def send_weights_to_remote_instance(
@@ -1166,7 +1166,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             logger.error(message)
             return False, message
 
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
         success = False
         message = ""
         try:
@@ -1185,7 +1185,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         # destroy the process group after sending weights
         del self._weights_send_group[group_name]
         torch.distributed.distributed_c10d.destroy_process_group(send_group)
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
         return success, message
 
     def init_weights_update_group(
@@ -1508,25 +1508,25 @@ class ModelRunner(ModelRunnerKVCacheMixin):
     def mambaish_config(self):
         return self.mamba2_config or self.hybrid_gdn_config or self.kimi_linear_config
 
-    def can_run_piecewise_cuda_graph(self):
+    def can_run_piecewise_rtriton_graph(self):
         if self.server_args.enable_torch_compile:
             log_info_on_rank0(
                 logger,
-                "Disable piecewise CUDA graph because piecewise_cuda_graph has conflict with torch compile",
+                "Disable piecewise RTRITON graph because piecewise_rtriton_graph has conflict with torch compile",
             )
             return False
         if self.pp_size > 1:
             # TODO(yuwei): support PP
             log_info_on_rank0(
                 logger,
-                "Disable piecewise CUDA graph because piecewise_cuda_graph does not support PP",
+                "Disable piecewise RTRITON graph because piecewise_rtriton_graph does not support PP",
             )
             return False
         if get_moe_a2a_backend().is_deepep() or get_moe_a2a_backend().is_mooncake():
             # TODO(yuwei): fix the compilation errors for MOE A2A backend
             log_info_on_rank0(
                 logger,
-                "Disable piecewise CUDA graph due to existing compilation errors",
+                "Disable piecewise RTRITON graph due to existing compilation errors",
             )
             return False
         return True
@@ -1576,7 +1576,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
     def init_cublas(self):
         """We need to run a small matmul to init cublas. Otherwise, it will raise some errors later."""
         dtype = torch.float16
-        device = "cuda"
+        device = "rtriton"
         a = torch.ones((16, 16), dtype=dtype, device=device)
         b = torch.ones((16, 16), dtype=dtype, device=device)
         c = a @ b
@@ -1671,15 +1671,15 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                     :, : self.server_args.ds_heavy_channel_num
                 ]
                 .contiguous()
-                .cuda()
+                .rtriton()
             )
 
     def kernel_warmup(self):
         """
-        Warmup and tune kernels before cuda graph capture.
+        Warmup and tune kernels before rtriton graph capture.
         Currently only doing FlashInfer autotune.
         """
-        if self.device != "cuda":
+        if self.device != "rtriton":
             return
 
         if self._should_run_flashinfer_autotune():
@@ -1699,7 +1699,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         ]:
             return False
 
-        major, _ = torch.cuda.get_device_capability()
+        major, _ = torch.rtriton.get_device_capability()
         if major < 9:
             return False
 
@@ -1747,7 +1747,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
 
         num_tokens = batch_size * num_tokens_per_bs
 
-        seq_len_fill_value = self.attn_backend.get_cuda_graph_seq_len_fill_value()
+        seq_len_fill_value = self.attn_backend.get_rtriton_graph_seq_len_fill_value()
 
         if self.server_args.enable_torch_compile:
             set_torch_compile_config()
@@ -1916,7 +1916,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             extend_seq_lens_cpu=extend_seq_lens_cpu,
             global_num_tokens_gpu=buffers.global_num_tokens_gpu,
             global_num_tokens_for_logprob_gpu=buffers.global_num_tokens_for_logprob_gpu,
-            dp_padding_mode=DpPaddingMode.get_default_mode_in_cuda_graph(),
+            dp_padding_mode=DpPaddingMode.get_default_mode_in_rtriton_graph(),
             global_dp_buffer_len=global_dp_buffer_len,
             mrope_positions=buffers.mrope_positions,
             spec_algorithm=self.spec_algorithm,
@@ -1971,13 +1971,13 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         self.graph_mem_usage = 0
 
         if not self.is_generation:
-            # TODO: Currently, cuda graph only captures decode steps, which only exists for generation models
+            # TODO: Currently, rtriton graph only captures decode steps, which only exists for generation models
             return
 
         if self.server_args.model_impl.lower() == ModelImpl.MINDSPORE:
             return
 
-        if self.device != "cpu" and self.server_args.disable_cuda_graph:
+        if self.device != "cpu" and self.server_args.disable_rtriton_graph:
             return
 
         if self.device == "cpu" and not self.server_args.enable_torch_compile:
@@ -1986,10 +1986,10 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         tic = time.perf_counter()
         before_mem = get_available_gpu_memory(self.device, self.gpu_id)
         logger.info(
-            f"Capture {'cpu graph' if self.device == 'cpu' else 'cuda graph'} begin. This can take up to several minutes. avail mem={before_mem:.2f} GB"
+            f"Capture {'cpu graph' if self.device == 'cpu' else 'rtriton graph'} begin. This can take up to several minutes. avail mem={before_mem:.2f} GB"
         )
         graph_runners = defaultdict(
-            lambda: CudaGraphRunner,
+            lambda: RtritonGraphRunner,
             {
                 "cpu": CPUGraphRunner,
                 "npu": NPUGraphRunner,
@@ -2000,17 +2000,17 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         after_mem = get_available_gpu_memory(self.device, self.gpu_id)
         self.graph_mem_usage = before_mem - after_mem
         logger.info(
-            f"Capture {'cpu graph' if self.device == 'cpu' else 'cuda graph'} end. Time elapsed: {time.perf_counter() - tic:.2f} s. "
+            f"Capture {'cpu graph' if self.device == 'cpu' else 'rtriton graph'} end. Time elapsed: {time.perf_counter() - tic:.2f} s. "
             f"mem usage={self.graph_mem_usage:.2f} GB. avail mem={after_mem:.2f} GB."
         )
 
-    def init_piecewise_cuda_graphs(self):
-        """Initialize piecewise CUDA graph runner."""
-        self.piecewise_cuda_graph_runner = None
+    def init_piecewise_rtriton_graphs(self):
+        """Initialize piecewise RTRITON graph runner."""
+        self.piecewise_rtriton_graph_runner = None
 
         if (
-            not self.server_args.enable_piecewise_cuda_graph
-            or not self.can_run_piecewise_cuda_graph()
+            not self.server_args.enable_piecewise_rtriton_graph
+            or not self.can_run_piecewise_rtriton_graph()
         ):
             return
 
@@ -2050,22 +2050,22 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             # TODO(yuwei): support Non-Standard GQA
             log_info_on_rank0(
                 logger,
-                "Disable piecewise CUDA graph because some layers do not apply Standard GQA",
+                "Disable piecewise RTRITON graph because some layers do not apply Standard GQA",
             )
             return
 
         tic = time.perf_counter()
         before_mem = get_available_gpu_memory(self.device, self.gpu_id)
         logger.info(
-            f"Capture piecewise CUDA graph begin. avail mem={before_mem:.2f} GB"
+            f"Capture piecewise RTRITON graph begin. avail mem={before_mem:.2f} GB"
         )
 
-        self.piecewise_cuda_graph_runner = PiecewiseCudaGraphRunner(self)
+        self.piecewise_rtriton_graph_runner = PiecewiseRtritonGraphRunner(self)
 
         after_mem = get_available_gpu_memory(self.device, self.gpu_id)
         mem_usage = before_mem - after_mem
         logger.info(
-            f"Capture piecewise CUDA graph end. Time elapsed: {time.perf_counter() - tic:.2f} s. "
+            f"Capture piecewise RTRITON graph end. Time elapsed: {time.perf_counter() - tic:.2f} s. "
             f"mem usage={mem_usage:.2f} GB. avail mem={after_mem:.2f} GB."
         )
 
@@ -2151,10 +2151,10 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             kwargs["get_embedding"] = True
 
         if (
-            self.piecewise_cuda_graph_runner is not None
-            and self.piecewise_cuda_graph_runner.can_run(forward_batch)
+            self.piecewise_rtriton_graph_runner is not None
+            and self.piecewise_rtriton_graph_runner.can_run(forward_batch)
         ):
-            return self.piecewise_cuda_graph_runner.replay(forward_batch, **kwargs)
+            return self.piecewise_rtriton_graph_runner.replay(forward_batch, **kwargs)
 
         if not skip_attn_backend_init:
             self.attn_backend.init_forward_metadata(forward_batch)
@@ -2227,7 +2227,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         get_global_experts_capturer().on_forward_end(
             forward_batch=forward_batch,
             can_run_graph=output.can_run_graph,
-            cuda_graph_batch=getattr(self.graph_runner, "bs", None),
+            rtriton_graph_batch=getattr(self.graph_runner, "bs", None),
         )
 
         if self.eplb_manager is not None:
@@ -2246,7 +2246,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         mode_check = (
             forward_batch.forward_mode.is_cpu_graph
             if self.device == "cpu"
-            else forward_batch.forward_mode.is_cuda_graph
+            else forward_batch.forward_mode.is_rtriton_graph
         )
         can_run_graph = bool(
             mode_check()

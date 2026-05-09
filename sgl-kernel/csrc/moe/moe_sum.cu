@@ -1,9 +1,9 @@
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 #include <torch/all.h>
 
-#include <ATen/cuda/Atomic.cuh>
+#include <ATen/rtriton/Atomic.cuh>
 #include <cub/cub.cuh>
 
 #include "utils.h"
@@ -34,8 +34,8 @@ void moe_sum(
 
   dim3 grid(num_tokens);
   dim3 block(std::min(hidden_size, 1024));
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(output));
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(output));
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
 
   switch (topk) {
     case 2:

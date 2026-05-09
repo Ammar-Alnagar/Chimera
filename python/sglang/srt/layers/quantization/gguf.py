@@ -20,7 +20,7 @@ from sglang.srt.layers.quantization.base_config import (
     QuantizeMethodBase,
 )
 from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
-from sglang.srt.utils import is_cuda, is_hip, is_xpu, set_weight_attrs
+from sglang.srt.utils import is_rtriton, is_hip, is_xpu, set_weight_attrs
 
 if TYPE_CHECKING:
     from sglang.srt.layers.moe.token_dispatcher import (
@@ -28,11 +28,11 @@ if TYPE_CHECKING:
         StandardDispatchOutput,
     )
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 _is_xpu = is_xpu()
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import gelu_and_mul, moe_align_block_size, moe_sum, silu_and_mul
     from sgl_kernel.quantization import (
         ggml_dequantize,
@@ -43,7 +43,7 @@ if _is_cuda:
         ggml_mul_mat_vec_a8,
     )
 else:
-    warnings.warn(f"Only CUDA support GGUF quantization currently.")
+    warnings.warn(f"Only RTRITON support GGUF quantization currently.")
 
 logger = logging.getLogger(__name__)
 
@@ -367,7 +367,7 @@ class GGUFLinearMethod(LinearMethodBase):
                 f"Unsupported GGUF quantization type {qweight_type} in layer {layer}."
             )
         # For MergedColumnParallelLinear and QKVParallelLinear, we need to
-        # materialize the padded weight parameter for CUDA Graph compatibility.
+        # materialize the padded weight parameter for RTRITON Graph compatibility.
         self._create_padded_weight_param(layer)
 
     def _create_padded_weight_param(self, layer: torch.nn.Module):

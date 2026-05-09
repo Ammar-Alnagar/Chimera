@@ -11,20 +11,20 @@ from sglang.srt.server_args import ServerArgs, set_global_server_args_for_schedu
 from sglang.srt.utils import (
     cpu_has_amx_support,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
     is_npu,
     is_xpu,
 )
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 _is_cpu = is_cpu()
 _is_cpu_amx_available = cpu_has_amx_support()
 _is_npu = is_npu()
 _is_xpu = is_xpu()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("rtriton" if torch.rtriton.is_available() else "cpu")
 
 
 def generate_test_data(
@@ -68,7 +68,7 @@ MODELS_TO_TEST = [
 num_tokens_list = [11, 8192]
 
 
-@pytest.mark.skipif(not (_is_cuda or _is_hip), reason="Skipping CUDA/ROCm only tests.")
+@pytest.mark.skipif(not (_is_rtriton or _is_hip), reason="Skipping RTRITON/ROCm only tests.")
 @pytest.mark.parametrize(
     "model_info, model_name",
     [
@@ -133,11 +133,11 @@ def test_mrope(
         key.clone(),
     )
 
-    query_cuda, key_cuda = mrope_helper_class.forward(
+    query_rtriton, key_rtriton = mrope_helper_class.forward(
         positions,
         query.clone(),
         key.clone(),
     )
 
-    torch.testing.assert_close(query_native, query_cuda, atol=atol, rtol=rtol)
-    torch.testing.assert_close(key_native, key_cuda, atol=atol, rtol=rtol)
+    torch.testing.assert_close(query_native, query_rtriton, atol=atol, rtol=rtol)
+    torch.testing.assert_close(key_native, key_rtriton, atol=atol, rtol=rtol)

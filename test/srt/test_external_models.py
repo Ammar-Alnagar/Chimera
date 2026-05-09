@@ -14,7 +14,7 @@ class TestExternalModels(CustomTestCase):
 
         engine = sgl.Engine(
             model_path=model_path,
-            cuda_graph_max_bs=1,
+            rtriton_graph_max_bs=1,
             max_total_tokens=64,
             enable_multimodal=True,
         )

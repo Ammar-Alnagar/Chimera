@@ -19,9 +19,9 @@ class TestDeepseekTP2(CustomTestCase):
         cls.model = "lmsys/sglang-ci-dsv3-test"
         cls.base_url = DEFAULT_URL_FOR_TEST
         other_args = ["--trust-remote-code"]
-        if torch.cuda.is_available() and torch.version.cuda:
+        if torch.rtriton.is_available() and torch.version.rtriton:
             other_args.extend(
-                ["--tp", "2", "--enable-torch-compile", "--cuda-graph-max-bs", "2"]
+                ["--tp", "2", "--enable-torch-compile", "--rtriton-graph-max-bs", "2"]
             )
         cls.process = popen_launch_server(
             cls.model,

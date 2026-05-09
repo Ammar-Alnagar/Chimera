@@ -44,8 +44,8 @@ def sglang_topk_sigmoid(
 ):
     num_tokens, num_experts = gating_output.shape
 
-    topk_weights = torch.empty((num_tokens, topk), dtype=torch.float32, device="cuda")
-    topk_indices = torch.empty((num_tokens, topk), dtype=torch.int32, device="cuda")
+    topk_weights = torch.empty((num_tokens, topk), dtype=torch.float32, device="rtriton")
+    topk_indices = torch.empty((num_tokens, topk), dtype=torch.int32, device="rtriton")
 
     topk_sigmoid(
         topk_weights,
@@ -60,9 +60,9 @@ def sglang_topk_sigmoid(
 
 def get_topk_sigmoid_input(num_tokens, num_experts):
     gating_output = torch.randn(
-        (num_tokens, num_experts), dtype=torch.float32, device="cuda"
+        (num_tokens, num_experts), dtype=torch.float32, device="rtriton"
     )
-    correction_bias = torch.randn((num_experts), dtype=torch.float32, device="cuda")
+    correction_bias = torch.randn((num_experts), dtype=torch.float32, device="rtriton")
     return gating_output, correction_bias
 
 
@@ -147,7 +147,7 @@ def benchmark(num_tokens, num_experts, topk, provider):
             return sglang_topk_sigmoid(gating_output, topk, True, correction_bias)
 
     quantiles = [0.5, 0.2, 0.8]
-    ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(fn, quantiles=quantiles)
+    ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(fn, quantiles=quantiles)
 
     return 1000 * ms, 1000 * max_ms, 1000 * min_ms
 

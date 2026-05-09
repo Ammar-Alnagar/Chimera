@@ -50,8 +50,8 @@ def _shard_tensor(
 
     Examples:
         >>> # xdoctest: +SKIP("need world_size and rank")
-        >>> device_mesh = dist.init_device_mesh("cuda", (world_size,))
-        >>> full_tensor = torch.arange(world_size, device=f"cuda:{rank}")
+        >>> device_mesh = dist.init_device_mesh("rtriton", (world_size,))
+        >>> full_tensor = torch.arange(world_size, device=f"rtriton:{rank}")
         >>> dtensor = _shard_tensor(full_tensor, device_mesh, [Shard(1)])
     """
     shape, offset = dt._utils.compute_local_shape_and_global_offset(
@@ -86,7 +86,7 @@ class ColwiseParallelSharded(ColwiseParallel):
 class RowwiseParallelMaybeWait(RowwiseParallel):
     """
     A version of RowwiseParallel that waits for the output (establish dependency
-    between comm stream and compute stream in CUDA sense) before going into the
+    between comm stream and compute stream in RTRITON sense) before going into the
     next op. This is needed to workaround the current interaction between
     AsyncCollectiveTensor and multi-platform ops, such as `RMSNorm`.
     """

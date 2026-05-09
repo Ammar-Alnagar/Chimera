@@ -183,7 +183,7 @@ def chunked_sgmv_lora_expand_forward(
     grid = (
         triton.cdiv(max_slice_size, BLOCK_N),
         num_slices,  # number of slices in the input/output
-        batch_info.bs if batch_info.use_cuda_graph else num_segments,
+        batch_info.bs if batch_info.use_rtriton_graph else num_segments,
     )
 
     if base_output is None:

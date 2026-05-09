@@ -69,7 +69,7 @@ def benchmark(batch_size, seq_len, provider, block_size, num_kv_splits):
         raise ValueError(f"Unknown head configuration in provider: {provider}")
     h_q = parsed_h_q
 
-    seq_lens = torch.full((batch_size,), seq_len, dtype=torch.int32, device="cuda")
+    seq_lens = torch.full((batch_size,), seq_len, dtype=torch.int32, device="rtriton")
     max_seq_len = seq_lens.max().item()
     block_num = (max_seq_len + block_size - 1) // block_size
 
@@ -79,29 +79,29 @@ def benchmark(batch_size, seq_len, provider, block_size, num_kv_splits):
     block_num = ((block_num + pack_factor - 1) // pack_factor) * pack_factor
 
     qn = (
-        torch.randn(h_q, batch_size, d - dn, dtype=torch.bfloat16, device="cuda")
+        torch.randn(h_q, batch_size, d - dn, dtype=torch.bfloat16, device="rtriton")
         * 100.0
     )
-    qr = torch.randn(batch_size, h_q, dn, dtype=torch.bfloat16, device="cuda") * 100.0
+    qr = torch.randn(batch_size, h_q, dn, dtype=torch.bfloat16, device="rtriton") * 100.0
     block_table = torch.randint(
         0,
         batch_size * block_num,
         (batch_size, block_num),
         dtype=torch.int32,
-        device="cuda",
+        device="rtriton",
     )
 
     kv_cache = torch.randn(
-        block_table.numel(), block_size, d, dtype=torch.bfloat16, device="cuda"
+        block_table.numel(), block_size, d, dtype=torch.bfloat16, device="rtriton"
     )
 
     workspace_size = tilelang_mla_get_workspace_size(
         block_num * block_size, batch_size, num_kv_splits=num_kv_splits
     )
-    workspace = torch.empty(workspace_size, device="cuda", dtype=torch.uint8)
+    workspace = torch.empty(workspace_size, device="rtriton", dtype=torch.uint8)
 
     quantiles = [0.5, 0.2, 0.8]
-    ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+    ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
         lambda: tilelang_mla_decode(
             qn.transpose(0, 1),
             qr,

@@ -32,7 +32,7 @@ fp8_type_ = torch.float8_e4m3fnuz if _is_hip else torch.float8_e4m3fn
 if _is_hip:
     FP8_E4M3_MAX = 224.0  # ROCM uses 224.0
 else:
-    # For CUDA, get the actual max value from the type
+    # For RTRITON, get the actual max value from the type
     FP8_E4M3_MAX = float(torch.finfo(fp8_type_).max)
 
 
@@ -43,13 +43,13 @@ def torch_per_token_quant_fp8(
     device = input.device
     dtype = input.dtype
 
-    # Find max absolute value per token (row) - exactly like CUDA kernel
+    # Find max absolute value per token (row) - exactly like RTRITON kernel
     max_vals = torch.abs(input).max(dim=1)[0]  # [num_tokens]
 
-    # Calculate scale per token - exactly like CUDA kernel: scale = max_value / FP8_E4M3_MAX
+    # Calculate scale per token - exactly like RTRITON kernel: scale = max_value / FP8_E4M3_MAX
     scales = max_vals / FP8_E4M3_MAX  # [num_tokens]
 
-    # No special zero handling - directly compute 1.0 / scale like CUDA kernel
+    # No special zero handling - directly compute 1.0 / scale like RTRITON kernel
     scale_inv = 1.0 / scales  # [num_tokens]
 
     # Quantize: input * scale_inv, then clamp to FP8 range
@@ -83,7 +83,7 @@ def sglang_per_token_quant_fp8(
 
 def calculate_diff(batch_size: int, seq_len: int, hidden_dim: int):
     """Compare Torch reference, VLLM, and SGLang implementations."""
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
     x = torch.rand(
         (batch_size * seq_len, hidden_dim), dtype=torch.float16, device=device
     )
@@ -193,7 +193,7 @@ configs = list(itertools.product(batch_size_range, seq_len_range, hidden_dim_ran
 )
 def benchmark_quantization(batch_size, seq_len, hidden_dim, provider):
     dtype = torch.float16
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
 
     x = torch.randn(batch_size * seq_len, hidden_dim, device=device, dtype=dtype)
 
@@ -208,7 +208,7 @@ def benchmark_quantization(batch_size, seq_len, hidden_dim, provider):
     elif provider == "sglang":
         fn = lambda: sglang_per_token_quant_fp8(x.clone())
 
-    ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(fn, quantiles=quantiles)
+    ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(fn, quantiles=quantiles)
 
     return 1000 * ms, 1000 * max_ms, 1000 * min_ms
 

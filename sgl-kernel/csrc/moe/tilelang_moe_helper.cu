@@ -1,7 +1,7 @@
 #pragma once
 
-#include <c10/cuda/CUDAStream.h>
-#include <cuda.h>
+#include <c10/rtriton/RTRITONStream.h>
+#include <rtriton.h>
 #include <torch/all.h>
 
 #include "tilelang/bfloat16.h"
@@ -129,7 +129,7 @@ void run_get_group_gemm_starts(
   TORCH_CHECK(a_tensors.size(1) % 128 == 0 or a_tensors.size(0) % 128 == 0);
 
   int num_experts = (int)expert_offsets.size(0);
-  auto stream = at::cuda::getCurrentCUDAStream(a_tensors.device().index());
+  auto stream = at::rtriton::getCurrentRTRITONStream(a_tensors.device().index());
 
   if (false) {
   }

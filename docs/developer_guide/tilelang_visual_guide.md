@@ -87,7 +87,7 @@ sequenceDiagram
     end
     
     Dispatcher->>TileLang: Launch configuration
-    TileLang->>GPU: CUDA kernel launch
+    TileLang->>GPU: RTRITON kernel launch
     
     Note over GPU: Tensor Core Execution
     GPU->>GPU: Load A, B from global memory
@@ -104,11 +104,11 @@ sequenceDiagram
     Note over User,GPU: Total latency: 10-100 μs
 ```
 
-## 3. TileLang vs Traditional CUDA
+## 3. TileLang vs Traditional RTRITON
 
 ```mermaid
 flowchart LR
-    subgraph "Traditional CUDA Kernel"
+    subgraph "Traditional RTRITON Kernel"
         A1[Manual pointer arithmetic]
         A2[Explicit thread indexing]
         A3[Manual shared memory mgmt]
@@ -355,7 +355,7 @@ xychart-beta
 
 **Legend**:
 - **Bar**: TileLang (TileLang)
-- **Line**: Traditional CUDA kernels
+- **Line**: Traditional RTRITON kernels
 
 ## 11. Build and Deployment Pipeline
 
@@ -452,7 +452,7 @@ flowchart TD
     
     Catch -->|ImportError| Log1[Log: TileLang not available]
     Catch -->|RuntimeError| Log2[Log: Kernel execution failed]
-    Catch -->|CUDAError| Log3[Log: GPU error occurred]
+    Catch -->|RTRITONError| Log3[Log: GPU error occurred]
     
     Log1 --> Fallback[Use Fallback Kernel]
     Log2 --> Fallback

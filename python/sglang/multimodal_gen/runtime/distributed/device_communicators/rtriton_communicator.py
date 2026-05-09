@@ -1,7 +1,7 @@
 # Copied and adapted from: https://github.com/hao-ai-lab/FastVideo
 
 # SPDX-License-Identifier: Apache-2.0
-# Adapted from https://github.com/vllm-project/vllm/blob/v0.7.3/vllm/distributed/device_communicators/cuda_communicator.py
+# Adapted from https://github.com/vllm-project/vllm/blob/v0.7.3/vllm/distributed/device_communicators/rtriton_communicator.py
 
 import torch
 from torch.distributed import ProcessGroup
@@ -11,7 +11,7 @@ from sglang.multimodal_gen.runtime.distributed.device_communicators.base_device_
 )
 
 
-class CudaCommunicator(DeviceCommunicatorBase):
+class RtritonCommunicator(DeviceCommunicatorBase):
 
     def __init__(
         self,

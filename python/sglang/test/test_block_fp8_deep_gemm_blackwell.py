@@ -7,7 +7,7 @@ from deep_gemm import fp8_gemm_nt
 
 from sglang.test.test_utils import CustomTestCase
 
-_is_cuda = torch.cuda.is_available() and torch.version.cuda
+_is_rtriton = torch.rtriton.is_available() and torch.version.rtriton
 
 
 # Modify form DeepGEMM Blackwell
@@ -167,7 +167,7 @@ def block_quant_dequant(
 
 class TestDeepGemmBlackwell(CustomTestCase):
 
-    if not _is_cuda:
+    if not _is_rtriton:
         OUT_DTYPES = [torch.float32, torch.half, torch.bfloat16]
         M = [1, 7, 83, 512, 2048]
         NKs = [
@@ -199,9 +199,9 @@ class TestDeepGemmBlackwell(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _test_deep_gemm_blackwell(self, M, NK, block_size, out_dtype, seed):
         N, K = NK

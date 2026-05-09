@@ -10,10 +10,10 @@ def test_dsv3_router_gemm(num_tokens, num_experts):
     hidden_dim = 7168
 
     mat_a = torch.randn(
-        (num_tokens, hidden_dim), dtype=torch.bfloat16, device="cuda"
+        (num_tokens, hidden_dim), dtype=torch.bfloat16, device="rtriton"
     ).contiguous()
     mat_b = torch.randn(
-        (num_experts, hidden_dim), dtype=torch.bfloat16, device="cuda"
+        (num_experts, hidden_dim), dtype=torch.bfloat16, device="rtriton"
     ).contiguous()
 
     bf16_ref = F.linear(mat_a, mat_b)

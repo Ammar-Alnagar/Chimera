@@ -29,7 +29,7 @@ class ImageGenerationsRequest(BaseModel):
     background: Optional[str] = "auto"  # transparent | opaque | auto
     output_format: Optional[str] = None  # png | jpeg | webp
     seed: Optional[int] = 1024
-    generator_device: Optional[str] = "cuda"
+    generator_device: Optional[str] = "rtriton"
     user: Optional[str] = None
     negative_prompt: Optional[str] = None
     guidance_scale: Optional[float] = None
@@ -64,7 +64,7 @@ class VideoGenerationsRequest(BaseModel):
     fps: Optional[int] = None
     num_frames: Optional[int] = None
     seed: Optional[int] = 1024
-    generator_device: Optional[str] = "cuda"
+    generator_device: Optional[str] = "rtriton"
     num_inference_steps: Optional[int] = None
     guidance_scale: Optional[float] = None
     guidance_scale_2: Optional[float] = None

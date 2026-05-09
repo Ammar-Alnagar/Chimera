@@ -49,7 +49,7 @@ class VLMInputTestBase:
         assert cls.model_path is not None, "Set model_path in subclass"
         assert cls.chat_template is not None, "Set chat_template in subclass"
         cls.image_urls = [IMAGE_MAN_IRONING_URL, IMAGE_SGL_LOGO_URL]
-        cls.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        cls.device = torch.device("rtriton" if torch.rtriton.is_available() else "cpu")
         cls.main_image = []
         for image_url in cls.image_urls:
             response = requests.get(image_url)
@@ -71,7 +71,7 @@ class VLMInputTestBase:
             device=self.device.type,
             mem_fraction_static=0.8,
             enable_multimodal=True,
-            disable_cuda_graph=True,
+            disable_rtriton_graph=True,
             trust_remote_code=True,
         )
 
@@ -271,7 +271,7 @@ class TestKimiVLImageUnderstandsImage(
 #     chat_template = "llama-4"
 
 #     def setUp(self):
-#         if torch.cuda.device_count() < 4:
+#         if torch.rtriton.device_count() < 4:
 #             self.skipTest("Skipping Llama-4 test: requires 4 GPUs for TP=4")
 #         self.engine = Engine(
 #             model_path=self.model_path,

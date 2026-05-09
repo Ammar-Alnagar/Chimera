@@ -24,7 +24,7 @@ Here is a quick example to enable TP:
 ```python
 from sglang.srt.layers.model_parallel import tensor_parallel
 
-device_mesh = torch.distributed.init_device_mesh("cuda", (tp_size,))
+device_mesh = torch.distributed.init_device_mesh("rtriton", (tp_size,))
 tensor_parallel(model, device_mesh)
 ```
 
@@ -35,9 +35,9 @@ $ python3 -m sglang.bench_one_batch --correct \
   --model meta-llama/Meta-Llama-3-8B \
   --json-model-override-args '{"architectures": ["TorchNativeLlamaForCausalLM"]}' \
   --tensor-parallel-size 2 \
-  --disable-cuda-graph
+  --disable-rtriton-graph
 ```
-We will enable CUDA Graph support soon.
+We will enable RTRITON Graph support soon.
 """
 
 import types

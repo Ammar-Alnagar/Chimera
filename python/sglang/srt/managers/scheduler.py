@@ -30,8 +30,8 @@ import setproctitle
 import torch
 import torch.distributed
 import zmq
-from torch.cuda import Stream as CudaStream
-from torch.cuda import StreamContext as CudaStreamContext
+from torch.rtriton import Stream as RtritonStream
+from torch.rtriton import StreamContext as RtritonStreamContext
 from torch.distributed import barrier
 
 from sglang.srt.configs.model_config import ModelConfig
@@ -210,7 +210,7 @@ GRAMMAR_TIMEOUT = float(os.environ.get("SGLANG_GRAMMAR_TIMEOUT", 300))
 @dataclass
 class EmbeddingBatchResult:
     embeddings: torch.Tensor
-    copy_done: Optional[torch.cuda.Event] = None
+    copy_done: Optional[torch.rtriton.Event] = None
 
     def copy_to_cpu(self):
         """Copy embeddings tensor to CPU in overlap scheduling."""
@@ -578,7 +578,7 @@ class Scheduler(
         # With DP attention enabled, the entry rank is attn_tp_rank==0;
         # otherwise the entry rank is TP group local rank 0.
         # For #11910, use the CPU communication group to broadcast VLM Python objects,
-        # avoiding any coupling with CUDA streams/devices.
+        # avoiding any coupling with RTRITON streams/devices.
         if self.server_args.enable_dp_attention:
             self.cpu_group = self.attn_tp_cpu_group
             self.entry_rank = self.attn_tp_group.first_rank
@@ -982,16 +982,16 @@ class Scheduler(
 
     def init_overlap(self):
         self.device_module = torch.get_device_module(self.device)
-        self.default_stream: CudaStream = self.device_module.current_stream()
+        self.default_stream: RtritonStream = self.device_module.current_stream()
         if self.device == "cpu":
             self.default_stream.synchronize = lambda: None  # No-op for CPU
 
-        self.forward_stream: CudaStream = self.device_module.Stream()
-        self.forward_stream_ctx: CudaStreamContext = self.device_module.stream(
+        self.forward_stream: RtritonStream = self.device_module.Stream()
+        self.forward_stream_ctx: RtritonStreamContext = self.device_module.stream(
             self.forward_stream
         )
-        self.copy_stream: CudaStream = self.device_module.Stream()
-        self.copy_stream_ctx: CudaStreamContext = self.device_module.stream(
+        self.copy_stream: RtritonStream = self.device_module.Stream()
+        self.copy_stream_ctx: RtritonStreamContext = self.device_module.stream(
             self.copy_stream
         )
 
@@ -1382,7 +1382,7 @@ class Scheduler(
         # merely needs to be run on TP0 and be broadcast to other TP ranks.
         # Since the Scheduler is single-threaded, any large CPU cost will impact
         # handling of other messages. For example, CPU hits 99.9% can significantly
-        # increase the CUDA kernel launch time.
+        # increase the RTRITON kernel launch time.
         if self.is_entry_rank:
             # Only the entry rank materializes once from dict.
             image_inputs = MultimodalInputs.from_dict(raw_mm_inputs)
@@ -2054,7 +2054,7 @@ class Scheduler(
             dllm_config=self.dllm_config,
         )
         if self.enable_hierarchical_cache:
-            # todo (zhiqiang): disable cuda graph execution if hicache loading triggered
+            # todo (zhiqiang): disable rtriton graph execution if hicache loading triggered
             new_batch.hicache_consumer_index = (
                 self.tree_cache.ready_to_load_host_cache()
             )
@@ -2472,7 +2472,7 @@ class Scheduler(
                 self.draft_worker.clear_cache_pool()
 
             # TODO: allow optional empty cache
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
             logger.info("Cache flushed successfully!")
             success = True
         else:
@@ -2814,7 +2814,7 @@ class IdleSleeper:
             and time.time() - self.last_empty_time > self.empty_cache_interval
         ):
             self.last_empty_time = time.time()
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
 
 def is_health_check_generate_req(recv_req):

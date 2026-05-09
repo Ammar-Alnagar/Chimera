@@ -70,7 +70,7 @@ def apply_torchao_config_to_model(
         quantize_(model, int4_weight_only(group_size=group_size), filter_fn=filter_fn)
     elif "fp8wo" in torchao_config:
         # this requires newer hardware
-        # [rank0]: AssertionError: fp8e4nv data type is not supported on CUDA arch < 89
+        # [rank0]: AssertionError: fp8e4nv data type is not supported on RTRITON arch < 89
         quantize_(model, float8_weight_only(), filter_fn=proj_filter_conv3d)
     elif "fp8dq" in torchao_config:
         granularity = torchao_config.split("-")[-1]

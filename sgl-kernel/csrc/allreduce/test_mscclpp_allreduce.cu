@@ -25,12 +25,12 @@ mpirun --allow-run-as-root -H 127.0.0.1:8 -np 8 \
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 
-#ifndef CHECK_CUDA_SUCCESS
-#define CHECK_CUDA_SUCCESS(cmd)                                                             \
+#ifndef CHECK_RTRITON_SUCCESS
+#define CHECK_RTRITON_SUCCESS(cmd)                                                             \
   do {                                                                                      \
-    cudaError_t e = cmd;                                                                    \
-    if (e != cudaSuccess) {                                                                 \
-      printf("Failed: Cuda error %s:%d '%s'\n", __FILE__, __LINE__, cudaGetErrorString(e)); \
+    rtritonError_t e = cmd;                                                                    \
+    if (e != rtritonSuccess) {                                                                 \
+      printf("Failed: Rtriton error %s:%d '%s'\n", __FILE__, __LINE__, rtritonGetErrorString(e)); \
       exit(EXIT_FAILURE);                                                                   \
     }                                                                                       \
   } while (0)
@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
   // get work size and rank id
   MPI_Comm_size(MPI_COMM_WORLD, &nranks);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  cudaSetDevice(rank);
+  rtritonSetDevice(rank);
   printf("nranks: %d, rank: %d\n", nranks, rank);
 
   // init host and device buffers
@@ -89,9 +89,9 @@ int main(int argc, char* argv[]) {
     rank_to_ib[i] = i % 8;
   }
 
-  cudaStream_t s;
-  CHECK_CUDA_SUCCESS(cudaStreamCreate(&s));
-  CHECK_CUDA_SUCCESS(cudaStreamSynchronize(s));
+  rtritonStream_t s;
+  CHECK_RTRITON_SUCCESS(rtritonStreamCreate(&s));
+  CHECK_RTRITON_SUCCESS(rtritonStreamSynchronize(s));
   if (nranks == 8) {
     auto context = std::make_shared<sglang::Msccl1NodeLLcontext>(
         unique_id,
@@ -147,7 +147,7 @@ int main(int argc, char* argv[]) {
 
   printf("rank: %d, nan_detected: %d accuracy: %f\n", rank, nan_detected, result_accuracy);
 
-  CHECK_CUDA_SUCCESS(cudaStreamDestroy(s));
+  CHECK_RTRITON_SUCCESS(rtritonStreamDestroy(s));
   MPI_Finalize();
   return 0;
 }

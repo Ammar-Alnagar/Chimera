@@ -17,7 +17,7 @@ class TestHealthCheck(CustomTestCase):
                 DEFAULT_URL_FOR_TEST,
                 timeout=60,
                 other_args=[
-                    "--disable-cuda-graph",
+                    "--disable-rtriton-graph",
                     "--json-model-override-args",
                     '{"architectures": ["LlamaForCausalLMForHealthTest"]}',
                 ],

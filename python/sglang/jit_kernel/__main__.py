@@ -22,8 +22,8 @@ def generate_clangd():
     major, minor = compute_cap.split(".")
     compile_flags = ",\n    ".join(
         [
-            "-xcuda",
-            f"--cuda-gpu-arch=sm_{major}{minor}",
+            "-xrtriton",
+            f"--rtriton-gpu-arch=sm_{major}{minor}",
             "-std=c++20",
             "-Wall",
             "-Wextra",

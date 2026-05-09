@@ -29,7 +29,7 @@ import sglang
 from sglang.srt.configs.model_config import AttentionArch, is_deepseek_nsa
 from sglang.srt.distributed.parallel_state import GroupCoordinator
 from sglang.srt.layers.dp_attention import get_attention_tp_size
-from sglang.srt.model_executor.cuda_graph_runner import CudaGraphRunner
+from sglang.srt.model_executor.rtriton_graph_runner import RtritonGraphRunner
 from sglang.srt.utils import (
     empty_context,
     get_bool_env_var,
@@ -71,11 +71,11 @@ def patch_model_npu(
         yield model.forward
 
 
-class NPUGraphRunner(CudaGraphRunner):
+class NPUGraphRunner(RtritonGraphRunner):
     """A NPUGraphRunner runs the forward pass of a model with npu graph and torch.compile."""
 
     def __init__(self, model_runner: ModelRunner):
-        sglang.srt.model_executor.cuda_graph_runner.patch_model = patch_model_npu
+        sglang.srt.model_executor.rtriton_graph_runner.patch_model = patch_model_npu
         super().__init__(model_runner)
         self.update_attr_name = None
         self.update_attr_type = None

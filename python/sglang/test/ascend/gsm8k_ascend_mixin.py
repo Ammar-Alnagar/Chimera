@@ -20,7 +20,7 @@ class GSM8KAscendMixin(ABC):
         "0.8",
         "--attention-backend",
         "ascend",
-        "--disable-cuda-graph",
+        "--disable-rtriton-graph",
     ]
 
     @classmethod

@@ -7,7 +7,7 @@ python3 -m unittest test_start_profile.TestStartProfileWithNsys
 
 # Run specific tests:
 python3 -m unittest test_start_profile.TestStartProfile.test_start_profile_1
-python3 -m unittest test_start_profile.TestStartProfileWithNsys.test_start_profile_cuda_profiler
+python3 -m unittest test_start_profile.TestStartProfileWithNsys.test_start_profile_rtriton_profiler
 """
 
 import os
@@ -131,7 +131,7 @@ class TestStartProfile(CustomTestCase):
 
 
 class TestStartProfileWithNsys(CustomTestCase):
-    """Test /start_profile with CUDA_PROFILER (requires nsys wrapper)
+    """Test /start_profile with RTRITON_PROFILER (requires nsys wrapper)
 
     Each test starts its own clean server instance with nsys profiling.
     """
@@ -212,7 +212,7 @@ class TestStartProfileWithNsys(CustomTestCase):
             pass
 
     def _popen_launch_server_with_nsys(self, model, base_url, output_file, timeout):
-        """Launch server wrapped with nsys profile -c cudaProfilerApi
+        """Launch server wrapped with nsys profile -c rtritonProfilerApi
 
         Each test gets its own output file for complete isolation.
         """
@@ -224,9 +224,9 @@ class TestStartProfileWithNsys(CustomTestCase):
             "nsys",
             "profile",
             "-c",
-            "cudaProfilerApi",
+            "rtritonProfilerApi",
             "--capture-range-end",
-            "stop",  # Stop after first cudaProfilerStop()
+            "stop",  # Stop after first rtritonProfilerStop()
             "-o",
             os.path.join(OUTPUT_DIR, output_file),
             "python3",
@@ -295,21 +295,21 @@ class TestStartProfileWithNsys(CustomTestCase):
                 f"Files present: {files}"
             )
 
-    def test_start_profile_cuda_profiler_with_start_step(self):
-        """Test /start_profile with CUDA_PROFILER, start_step, and num_steps"""
+    def test_start_profile_rtriton_profiler_with_start_step(self):
+        """Test /start_profile with RTRITON_PROFILER, start_step, and num_steps"""
         # Use start_step to let server warm up before profiling
         response = self._start_profile(
-            activities=["CUDA_PROFILER"], start_step=10, num_steps=3
+            activities=["RTRITON_PROFILER"], start_step=10, num_steps=3
         )
 
         self._post_request()
 
         # Profile verification happens in tearDown()
 
-    def test_start_profile_cuda_profiler(self):
-        """Test /start_profile with CUDA_PROFILER activity (no start_step)"""
+    def test_start_profile_rtriton_profiler(self):
+        """Test /start_profile with RTRITON_PROFILER activity (no start_step)"""
         # Simple num_steps test - profiling starts immediately
-        response = self._start_profile(activities=["CUDA_PROFILER"], num_steps=5)
+        response = self._start_profile(activities=["RTRITON_PROFILER"], num_steps=5)
 
         self._post_request()
 

@@ -16,11 +16,11 @@ from sglang.srt.distributed.device_communicators.custom_all_reduce_utils import 
     is_weak_contiguous,
 )
 from sglang.srt.distributed.parallel_state import in_the_same_node_as
-from sglang.srt.utils import is_cuda, is_hip
+from sglang.srt.utils import is_rtriton, is_hip
 
 logger = logging.getLogger(__name__)
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 
 
@@ -29,7 +29,7 @@ def qr_rocm_arch_available():
     if not _is_hip:
         return False
     try:
-        props = torch.cuda.get_device_properties(0)
+        props = torch.rtriton.get_device_properties(0)
         gcn_arch = getattr(props, "gcnArchName", "")
         supported_archs = ["gfx94", "gfx95"]
         return any(gfx in gcn_arch for gfx in supported_archs)
@@ -69,7 +69,7 @@ class QuickAllReduce:
     ) -> None:
         """
         Custom allreduce provides non-destructive acceleration and is
-        available for CUDA and ROCm MI300 series.
+        available for RTRITON and ROCm MI300 series.
         Custom quick allreduce leverages quantization for further
         acceleration on ROCm. It currently supports Q8, Q6, and Q4
         quantization formats and FP(float16, bfloat16).
@@ -81,7 +81,7 @@ class QuickAllReduce:
             group: the process group to work on. If None, it will use the
                 default process group.
             device: the device to bind the CustomAllreduce to. If None,
-                it will be bind to f"cuda:{local_rank}".
+                it will be bind to f"rtriton:{local_rank}".
         It is the caller's responsibility to make sure each communicator
         is bind to a unique device, and all communicators in this group
         are in the same node.
@@ -95,7 +95,7 @@ class QuickAllReduce:
 
         if not ops.IS_QUICK_AR_AVAILABLE:
             # disable because of missing quick reduce library
-            # e.g. in a cuda environment
+            # e.g. in a rtriton environment
             logger.info(
                 "Custom quick allreduce is disabled because "
                 "of missing custom quick allreduce library"
@@ -132,17 +132,17 @@ class QuickAllReduce:
             return
 
         if isinstance(device, int):
-            device = torch.device(f"cuda:{device}")
+            device = torch.device(f"rtriton:{device}")
         elif isinstance(device, str):
             device = torch.device(device)
         assert isinstance(device, torch.device)
         self.device = device
 
-        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", None)
-        if cuda_visible_devices:
-            device_ids = list(map(int, cuda_visible_devices.split(",")))
+        rtriton_visible_devices = os.environ.get("RTRITON_VISIBLE_DEVICES", None)
+        if rtriton_visible_devices:
+            device_ids = list(map(int, rtriton_visible_devices.split(",")))
         else:
-            device_ids = list(range(torch.cuda.device_count()))
+            device_ids = list(range(torch.rtriton.device_count()))
         physical_device_id = device_ids[device.index]
         tensor = torch.tensor([physical_device_id], dtype=torch.int, device="cpu")
         gather_list = [
@@ -155,7 +155,7 @@ class QuickAllReduce:
         # test nvlink first, this will filter out most of the cases
         # where custom quick allreduce is not supported
         # this checks hardware and driver support for NVLink
-        if _is_cuda or _is_hip:
+        if _is_rtriton or _is_hip:
             self.fully_connected = is_full_nvlink(physical_device_ids, self.world_size)
         if self.world_size > 2 and not self.fully_connected:
             logger.debug(

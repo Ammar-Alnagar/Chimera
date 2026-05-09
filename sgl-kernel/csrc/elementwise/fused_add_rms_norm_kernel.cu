@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/rtriton/RTRITONContext.h>
 
 #include <flashinfer/norm.cuh>
 
@@ -38,10 +38,10 @@ void sgl_fused_add_rmsnorm(
   unsigned int batch_size = input.size(0);
   unsigned int hidden_size = input.size(1);
 
-  cudaStream_t torch_current_stream = at::cuda::getCurrentCUDAStream();
+  rtritonStream_t torch_current_stream = at::rtriton::getCurrentRTRITONStream();
   // support float16, bfloat16 and float32
   DISPATCH_PYTORCH_DTYPE_TO_CTYPE_FLOAT_FP16(input.scalar_type(), c_type, [&] {
-    cudaError_t status = norm::FusedAddRMSNorm(
+    rtritonError_t status = norm::FusedAddRMSNorm(
         static_cast<c_type*>(input.data_ptr()),
         static_cast<c_type*>(residual.data_ptr()),
         static_cast<c_type*>(weight.data_ptr()),
@@ -53,7 +53,7 @@ void sgl_fused_add_rmsnorm(
         enable_pdl,
         torch_current_stream);
     TORCH_CHECK(
-        status == cudaSuccess, "FusedAddRMSNorm failed with error code " + std::string(cudaGetErrorString(status)));
+        status == rtritonSuccess, "FusedAddRMSNorm failed with error code " + std::string(rtritonGetErrorString(status)));
     return true;
   });
 }

@@ -40,8 +40,8 @@ logger = init_logger(__name__)
 
 # TODO: move to somewhere appropriate
 try:
-    # Set the start method to 'spawn' to avoid CUDA errors in forked processes.
-    # This must be done at the top level of the module, before any CUDA context
+    # Set the start method to 'spawn' to avoid RTRITON errors in forked processes.
+    # This must be done at the top level of the module, before any RTRITON context
     # or other processes are initialized.
     mp.set_start_method("spawn", force=True)
 except RuntimeError:

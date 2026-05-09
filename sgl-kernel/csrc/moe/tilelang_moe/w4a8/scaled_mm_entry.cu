@@ -1,11 +1,11 @@
-#include <c10/cuda/CUDAGuard.h>
-#include <cudaTypedefs.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <rtritonTypedefs.h>
 #include <torch/all.h>
 
 int32_t get_sm_version_num() {
   int32_t major_capability, minor_capability;
-  cudaDeviceGetAttribute(&major_capability, cudaDevAttrComputeCapabilityMajor, 0);
-  cudaDeviceGetAttribute(&minor_capability, cudaDevAttrComputeCapabilityMinor, 0);
+  rtritonDeviceGetAttribute(&major_capability, rtritonDevAttrComputeCapabilityMajor, 0);
+  rtritonDeviceGetAttribute(&minor_capability, rtritonDevAttrComputeCapabilityMinor, 0);
   int32_t version_num = major_capability * 10 + minor_capability;
   return version_num;
 }

@@ -5,7 +5,7 @@ import requests
 import torch
 
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_eval_few_shot_gsm8k
 from sglang.test.test_utils import (
     DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
@@ -16,7 +16,7 @@ from sglang.test.test_utils import (
 )
 
 # DeepSeek-V3 INT8 quantization tests (channel and block INT8)
-register_cuda_ci(est_time=300, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=300, suite="stage-b-test-small-1-gpu")
 
 
 class TestMLADeepseekV3ChannelInt8(CustomTestCase):
@@ -25,10 +25,10 @@ class TestMLADeepseekV3ChannelInt8(CustomTestCase):
         cls.model = "sgl-project/sglang-ci-dsv3-channel-int8-test"
         cls.base_url = DEFAULT_URL_FOR_TEST
         other_args = ["--trust-remote-code"]
-        if torch.cuda.is_available() and torch.version.cuda:
+        if torch.rtriton.is_available() and torch.version.rtriton:
             other_args.extend(
                 [
-                    "--cuda-graph-max-bs",
+                    "--rtriton-graph-max-bs",
                     "16",
                     "--enable-torch-compile",
                     "--torch-compile-max-bs",
@@ -69,10 +69,10 @@ class TestDeepseekV3MTPChannelInt8(CustomTestCase):
         cls.model = "sgl-project/sglang-ci-dsv3-channel-int8-test"
         cls.base_url = DEFAULT_URL_FOR_TEST
         other_args = ["--trust-remote-code"]
-        if torch.cuda.is_available() and torch.version.cuda:
+        if torch.rtriton.is_available() and torch.version.rtriton:
             other_args.extend(
                 [
-                    "--cuda-graph-max-bs",
+                    "--rtriton-graph-max-bs",
                     "16",
                     "--enable-torch-compile",
                     "--torch-compile-max-bs",
@@ -132,10 +132,10 @@ class TestMLADeepseekV3BlockInt8(CustomTestCase):
         cls.model = "sgl-project/sglang-ci-dsv3-block-int8-test"
         cls.base_url = DEFAULT_URL_FOR_TEST
         other_args = ["--trust-remote-code"]
-        if torch.cuda.is_available() and torch.version.cuda:
+        if torch.rtriton.is_available() and torch.version.rtriton:
             other_args.extend(
                 [
-                    "--cuda-graph-max-bs",
+                    "--rtriton-graph-max-bs",
                     "16",
                     "--enable-torch-compile",
                     "--torch-compile-max-bs",
@@ -175,10 +175,10 @@ class TestDeepseekV3MTPBlockInt8(CustomTestCase):
         cls.model = "sgl-project/sglang-ci-dsv3-block-int8-test"
         cls.base_url = DEFAULT_URL_FOR_TEST
         other_args = ["--trust-remote-code"]
-        if torch.cuda.is_available() and torch.version.cuda:
+        if torch.rtriton.is_available() and torch.version.rtriton:
             other_args.extend(
                 [
-                    "--cuda-graph-max-bs",
+                    "--rtriton-graph-max-bs",
                     "16",
                     "--enable-torch-compile",
                     "--torch-compile-max-bs",

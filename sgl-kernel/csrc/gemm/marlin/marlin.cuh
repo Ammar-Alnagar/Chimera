@@ -1,10 +1,10 @@
 #pragma once
 
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <cuda.h>
-#include <cuda_fp16.h>
-#include <cuda_runtime.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <rtriton.h>
+#include <rtriton_fp16.h>
+#include <rtriton_runtime.h>
 #include <torch/all.h>
 
 #include <iostream>
@@ -53,7 +53,7 @@ constexpr int div_ceil(int a, int b) {
   return (a + b - 1) / b;
 }
 
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 800
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ < 800
 // No support for async
 #else
 

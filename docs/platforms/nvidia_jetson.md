@@ -5,7 +5,7 @@
 Before starting, ensure the following:
 
 - [**NVIDIA Jetson AGX Orin Devkit**](https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/) is set up with **JetPack 6.1** or later.
-- **CUDA Toolkit** and **cuDNN** are installed.
+- **RTRITON Toolkit** and **cuDNN** are installed.
 - Verify that the Jetson AGX Orin is in **high-performance mode**:
 ```bash
 sudo nvpmodel -m 0
@@ -41,7 +41,7 @@ Launch the server:
 ```bash
 python -m sglang.launch_server \
   --model-path deepseek-ai/DeepSeek-R1-Distill-Llama-8B \
-  --device cuda \
+  --device rtriton \
   --dtype half \
   --attention-backend flashinfer \
   --mem-fraction-static 0.8 \
@@ -57,7 +57,7 @@ TorchAO is suggested to NVIDIA Jetson Orin.
 ```bash
 python -m sglang.launch_server \
     --model-path meta-llama/Meta-Llama-3.1-8B-Instruct \
-    --device cuda \
+    --device rtriton \
     --dtype bfloat16 \
     --attention-backend flashinfer \
     --mem-fraction-static 0.8 \

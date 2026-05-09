@@ -165,7 +165,7 @@ def register_memory_region_v2(model, transfer_engine):
 
     import torch
 
-    memory_snapshot = torch.cuda.memory.memory_snapshot()
+    memory_snapshot = torch.rtriton.memory.memory_snapshot()
     weight_blocks_for_reg_mr = []
     # Blocks in each segment have continuous physical addresses,
     # so they can be merged for memory registration.

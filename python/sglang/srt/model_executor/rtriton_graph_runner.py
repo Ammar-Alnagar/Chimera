@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Run the model with cuda graph and torch.compile."""
+"""Run the model with rtriton graph and torch.compile."""
 
 from __future__ import annotations
 
@@ -28,8 +28,8 @@ import torch
 import tqdm
 from torch.profiler import ProfilerActivity, profile
 
-from sglang.srt.batch_overlap.two_batch_overlap import TboCudaGraphRunnerPlugin
-from sglang.srt.constants import GPU_MEMORY_TYPE_CUDA_GRAPH
+from sglang.srt.batch_overlap.two_batch_overlap import TboRtritonGraphRunnerPlugin
+from sglang.srt.constants import GPU_MEMORY_TYPE_RTRITON_GRAPH
 from sglang.srt.distributed import get_tensor_model_parallel_rank
 from sglang.srt.distributed.device_communicators.pynccl_allocator import (
     set_graph_pool_id,
@@ -108,14 +108,14 @@ def model_capture_mode():
 
 
 @contextmanager
-def freeze_gc(enable_cudagraph_gc: bool):
+def freeze_gc(enable_rtritongraph_gc: bool):
     """
-    Optimize garbage collection during CUDA graph capture.
+    Optimize garbage collection during RTRITON graph capture.
     Clean up, then freeze all remaining objects from being included
     in future collections if GC is disabled during capture.
     """
     gc.collect()
-    should_freeze = not enable_cudagraph_gc
+    should_freeze = not enable_rtritongraph_gc
     if should_freeze:
         gc.freeze()
     try:
@@ -158,7 +158,7 @@ def patch_model(
             yield torch.compile(
                 torch.no_grad()(model.forward),
                 mode=os.environ.get(
-                    "SGLANG_TORCH_COMPILE_MODE", "max-autotune-no-cudagraphs"
+                    "SGLANG_TORCH_COMPILE_MODE", "max-autotune-no-rtritongraphs"
                 ),
                 dynamic=_is_hip and get_bool_env_var("SGLANG_TORCH_DYNAMIC_SHAPE"),
             )
@@ -188,7 +188,7 @@ def set_torch_compile_config():
 
 def get_batch_sizes_to_capture(model_runner: ModelRunner):
     server_args = model_runner.server_args
-    capture_bs = server_args.cuda_graph_bs
+    capture_bs = server_args.rtriton_graph_bs
 
     if max(capture_bs) > model_runner.req_to_token_pool.size:
         # In some cases (e.g., with a small GPU or --max-running-requests), the #max-running-requests
@@ -216,7 +216,7 @@ def get_batch_sizes_to_capture(model_runner: ModelRunner):
     return capture_bs, compile_bs
 
 
-# Reuse this memory pool across all cuda graph runners.
+# Reuse this memory pool across all rtriton graph runners.
 global_graph_memory_pool = None
 
 
@@ -229,8 +229,8 @@ def set_global_graph_memory_pool(val):
     global_graph_memory_pool = val
 
 
-class CudaGraphRunner:
-    """A CudaGraphRunner runs the forward pass of a model with cuda graph and torch.compile."""
+class RtritonGraphRunner:
+    """A RtritonGraphRunner runs the forward pass of a model with rtriton graph and torch.compile."""
 
     def __init__(self, model_runner: ModelRunner):
         # Parse args
@@ -240,7 +240,7 @@ class CudaGraphRunner:
         self.graphs = {}
         self.output_buffers = {}
         self.enable_torch_compile = model_runner.server_args.enable_torch_compile
-        self.disable_padding = model_runner.server_args.disable_cuda_graph_padding
+        self.disable_padding = model_runner.server_args.disable_rtriton_graph_padding
         self.is_encoder_decoder = model_runner.model_config.is_encoder_decoder
         self.require_gathered_buffer = require_gathered_buffer(model_runner.server_args)
         self.require_mlp_tp_gather = require_mlp_tp_gather(model_runner.server_args)
@@ -250,8 +250,8 @@ class CudaGraphRunner:
             model_runner.server_args.enable_two_batch_overlap
         )
         self.speculative_algorithm = model_runner.server_args.speculative_algorithm
-        self.enable_profile_cuda_graph = (
-            model_runner.server_args.enable_profile_cuda_graph
+        self.enable_profile_rtriton_graph = (
+            model_runner.server_args.enable_profile_rtriton_graph
         )
         self.tp_size = model_runner.server_args.tp_size
         self.dp_size = model_runner.server_args.dp_size
@@ -262,14 +262,14 @@ class CudaGraphRunner:
         self.attn_tp_rank = get_attention_tp_rank()
         self.nsa_enable_prefill_cp = is_nsa_enable_prefill_cp()
 
-        self.deepep_adapter = DeepEPCudaGraphRunnerAdapter()
+        self.deepep_adapter = DeepEPRtritonGraphRunnerAdapter()
 
         self.dllm_config = DllmConfig.from_server_args(model_runner.server_args)
         self.is_dllm = self.dllm_config is not None
 
         # Batch sizes to capture
         self.capture_bs, self.compile_bs = get_batch_sizes_to_capture(model_runner)
-        log_info_on_rank0(logger, f"Capture cuda graph bs {self.capture_bs}")
+        log_info_on_rank0(logger, f"Capture rtriton graph bs {self.capture_bs}")
         if KTRANSFORMERS_AVAILABLE:
             KTMoEWrapper.set_capture_batch_sizes(self.capture_bs)
         self.capture_forward_mode = ForwardMode.DECODE
@@ -298,14 +298,14 @@ class CudaGraphRunner:
         # Attention backend
         self.max_bs = max(self.capture_bs)
         self.max_num_token = self.max_bs * self.num_tokens_per_bs
-        self.model_runner.attn_backend.init_cuda_graph_state(
+        self.model_runner.attn_backend.init_rtriton_graph_state(
             self.max_bs, self.max_num_token
         )
 
         # Init PDMux if needed
         self.maybe_init_pdmux()
         self.seq_len_fill_value = (
-            self.model_runner.attn_backend.get_cuda_graph_seq_len_fill_value()
+            self.model_runner.attn_backend.get_rtriton_graph_seq_len_fill_value()
             if self.dllm_config is None
             else self.dllm_config.block_size
         )
@@ -316,8 +316,8 @@ class CudaGraphRunner:
             set_torch_compile_config()
 
         if self.model_runner.server_args.enable_lora:
-            self.model_runner.lora_manager.init_cuda_graph_batch_info(
-                max_bs_in_cuda_graph=self.max_bs,
+            self.model_runner.lora_manager.init_rtriton_graph_batch_info(
+                max_bs_in_rtriton_graph=self.max_bs,
                 num_tokens_per_bs=self.num_tokens_per_bs,
             )
 
@@ -346,7 +346,7 @@ class CudaGraphRunner:
             enable_mamba_track=enable_mamba_track,
         )
 
-        self.tbo_plugin = TboCudaGraphRunnerPlugin()
+        self.tbo_plugin = TboRtritonGraphRunnerPlugin()
 
         # Speculative_inference
         if (
@@ -361,44 +361,44 @@ class CudaGraphRunner:
                 self.capture()
         except RuntimeError as e:
             raise Exception(
-                f"Capture cuda graph failed: {e}\n{CUDA_GRAPH_CAPTURE_FAILED_MSG}"
+                f"Capture rtriton graph failed: {e}\n{RTRITON_GRAPH_CAPTURE_FAILED_MSG}"
             )
 
     def maybe_init_pdmux(self):
         if self.enable_pdmux:
             self.stream_groups = get_stream_groups()
             for attn_backend in self.model_runner.decode_attn_backend_group:
-                attn_backend.init_cuda_graph_state(self.max_bs, self.max_num_token)
+                attn_backend.init_rtriton_graph_state(self.max_bs, self.max_num_token)
 
     def _cache_loc_dtype(self):
         return torch.int64
 
     def can_run(self, forward_batch: ForwardBatch):
         if self.require_mlp_tp_gather:
-            cuda_graph_bs = (
+            rtriton_graph_bs = (
                 max(forward_batch.global_num_tokens_cpu) // self.num_tokens_per_bs
                 if self.model_runner.spec_algorithm.is_eagle()
                 or self.model_runner.spec_algorithm.is_standalone()
                 else max(forward_batch.global_num_tokens_cpu)
             )
         else:
-            cuda_graph_bs = forward_batch.batch_size
+            rtriton_graph_bs = forward_batch.batch_size
 
-        graph_key = cuda_graph_bs
+        graph_key = rtriton_graph_bs
         if self.enable_pdmux:
-            graph_key = f"{get_current_stream_idx()}_{cuda_graph_bs}"
+            graph_key = f"{get_current_stream_idx()}_{rtriton_graph_bs}"
 
         is_bs_supported = (
             graph_key in self.graphs
             if self.disable_padding
-            else cuda_graph_bs <= self.max_bs
+            else rtriton_graph_bs <= self.max_bs
         )
 
         if self.require_mlp_sync:
-            is_bs_supported = is_bs_supported and forward_batch.can_run_dp_cuda_graph
+            is_bs_supported = is_bs_supported and forward_batch.can_run_dp_rtriton_graph
 
-        # NOTE: cuda graph cannot handle mixed batch (encoder_len = 0)
-        # If mixed batch cannot be supported, then encoder_lens can be removed in cuda graph
+        # NOTE: rtriton graph cannot handle mixed batch (encoder_len = 0)
+        # If mixed batch cannot be supported, then encoder_lens can be removed in rtriton graph
         # because the full_text_row_masked_out_mask tensor will always be ones
         is_encoder_lens_supported = (
             torch.all(forward_batch.encoder_lens > 0)
@@ -442,31 +442,31 @@ class CudaGraphRunner:
 
     def _init_profile_context_and_memory_record(self):
         profile_context = profile(
-            activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+            activities=[ProfilerActivity.CPU, ProfilerActivity.RTRITON],
             record_shapes=True,
         )
-        torch.cuda.memory._record_memory_history()
+        torch.rtriton.memory._record_memory_history()
         return profile_context
 
     def _post_process_after_profile(self, prof_context):
-        torch.cuda.memory._dump_snapshot(f"cuda_graph_runner_memory_usage.pickle")
-        torch.cuda.memory._record_memory_history(enabled=None)
+        torch.rtriton.memory._dump_snapshot(f"rtriton_graph_runner_memory_usage.pickle")
+        torch.rtriton.memory._record_memory_history(enabled=None)
         log_message = (
-            "Sorted by CUDA Time:\n"
+            "Sorted by RTRITON Time:\n"
             + prof_context.key_averages(group_by_input_shape=True).table(
-                sort_by="cuda_time_total", row_limit=10
+                sort_by="rtriton_time_total", row_limit=10
             )
             + "\n\nSorted by CPU Time:\n"
             + prof_context.key_averages(group_by_input_shape=True).table(
                 sort_by="cpu_time_total", row_limit=10
             )
-            + "\n\nMemory Usage is saved to cuda_graph_runner_memory_usage.pickle\n"
+            + "\n\nMemory Usage is saved to rtriton_graph_runner_memory_usage.pickle\n"
         )
         logger.info(log_message)
 
     def capture(self) -> None:
         profile_context = empty_context()
-        if self.enable_profile_cuda_graph:
+        if self.enable_profile_rtriton_graph:
             profile_context = self._init_profile_context_and_memory_record()
 
         def _capture_one_stream(stream_idx: Optional[int] = None):
@@ -475,7 +475,7 @@ class CudaGraphRunner:
                 self.model_runner.gpu_id,
                 empty_cache=False,
             )
-            # Reverse the order to enable better memory sharing across cuda graphs.
+            # Reverse the order to enable better memory sharing across rtriton graphs.
             capture_range = (
                 tqdm.tqdm(list(reversed(self.capture_bs)))
                 if get_tensor_model_parallel_rank() == 0
@@ -507,10 +507,10 @@ class CudaGraphRunner:
                     self.graphs[key] = graph
                     self.output_buffers[key] = output_buffers
 
-        # Trigger CUDA graph capture for specific shapes.
+        # Trigger RTRITON graph capture for specific shapes.
         # Capture the large shapes first so that the smaller shapes
         # can reuse the memory pool allocated for the large shapes.
-        with freeze_gc(self.model_runner.server_args.enable_cudagraph_gc):
+        with freeze_gc(self.model_runner.server_args.enable_rtritongraph_gc):
             if not self.enable_pdmux:
                 with graph_capture() as graph_capture_context, profile_context as prof:
                     self.stream = graph_capture_context.stream
@@ -524,25 +524,25 @@ class CudaGraphRunner:
                         self.stream = graph_capture_context.stream
                         _capture_one_stream(i)
 
-        if self.enable_profile_cuda_graph:
+        if self.enable_profile_rtriton_graph:
             self._post_process_after_profile(prof)
 
     def _capture_graph(self, graph, pool, stream, run_once_fn):
         memory_saver_adapter = TorchMemorySaverAdapter.create(
             enable=self.model_runner.server_args.enable_memory_saver
-            and get_bool_env_var("SGLANG_MEMORY_SAVER_CUDA_GRAPH")
+            and get_bool_env_var("SGLANG_MEMORY_SAVER_RTRITON_GRAPH")
         )
         graph_fn = (
-            partial(memory_saver_adapter.cuda_graph, tag=GPU_MEMORY_TYPE_CUDA_GRAPH)
+            partial(memory_saver_adapter.rtriton_graph, tag=GPU_MEMORY_TYPE_RTRITON_GRAPH)
             if memory_saver_adapter.enabled
             else self.device_module.graph
         )
-        with graph_fn(cuda_graph=graph, pool=pool, stream=stream):
+        with graph_fn(rtriton_graph=graph, pool=pool, stream=stream):
             out = run_once_fn()
         return out
 
     def _create_device_graph(self):
-        return torch.cuda.CUDAGraph()
+        return torch.rtriton.RTRITONGraph()
 
     def capture_one_batch_size(
         self, bs: int, forward: Callable, stream_idx: Optional[int] = None
@@ -615,7 +615,7 @@ class CudaGraphRunner:
             )
 
         if self.model_runner.server_args.enable_lora:
-            # It is safe to capture CUDA graph using empty LoRA id, as the LoRA kernels will always be launched whenever
+            # It is safe to capture RTRITON graph using empty LoRA id, as the LoRA kernels will always be launched whenever
             # `--enable-lora` is set to True (and return immediately if the LoRA id is empty for perf optimization).
             lora_ids = [None] * bs
         else:
@@ -661,7 +661,7 @@ class CudaGraphRunner:
             positions=positions,
             global_num_tokens_gpu=buffers.global_num_tokens_gpu,
             global_num_tokens_for_logprob_gpu=buffers.global_num_tokens_for_logprob_gpu,
-            dp_padding_mode=DpPaddingMode.get_default_mode_in_cuda_graph(),
+            dp_padding_mode=DpPaddingMode.get_default_mode_in_rtriton_graph(),
             global_dp_buffer_len=global_dp_buffer_len,
             mrope_positions=mrope_positions,
             spec_algorithm=self.model_runner.spec_algorithm,
@@ -677,7 +677,7 @@ class CudaGraphRunner:
             self.model_runner.lora_manager.prepare_lora_batch(forward_batch)
 
         # Attention backend
-        attn_backend.init_forward_metadata_capture_cuda_graph(
+        attn_backend.init_forward_metadata_capture_rtriton_graph(
             bs,
             num_tokens,
             req_pool_indices,
@@ -818,7 +818,7 @@ class CudaGraphRunner:
             attn_backend = self.model_runner.decode_attn_backend_group[stream_idx]
         else:
             attn_backend = self.model_runner.attn_backend
-        attn_backend.init_forward_metadata_replay_cuda_graph(
+        attn_backend.init_forward_metadata_replay_rtriton_graph(
             bs,
             buffers.req_pool_indices[:bs],
             buffers.seq_lens[:bs],
@@ -922,17 +922,17 @@ class CudaGraphRunner:
         return spec_info
 
 
-CUDA_GRAPH_CAPTURE_FAILED_MSG = (
+RTRITON_GRAPH_CAPTURE_FAILED_MSG = (
     "Possible solutions:\n"
     "1. set --mem-fraction-static to a smaller value (e.g., 0.8 or 0.7)\n"
-    "2. set --cuda-graph-max-bs to a smaller value (e.g., 16)\n"
+    "2. set --rtriton-graph-max-bs to a smaller value (e.g., 16)\n"
     "3. disable torch compile by not using --enable-torch-compile\n"
-    "4. disable CUDA graph by --disable-cuda-graph. (Not recommended. Huge performance loss)\n"
+    "4. disable RTRITON graph by --disable-rtriton-graph. (Not recommended. Huge performance loss)\n"
     "Open an issue on GitHub https://github.com/sgl-project/sglang/issues/new/choose \n"
 )
 
 
-class DeepEPCudaGraphRunnerAdapter:
+class DeepEPRtritonGraphRunnerAdapter:
     def __init__(self):
         # Record DeepEP mode used during capture to ensure replay consistency
         self._captured_deepep_mode = None

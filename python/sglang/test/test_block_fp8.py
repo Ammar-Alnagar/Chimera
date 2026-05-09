@@ -16,7 +16,7 @@ from sglang.srt.layers.quantization.fp8_kernel import (
 from sglang.srt.layers.quantization.fp8_utils import input_to_float8
 from sglang.test.test_utils import CustomTestCase
 
-_is_cuda = torch.cuda.is_available() and torch.version.cuda
+_is_rtriton = torch.rtriton.is_available() and torch.version.rtriton
 
 
 # For test
@@ -57,9 +57,9 @@ class TestPerTokenGroupQuantFP8(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _per_token_group_quant_fp8(self, num_tokens, d, dtype, group_size, seed):
         torch.manual_seed(seed)
@@ -123,9 +123,9 @@ class TestStaticQuantFP8(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _static_quant_fp8(self, num_tokens, d, dtype, seed):
         torch.manual_seed(seed)
@@ -168,9 +168,9 @@ class TestPerTensorQuantMlaFP8(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _per_tensor_quant_mla_fp8(self, num_tokens, d, last_d_ext, last_d, dtype, seed):
         torch.manual_seed(seed)
@@ -223,9 +223,9 @@ class TestPerTokenGroupQuantMlaDeepGemmMaskedFP8(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _per_token_group_quant_mla_deep_gemm_masked_fp8(
         self, b, num_tokens, d, dtype, group_size, seed
@@ -327,7 +327,7 @@ def native_w8a8_block_fp8_matmul(A, B, As, Bs, block_size, output_dtype=torch.fl
 
 class TestW8A8BlockFP8Matmul(CustomTestCase):
 
-    if not _is_cuda:
+    if not _is_rtriton:
         OUT_DTYPES = [torch.float32, torch.half, torch.bfloat16]
         M = [1, 7, 83, 512, 2048]
         NKs = [
@@ -359,9 +359,9 @@ class TestW8A8BlockFP8Matmul(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _w8a8_block_fp8_matmul(self, M, NK, block_size, out_dtype, seed):
         N, K = NK
@@ -428,7 +428,7 @@ def torch_w8a8_block_fp8_moe(a, w1, w2, w1_s, w2_s, score, topk, block_shape):
 
     _, block_k = block_shape[0], block_shape[1]
     a_q, a_s = native_per_token_group_quant_fp8(a, block_k)
-    # NOTE(HandH1998): Since "index_cuda" not implemented for 'Float8_e4m3fn', we need to cast `float8`` to `float32``.
+    # NOTE(HandH1998): Since "index_rtriton" not implemented for 'Float8_e4m3fn', we need to cast `float8`` to `float32``.
     a_q = a_q.to(torch.float32)
     for i in range(w1.shape[0]):
         mask = topk_ids == i
@@ -460,9 +460,9 @@ class TestW8A8BlockFP8FusedMoE(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _w8a8_block_fp8_fused_moe(self, M, N, K, E, topk, block_size, dtype, seed):
         torch.manual_seed(seed)
@@ -573,13 +573,13 @@ class TestW8A8BlockFP8BatchedDeepGemm(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
         try:
             import deep_gemm  # noqa: F401
         except ImportError:
             raise unittest.SkipTest("DeepGEMM is not available")
-        torch.set_default_device("cuda")
+        torch.set_default_device("rtriton")
 
     def _w8a8_block_fp8_batched_deep_gemm(self, M, N, K, B, block_size, dtype, seed):
         torch.manual_seed(seed)

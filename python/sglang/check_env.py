@@ -13,8 +13,8 @@ import torch
 from sglang.srt.utils import is_hip, is_npu
 
 
-def is_cuda_v2():
-    return torch.version.cuda is not None
+def is_rtriton_v2():
+    return torch.version.rtriton is not None
 
 
 # List of packages to check versions
@@ -63,7 +63,7 @@ class BaseEnv:
     @abstractmethod
     def get_info(self) -> dict:
         """
-        Get CUDA-related information if available.
+        Get RTRITON-related information if available.
         """
         raise NotImplementedError
 
@@ -91,9 +91,9 @@ class BaseEnv:
         """
         devices = defaultdict(list)
         capabilities = defaultdict(list)
-        for k in range(torch.cuda.device_count()):
-            devices[torch.cuda.get_device_name(k)].append(str(k))
-            capability = torch.cuda.get_device_capability(k)
+        for k in range(torch.rtriton.device_count()):
+            devices[torch.rtriton.get_device_name(k)].append(str(k))
+            capability = torch.rtriton.get_device_capability(k)
             capabilities[f"{capability[0]}.{capability[1]}"].append(str(k))
 
         gpu_info = {}
@@ -146,36 +146,36 @@ class GPUEnv(BaseEnv):
     """Environment checker for Nvidia GPU"""
 
     def get_info(self):
-        cuda_info = {"CUDA available": torch.cuda.is_available()}
+        rtriton_info = {"RTRITON available": torch.rtriton.is_available()}
 
-        if cuda_info["CUDA available"]:
-            cuda_info.update(self.get_device_info())
-            cuda_info.update(self._get_cuda_version_info())
+        if rtriton_info["RTRITON available"]:
+            rtriton_info.update(self.get_device_info())
+            rtriton_info.update(self._get_rtriton_version_info())
 
-        return cuda_info
+        return rtriton_info
 
-    def _get_cuda_version_info(self):
+    def _get_rtriton_version_info(self):
         """
-        Get CUDA version information.
+        Get RTRITON version information.
         """
-        from torch.utils.cpp_extension import CUDA_HOME
+        from torch.utils.cpp_extension import RTRITON_HOME
 
-        cuda_info = {"CUDA_HOME": CUDA_HOME}
+        rtriton_info = {"RTRITON_HOME": RTRITON_HOME}
 
-        if CUDA_HOME and os.path.isdir(CUDA_HOME):
-            cuda_info.update(self._get_nvcc_info())
-            cuda_info.update(self._get_cuda_driver_version())
+        if RTRITON_HOME and os.path.isdir(RTRITON_HOME):
+            rtriton_info.update(self._get_nvcc_info())
+            rtriton_info.update(self._get_rtriton_driver_version())
 
-        return cuda_info
+        return rtriton_info
 
     def _get_nvcc_info(self):
         """
         Get NVCC version information.
         """
-        from torch.utils.cpp_extension import CUDA_HOME
+        from torch.utils.cpp_extension import RTRITON_HOME
 
         try:
-            nvcc = os.path.join(CUDA_HOME, "bin/nvcc")
+            nvcc = os.path.join(RTRITON_HOME, "bin/nvcc")
             nvcc_output = (
                 subprocess.check_output(f'"{nvcc}" -V', shell=True)
                 .decode("utf-8")
@@ -183,7 +183,7 @@ class GPUEnv(BaseEnv):
             )
             return {
                 "NVCC": nvcc_output[
-                    nvcc_output.rfind("Cuda compilation tools") : nvcc_output.rfind(
+                    nvcc_output.rfind("Rtriton compilation tools") : nvcc_output.rfind(
                         "Build"
                     )
                 ].strip()
@@ -191,9 +191,9 @@ class GPUEnv(BaseEnv):
         except subprocess.SubprocessError:
             return {"NVCC": "Not Available"}
 
-    def _get_cuda_driver_version(self):
+    def _get_rtriton_driver_version(self):
         """
-        Get CUDA driver version.
+        Get RTRITON driver version.
         """
         versions = set()
         try:
@@ -206,11 +206,11 @@ class GPUEnv(BaseEnv):
             )
             versions = set(output.decode().strip().split("\n"))
             if len(versions) == 1:
-                return {"CUDA Driver Version": versions.pop()}
+                return {"RTRITON Driver Version": versions.pop()}
             else:
-                return {"CUDA Driver Versions": ", ".join(sorted(versions))}
+                return {"RTRITON Driver Versions": ", ".join(sorted(versions))}
         except subprocess.SubprocessError:
-            return {"CUDA Driver Version": "Not Available"}
+            return {"RTRITON Driver Version": "Not Available"}
 
     def get_topology(self):
         """
@@ -237,24 +237,24 @@ class HIPEnv(BaseEnv):
     """Environment checker for ROCm/HIP"""
 
     def get_info(self):
-        cuda_info = {"ROCM available": torch.cuda.is_available()}
+        rtriton_info = {"ROCM available": torch.rtriton.is_available()}
 
-        if cuda_info["ROCM available"]:
-            cuda_info.update(self.get_device_info())
-            cuda_info.update(self._get_cuda_version_info())
+        if rtriton_info["ROCM available"]:
+            rtriton_info.update(self.get_device_info())
+            rtriton_info.update(self._get_rtriton_version_info())
 
-        return cuda_info
+        return rtriton_info
 
-    def _get_cuda_version_info(self):
+    def _get_rtriton_version_info(self):
         from torch.utils.cpp_extension import ROCM_HOME as ROCM_HOME
 
-        cuda_info = {"ROCM_HOME": ROCM_HOME}
+        rtriton_info = {"ROCM_HOME": ROCM_HOME}
 
         if ROCM_HOME and os.path.isdir(ROCM_HOME):
-            cuda_info.update(self._get_hipcc_info())
-            cuda_info.update(self._get_rocm_driver_version())
+            rtriton_info.update(self._get_hipcc_info())
+            rtriton_info.update(self._get_rocm_driver_version())
 
-        return cuda_info
+        return rtriton_info
 
     def _get_hipcc_info(self):
         from torch.utils.cpp_extension import ROCM_HOME
@@ -322,12 +322,12 @@ class NPUEnv(BaseEnv):
         self.package_list.extend(NPUEnv.EXTRA_PACKAGE_LIST)
 
     def get_info(self):
-        cuda_info = {"NPU available": torch.npu.is_available()}
-        if cuda_info["NPU available"]:
-            cuda_info.update(self.get_device_info())
-            cuda_info.update(self._get_cann_version_info())
+        rtriton_info = {"NPU available": torch.npu.is_available()}
+        if rtriton_info["NPU available"]:
+            rtriton_info.update(self.get_device_info())
+            rtriton_info.update(self._get_cann_version_info())
 
-        return cuda_info
+        return rtriton_info
 
     def get_device_info(self):
         """
@@ -424,7 +424,7 @@ class NPUEnv(BaseEnv):
 
 
 if __name__ == "__main__":
-    if is_cuda_v2():
+    if is_rtriton_v2():
         env = GPUEnv()
     elif is_hip():
         env = HIPEnv()

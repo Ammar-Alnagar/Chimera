@@ -10,13 +10,13 @@ def test_dsv3_fused_a_gemm(num_tokens):
     kHdOut = 2112
 
     mat_a = torch.randn(
-        (num_tokens, kHdIn), dtype=torch.bfloat16, device="cuda"
+        (num_tokens, kHdIn), dtype=torch.bfloat16, device="rtriton"
     ).contiguous()
-    mat_b = torch.randn((kHdOut, kHdIn), dtype=torch.bfloat16, device="cuda").transpose(
+    mat_b = torch.randn((kHdOut, kHdIn), dtype=torch.bfloat16, device="rtriton").transpose(
         0, 1
     )
     output = torch.empty(
-        (num_tokens, kHdOut), dtype=torch.bfloat16, device="cuda"
+        (num_tokens, kHdOut), dtype=torch.bfloat16, device="rtriton"
     ).contiguous()
 
     ref = F.linear(mat_a, mat_b.T)

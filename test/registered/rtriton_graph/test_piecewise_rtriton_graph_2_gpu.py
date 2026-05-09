@@ -1,7 +1,7 @@
 import unittest
 
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.run_eval import run_eval
 from sglang.test.test_utils import (
     DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
@@ -12,11 +12,11 @@ from sglang.test.test_utils import (
 )
 
 # CI Registration - 2-GPU tests (80GB GPUs required)
-register_cuda_ci(est_time=160, suite="stage-b-test-large-2-gpu")
+register_rtriton_ci(est_time=160, suite="stage-b-test-large-2-gpu")
 
 
-class TestPiecewiseCudaGraphFusedMoE(CustomTestCase):
-    """Test piecewise CUDA graph with FusedMoE Backend"""
+class TestPiecewiseRtritonGraphFusedMoE(CustomTestCase):
+    """Test piecewise RTRITON graph with FusedMoE Backend"""
 
     @classmethod
     def setUpClass(cls):
@@ -27,8 +27,8 @@ class TestPiecewiseCudaGraphFusedMoE(CustomTestCase):
             cls.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
             other_args=[
-                "--enable-piecewise-cuda-graph",
-                "--piecewise-cuda-graph-compiler",
+                "--enable-piecewise-rtriton-graph",
+                "--piecewise-rtriton-graph-compiler",
                 "eager",
                 "--tp",
                 "2",

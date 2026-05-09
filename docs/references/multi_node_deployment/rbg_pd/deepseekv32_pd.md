@@ -137,7 +137,7 @@ spec:
               env:
                 - name: SGLANG_SKIP_SGL_KERNEL_VERSION_CHECK
                   value: "1"
-                - name: CUDA_LAUNCH_BLOCKING
+                - name: RTRITON_LAUNCH_BLOCKING
                   value: "0"
                 - name:  SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT
                   value: "1000000000"
@@ -282,7 +282,7 @@ spec:
                   - "2048"
                   - --tp-size
                   - "8" # Size of Tensor Parallelism
-                  - --cuda-graph-max-bs
+                  - --rtriton-graph-max-bs
                   - "16"
                   - --dist-init-addr
                   - $(LWS_LEADER_ADDRESS):20102
@@ -353,7 +353,7 @@ spec:
                 -  mlx5_0,mlx5_1,mlx5_2,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_7
                 - --max-running-requests
                 - "4096"
-                - --cuda-graph-max-bs
+                - --rtriton-graph-max-bs
                 - "16"
                 - --tp-size
                 - "8" # Size of Tensor Parallelism
@@ -415,7 +415,7 @@ spec:
                   value: "5"
                 - name: ENABLE_METRICS
                   value: "true"
-                - name: CUDA_LAUNCH_BLOCKING
+                - name: RTRITON_LAUNCH_BLOCKING
                   value: "0"
                 - name: NVSHMEM_IB_GID_INDEX
                   value: "3"

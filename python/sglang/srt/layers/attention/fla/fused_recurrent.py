@@ -272,12 +272,12 @@ def fused_recurrent_gated_delta_rule(
         >>> from fla.ops.gated_delta_rule import fused_recurrent_gated_delta_rule
         # inputs with equal lengths
         >>> B, T, H, HV, K, V = 4, 2048, 4, 8, 512, 512
-        >>> q = torch.randn(B, T, H, K, device='cuda')
-        >>> k = F.normalize(torch.randn(B, T, H, K, device='cuda'), p=2, dim=-1)
-        >>> v = torch.randn(B, T, HV, V, device='cuda')
-        >>> g = F.logsigmoid(torch.rand(B, T, HV, device='cuda'))
-        >>> beta = torch.rand(B, T, HV, device='cuda').sigmoid()
-        >>> h0 = torch.randn(B, HV, K, V, device='cuda')
+        >>> q = torch.randn(B, T, H, K, device='rtriton')
+        >>> k = F.normalize(torch.randn(B, T, H, K, device='rtriton'), p=2, dim=-1)
+        >>> v = torch.randn(B, T, HV, V, device='rtriton')
+        >>> g = F.logsigmoid(torch.rand(B, T, HV, device='rtriton'))
+        >>> beta = torch.rand(B, T, HV, device='rtriton').sigmoid()
+        >>> h0 = torch.randn(B, HV, K, V, device='rtriton')
         >>> o, ht = fused_gated_recurrent_delta_rule(
             q, k, v, g, beta,
             initial_state=h0,

@@ -157,7 +157,7 @@ class ZImageAttention(nn.Module):
 
         if self.qk_norm:
             if (
-                q.is_cuda
+                q.is_rtriton
                 and (self.norm_q.variance_epsilon == self.norm_k.variance_epsilon)
                 and can_use_fused_inplace_qknorm(self.head_dim)
             ):
@@ -175,7 +175,7 @@ class ZImageAttention(nn.Module):
 
         if freqs_cis is not None:
             cos, sin = freqs_cis
-            if q.is_cuda and q.shape == k.shape:
+            if q.is_rtriton and q.shape == k.shape:
                 cos_sin_cache = torch.cat(
                     [
                         cos.to(dtype=torch.float32).contiguous(),

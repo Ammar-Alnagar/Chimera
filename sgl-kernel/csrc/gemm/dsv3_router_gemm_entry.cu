@@ -19,10 +19,10 @@
  */
 
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/rtriton/RTRITONContext.h>
 
-#include "cuda_bf16.h"
-#include "cuda_runtime.h"
+#include "rtriton_bf16.h"
+#include "rtriton_runtime.h"
 #include "utils.h"
 
 static constexpr int DEFAULT_NUM_EXPERTS = 256;
@@ -30,15 +30,15 @@ static constexpr int KIMI_K2_NUM_EXPERTS = 384;
 static constexpr int DEFAULT_HIDDEN_DIM = 7168;
 
 template <typename T, int kNumTokens, int kNumExperts, int kHiddenDim>
-void invokeRouterGemmFloatOutput(float* output, T const* mat_a, T const* mat_b, cudaStream_t stream);
+void invokeRouterGemmFloatOutput(float* output, T const* mat_a, T const* mat_b, rtritonStream_t stream);
 
 template <typename T, int kNumTokens, int kNumExperts, int kHiddenDim>
-void invokeRouterGemmBf16Output(__nv_bfloat16* output, T const* mat_a, T const* mat_b, cudaStream_t stream);
+void invokeRouterGemmBf16Output(__nv_bfloat16* output, T const* mat_a, T const* mat_b, rtritonStream_t stream);
 
 template <int kBegin, int kEnd, int kNumExperts, int kHiddenDim>
 struct LoopUnroller {
   static void unroll_float_output(
-      int num_tokens, float* output, __nv_bfloat16 const* input, __nv_bfloat16 const* weights, cudaStream_t stream) {
+      int num_tokens, float* output, __nv_bfloat16 const* input, __nv_bfloat16 const* weights, rtritonStream_t stream) {
     if (num_tokens == kBegin) {
       invokeRouterGemmFloatOutput<__nv_bfloat16, kBegin, kNumExperts, kHiddenDim>(output, input, weights, stream);
     } else {
@@ -52,7 +52,7 @@ struct LoopUnroller {
       __nv_bfloat16* output,
       __nv_bfloat16 const* input,
       __nv_bfloat16 const* weights,
-      cudaStream_t stream) {
+      rtritonStream_t stream) {
     if (num_tokens == kBegin) {
       invokeRouterGemmBf16Output<__nv_bfloat16, kBegin, kNumExperts, kHiddenDim>(output, input, weights, stream);
     } else {
@@ -65,7 +65,7 @@ struct LoopUnroller {
 template <int kEnd, int kNumExperts, int kHiddenDim>
 struct LoopUnroller<kEnd, kEnd, kNumExperts, kHiddenDim> {
   static void unroll_float_output(
-      int num_tokens, float* output, __nv_bfloat16 const* input, __nv_bfloat16 const* weights, cudaStream_t stream) {
+      int num_tokens, float* output, __nv_bfloat16 const* input, __nv_bfloat16 const* weights, rtritonStream_t stream) {
     if (num_tokens == kEnd) {
       invokeRouterGemmFloatOutput<__nv_bfloat16, kEnd, kNumExperts, kHiddenDim>(output, input, weights, stream);
     } else {
@@ -78,7 +78,7 @@ struct LoopUnroller<kEnd, kEnd, kNumExperts, kHiddenDim> {
       __nv_bfloat16* output,
       __nv_bfloat16 const* input,
       __nv_bfloat16 const* weights,
-      cudaStream_t stream) {
+      rtritonStream_t stream) {
     if (num_tokens == kEnd) {
       invokeRouterGemmBf16Output<__nv_bfloat16, kEnd, kNumExperts, kHiddenDim>(output, input, weights, stream);
     } else {
@@ -121,9 +121,9 @@ void dsv3_router_gemm(
       output.dtype() == torch::kFloat32 || output.dtype() == torch::kBFloat16, "output must be float32 or bf16");
 
   auto const sm = getSMVersion();
-  TORCH_CHECK(sm >= 90, "required CUDA ARCH >= SM_90");
+  TORCH_CHECK(sm >= 90, "required RTRITON ARCH >= SM_90");
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
 
   if (output.dtype() == torch::kFloat32) {
     if (num_experts == DEFAULT_NUM_EXPERTS) {

@@ -99,7 +99,7 @@ class TestDummyWithSBO(CustomTestCase):
             "256",
             "--chunked-prefill-size",
             "1024",
-            "--cuda-graph-bs",
+            "--rtriton-graph-bs",
             "64",
             "--tp",
             "4",

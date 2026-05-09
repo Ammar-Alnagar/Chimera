@@ -60,7 +60,7 @@ def test_awq_marlin_repack_correct(num_bits, k_tiles, n_tiles, group_size):
     size_n = n_tiles * tile_n
     pack_factor = 32 // num_bits
 
-    b_weight = torch.randn((size_k, size_n), dtype=torch.float16, device="cuda")
+    b_weight = torch.randn((size_k, size_n), dtype=torch.float16, device="rtriton")
 
     w_ref, q_w, s, zp = quantize_weights(
         b_weight, scalar_types.uint4, group_size, zero_points=True
@@ -72,12 +72,12 @@ def test_awq_marlin_repack_correct(num_bits, k_tiles, n_tiles, group_size):
     q_w_marlin = marlin_weights(q_w, size_k, size_n, num_bits, weight_perm)
 
     out_gpu = awq_marlin_repack(q_w_awq, size_k, size_n, num_bits)
-    assert out_gpu.is_cuda and out_gpu.dtype == torch.int32
+    assert out_gpu.is_rtriton and out_gpu.dtype == torch.int32
 
     expected_cols = size_n * tile_k // pack_factor
     assert list(out_gpu.shape) == [size_k // tile_k, expected_cols]
 
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     torch.testing.assert_close(out_gpu, q_w_marlin)
 
@@ -112,7 +112,7 @@ def test_gptq_marlin_repack(
         pytest.skip("size_k must be divisible by group_size")
 
     # Create input
-    b_weight = torch.randn((size_k, size_n), dtype=torch.float16, device="cuda")
+    b_weight = torch.randn((size_k, size_n), dtype=torch.float16, device="rtriton")
 
     # Quantize (and apply act_order if provided)
     w_ref, q_w, s, g_idx, rand_perm = gptq_quantize_weights(
@@ -137,7 +137,7 @@ def test_gptq_marlin_repack(
         q_w_gptq, sort_indices, size_k, size_n, quant_type.size_bits
     )
 
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     torch.testing.assert_close(q_w_marlin, q_w_marlin_ref)
 

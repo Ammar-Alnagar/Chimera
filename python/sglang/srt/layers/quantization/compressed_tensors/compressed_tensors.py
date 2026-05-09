@@ -290,7 +290,7 @@ class CompressedTensorsConfig(QuantizationConfig):
         return []
 
     def _check_scheme_supported(self, min_capability: int, error: bool = True) -> bool:
-        capability_tuple = DeviceCapability(*torch.cuda.get_device_capability())
+        capability_tuple = DeviceCapability(*torch.rtriton.get_device_capability())
 
         if capability_tuple is not None:
             capability = capability_tuple.to_int()

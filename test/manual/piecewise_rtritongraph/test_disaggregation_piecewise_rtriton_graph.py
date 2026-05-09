@@ -12,8 +12,8 @@ from sglang.test.test_utils import (
 )
 
 
-class TestDisaggregationPiecewiseCudaGraph(PDDisaggregationServerBase):
-    """Test piecewise CUDA graph support in disaggregation prefill server"""
+class TestDisaggregationPiecewiseRtritonGraph(PDDisaggregationServerBase):
+    """Test piecewise RTRITON graph support in disaggregation prefill server"""
 
     @classmethod
     def setUpClass(cls):
@@ -38,7 +38,7 @@ class TestDisaggregationPiecewiseCudaGraph(PDDisaggregationServerBase):
             "prefill",
             "--tp",
             "1",
-            "--enable-piecewise-cuda-graph",
+            "--enable-piecewise-rtriton-graph",
         ]
         prefill_args += cls.transfer_backend + cls.rdma_devices
         cls.process_prefill = popen_launch_pd_server(
@@ -68,7 +68,7 @@ class TestDisaggregationPiecewiseCudaGraph(PDDisaggregationServerBase):
         )
 
     def test_gsm8k_accuracy(self):
-        """Verify that piecewise cuda graph works correctly in prefill server"""
+        """Verify that piecewise rtriton graph works correctly in prefill server"""
         args = SimpleNamespace(
             num_shots=5,
             data_path=None,
@@ -79,7 +79,7 @@ class TestDisaggregationPiecewiseCudaGraph(PDDisaggregationServerBase):
             port=int(self.lb_port),
         )
         metrics = run_eval_few_shot_gsm8k(args)
-        print(f"GSM8K accuracy with piecewise cuda graph: {metrics['accuracy']:.3f}")
+        print(f"GSM8K accuracy with piecewise rtriton graph: {metrics['accuracy']:.3f}")
 
         self.assertGreater(metrics["accuracy"], 0.62)
 

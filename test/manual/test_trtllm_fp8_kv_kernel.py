@@ -17,10 +17,10 @@ class TestTRTLLMFP8KVKernel(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA not available")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON not available")
 
-        if torch.cuda.get_device_capability()[0] < 9:
+        if torch.rtriton.get_device_capability()[0] < 9:
             raise unittest.SkipTest("FP8 requires compute capability >= 9.0")
 
     def _test_kernel_correctness(
@@ -34,7 +34,7 @@ class TestTRTLLMFP8KVKernel(CustomTestCase):
         cache_ndim,
     ):
         """Compare Triton kernel output against naive implementation."""
-        device = torch.device("cuda")
+        device = torch.device("rtriton")
         dtype = torch.bfloat16
 
         # Create input tensors
@@ -260,7 +260,7 @@ class TestTRTLLMFP8KVKernel(CustomTestCase):
 
     def test_empty_input(self):
         """Test edge case: empty input (0 tokens)."""
-        device = torch.device("cuda")
+        device = torch.device("rtriton")
         dtype = torch.bfloat16
         num_kv_heads = 8
         head_dim = 128
@@ -314,7 +314,7 @@ class TestTRTLLMFP8KVKernel(CustomTestCase):
         causing a type error when performing "1.0 / k_scale" inside the kernel.
         The fix converts tensor scales to Python floats in the wrapper.
         """
-        device = torch.device("cuda")
+        device = torch.device("rtriton")
 
         num_tokens = 4
         num_kv_heads = 2
@@ -358,18 +358,18 @@ class TestTRTLLMFP8KVKernel(CustomTestCase):
 
         # If we get here without exception, the regression is fixed
 
-    def test_fp8_kv_kernel_cuda_graph_compatible(self):
+    def test_fp8_kv_kernel_rtriton_graph_compatible(self):
         """
-        Regression test for CUDA graph capture compatibility.
+        Regression test for RTRITON graph capture compatibility.
 
         This test ensures that fused_fp8_set_kv_buffer works correctly within
-        CUDA graph capture, which is used in production for performance.
+        RTRITON graph capture, which is used in production for performance.
 
         Previously, float(k_scale) caused GPU→CPU synchronization, triggering
-        cudaErrorStreamCaptureUnsupported during graph capture. The fix computes
+        rtritonErrorStreamCaptureUnsupported during graph capture. The fix computes
         inverse scales purely on GPU using tensor operations.
         """
-        device = torch.device("cuda")
+        device = torch.device("rtriton")
 
         num_tokens = 4
         num_kv_heads = 2
@@ -397,10 +397,10 @@ class TestTRTLLMFP8KVKernel(CustomTestCase):
         k_scale = torch.tensor(1.0, device=device, dtype=torch.float32)
         v_scale = torch.tensor(1.0, device=device, dtype=torch.float32)
 
-        # Test that kernel works under CUDA graph capture
-        graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(graph):
-            # Old code would fail here with cudaErrorStreamCaptureUnsupported
+        # Test that kernel works under RTRITON graph capture
+        graph = torch.rtriton.RTRITONGraph()
+        with torch.rtriton.graph(graph):
+            # Old code would fail here with rtritonErrorStreamCaptureUnsupported
             # New code should succeed because all operations stay on GPU
             fused_fp8_set_kv_buffer(
                 k,
@@ -417,21 +417,21 @@ class TestTRTLLMFP8KVKernel(CustomTestCase):
         # Replay the graph to verify it works
         graph.replay()
 
-        # If we get here without exception, CUDA graph compatibility is confirmed
+        # If we get here without exception, RTRITON graph compatibility is confirmed
 
-    def test_fp8_kv_kernel_cuda_graph_compatible_no_scale(self):
+    def test_fp8_kv_kernel_rtriton_graph_compatible_no_scale(self):
         """
-        Regression test for CUDA graph capture compatibility without scales.
+        Regression test for RTRITON graph capture compatibility without scales.
 
         This test ensures that fused_fp8_set_kv_buffer works correctly within
-        CUDA graph capture when k_scale/v_scale are None (use_provided_scale=False).
+        RTRITON graph capture when k_scale/v_scale are None (use_provided_scale=False).
 
         Previously, the code created new GPU tensors (torch.tensor(1.0, device=...))
-        during graph capture, triggering cudaErrorStreamCaptureUnsupported.
+        during graph capture, triggering rtritonErrorStreamCaptureUnsupported.
         The fix passes dummy pointers when use_provided_scale=False, as the kernel
         uses constant 1.0 and Triton optimizes away the pointer loads.
         """
-        device = torch.device("cuda")
+        device = torch.device("rtriton")
 
         num_tokens = 4
         num_kv_heads = 2
@@ -455,11 +455,11 @@ class TestTRTLLMFP8KVKernel(CustomTestCase):
 
         cache_loc = torch.arange(num_tokens, device=device, dtype=torch.int32)
 
-        # Test that kernel works under CUDA graph capture WITHOUT scales
-        graph = torch.cuda.CUDAGraph()
-        with torch.cuda.graph(graph):
+        # Test that kernel works under RTRITON graph capture WITHOUT scales
+        graph = torch.rtriton.RTRITONGraph()
+        with torch.rtriton.graph(graph):
             # No k_scale/v_scale provided - use_provided_scale=False branch
-            # Old code would fail here with cudaErrorStreamCaptureUnsupported
+            # Old code would fail here with rtritonErrorStreamCaptureUnsupported
             # New code should succeed by using dummy pointers
             fused_fp8_set_kv_buffer(
                 k,
@@ -474,7 +474,7 @@ class TestTRTLLMFP8KVKernel(CustomTestCase):
         # Replay the graph to verify it works
         graph.replay()
 
-        # If we get here without exception, no-scale CUDA graph compatibility is confirmed
+        # If we get here without exception, no-scale RTRITON graph compatibility is confirmed
 
 
 if __name__ == "__main__":

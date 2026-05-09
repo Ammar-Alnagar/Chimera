@@ -29,8 +29,8 @@ from sglang.srt.speculative.base_spec_worker import BaseDraftWorker, BaseSpecWor
 from sglang.srt.speculative.eagle_info import EagleDraftInput, EagleVerifyInput
 from sglang.srt.speculative.eagle_info_v2 import fill_new_verified_id
 from sglang.srt.speculative.eagle_utils import TreeMaskMode, build_tree_kernel_efficient
-from sglang.srt.speculative.multi_layer_eagle_draft_extend_cuda_graph_runner import (
-    MultiLayerEagleMultiStepDraftExtendCudaGraphRunner,
+from sglang.srt.speculative.multi_layer_eagle_draft_extend_rtriton_graph_runner import (
+    MultiLayerEagleMultiStepDraftExtendRtritonGraphRunner,
 )
 from sglang.srt.speculative.multi_layer_eagle_utils import (
     assign_hidden_states_pool_triton,
@@ -98,10 +98,10 @@ class MultiLayerEagleDraftWorker(BaseDraftWorker):
             self.speculative_num_steps * self.topk, self.speculative_num_draft_tokens
         )
 
-        # Do not capture cuda graph in `TpModelWorker` init,
-        # will capture later with init_cuda_graphs()
-        backup_disable_cuda_graph = server_args.disable_cuda_graph
-        server_args.disable_cuda_graph = True
+        # Do not capture rtriton graph in `TpModelWorker` init,
+        # will capture later with init_rtriton_graphs()
+        backup_disable_rtriton_graph = server_args.disable_rtriton_graph
+        server_args.disable_rtriton_graph = True
 
         # Share the allocator with a target worker.
         # Draft and target worker own their own KV cache pools.
@@ -140,10 +140,10 @@ class MultiLayerEagleDraftWorker(BaseDraftWorker):
             device=self.device,
         )
 
-        # Init attention backend and cuda graphs
+        # Init attention backend and rtriton graphs
         for i in range(self.speculative_num_steps):
-            self.draft_runner_list[i].server_args.disable_cuda_graph = (
-                backup_disable_cuda_graph
+            self.draft_runner_list[i].server_args.disable_rtriton_graph = (
+                backup_disable_rtriton_graph
             )
         self.draft_tp_context = (
             draft_tp_context if server_args.enable_dp_attention else empty_context
@@ -152,7 +152,7 @@ class MultiLayerEagleDraftWorker(BaseDraftWorker):
             self.draft_runner_list[0].tp_group
         ), speculative_moe_backend_context():
             self.init_attention_backend()
-            self.init_cuda_graphs()
+            self.init_rtriton_graphs()
 
         self.tree_mask_mode = TreeMaskMode.FULL_MASK
 
@@ -186,30 +186,30 @@ class MultiLayerEagleDraftWorker(BaseDraftWorker):
                 self.draft_extend_attn_backend_list[-1]
             )
 
-    def init_cuda_graphs(self):
-        """Capture cuda graphs."""
-        self.cuda_graph_runner = None
-        self.cuda_graph_runner_for_draft_extend = None
+    def init_rtriton_graphs(self):
+        """Capture rtriton graphs."""
+        self.rtriton_graph_runner = None
+        self.rtriton_graph_runner_for_draft_extend = None
 
-        if self.server_args.disable_cuda_graph:
+        if self.server_args.disable_rtriton_graph:
             return
 
-        self.cuda_graph_runner_for_draft_extend = (
-            MultiLayerEagleMultiStepDraftExtendCudaGraphRunner(self)
+        self.rtriton_graph_runner_for_draft_extend = (
+            MultiLayerEagleMultiStepDraftExtendRtritonGraphRunner(self)
         )
 
-    def reset_cuda_graph_buffers(self, forward_batch, batch_result):
-        if self.cuda_graph_runner_for_draft_extend:
-            self.cuda_graph_runner_for_draft_extend.reset_buffers(
+    def reset_rtriton_graph_buffers(self, forward_batch, batch_result):
+        if self.rtriton_graph_runner_for_draft_extend:
+            self.rtriton_graph_runner_for_draft_extend.reset_buffers(
                 forward_batch, batch_result
             )
 
     def draft(self, model_worker_batch: ModelWorkerBatch):
         draft_input: EagleDraftInput = model_worker_batch.spec_info
-        forward_batch, can_cuda_graph = draft_input.prepare_for_v2_draft(
+        forward_batch, can_rtriton_graph = draft_input.prepare_for_v2_draft(
             self.req_to_token_pool,
             model_worker_batch,
-            self.cuda_graph_runner,
+            self.rtriton_graph_runner,
             self.draft_runner_list[0],
             self.topk,
             self.speculative_num_steps,
@@ -226,7 +226,7 @@ class MultiLayerEagleDraftWorker(BaseDraftWorker):
             )
 
         # Build tree mask
-        # Directly write to cuda graph buffers for verify attn
+        # Directly write to rtriton graph buffers for verify attn
         tree_mask_buf, position_buf = (
             self.target_worker.model_runner.attn_backend.get_verify_buffers_to_fill_after_draft()
         )
@@ -304,7 +304,7 @@ class MultiLayerEagleDraftWorker(BaseDraftWorker):
                             (tree_info[2].size(0), 1),
                             i,
                             dtype=torch.long,
-                            device="cuda",
+                            device="rtriton",
                         )
                     )
 
@@ -423,7 +423,7 @@ class MultiLayerEagleDraftWorker(BaseDraftWorker):
                 batch_result.next_token_ids,
                 self.speculative_num_draft_tokens,
                 self.draft_runner_list[0],
-                self.cuda_graph_runner_for_draft_extend,
+                self.rtriton_graph_runner_for_draft_extend,
             )
             forward_batch.return_hidden_states_before_norm = True
 
@@ -432,19 +432,19 @@ class MultiLayerEagleDraftWorker(BaseDraftWorker):
                 self.plan_stream
             )
         # Run draft extend batch in the main compute stream
-        can_cuda_graph = (
-            self.cuda_graph_runner_for_draft_extend
-            and self.cuda_graph_runner_for_draft_extend.can_run(forward_batch)
+        can_rtriton_graph = (
+            self.rtriton_graph_runner_for_draft_extend
+            and self.rtriton_graph_runner_for_draft_extend.can_run(forward_batch)
         )
         ret_topk_p_list = []
         ret_topk_index_list = []
         next_token_ids_backup = batch_result.next_token_ids.clone()
 
-        if can_cuda_graph:
-            self.reset_cuda_graph_buffers(forward_batch, batch_result)
+        if can_rtriton_graph:
+            self.reset_rtriton_graph_buffers(forward_batch, batch_result)
         else:
             logger.warning_once(
-                f"can't use cuda graph for draft extend! may have correctness issue!"
+                f"can't use rtriton graph for draft extend! may have correctness issue!"
             )
             select_index = (
                 torch.arange(len(batch.seq_lens), device=self.device)
@@ -455,9 +455,9 @@ class MultiLayerEagleDraftWorker(BaseDraftWorker):
 
         for step in range(self.speculative_num_steps):
             # log_info_on_rank0(logger, f"step: {step}, forward_batch.input_ids: {forward_batch.input_ids}")
-            if can_cuda_graph:
+            if can_rtriton_graph:
                 draft_logits_output = (
-                    self.cuda_graph_runner_for_draft_extend.get_runner(step).replay(
+                    self.rtriton_graph_runner_for_draft_extend.get_runner(step).replay(
                         forward_batch, init_state=(step == 0)
                     )
                 )
@@ -486,20 +486,20 @@ class MultiLayerEagleDraftWorker(BaseDraftWorker):
 
         # Update req_to_hidden_states_pool for KV Cache reversion
         if (
-            self.cuda_graph_runner_for_draft_extend is not None
+            self.rtriton_graph_runner_for_draft_extend is not None
             and forward_batch.extend_seq_lens is not None
         ):
-            last_cuda_graph_runner = (
-                self.cuda_graph_runner_for_draft_extend.get_last_runner()
+            last_rtriton_graph_runner = (
+                self.rtriton_graph_runner_for_draft_extend.get_last_runner()
             )
             assign_hidden_states_pool_triton(
-                last_cuda_graph_runner.hidden_states,
-                last_cuda_graph_runner.req_pool_indices,
+                last_rtriton_graph_runner.hidden_states,
+                last_rtriton_graph_runner.req_pool_indices,
                 self.req_to_hidden_states_pool,
                 self.speculative_num_steps - 1,
                 forward_batch.batch_size,
-                last_cuda_graph_runner.extend_seq_lens,
-                last_cuda_graph_runner.extend_start_loc,
+                last_rtriton_graph_runner.extend_seq_lens,
+                last_rtriton_graph_runner.extend_start_loc,
             )
 
         # Reorganize the spec info for the next batch
@@ -633,7 +633,7 @@ class MultiLayerEagleWorkerV2(BaseSpecWorker):
         # Batch 1: Target verify
         # Prepare for target verify in a separate stream
         with self.plan_stream_ctx:
-            verify_forward_batch, can_run_cuda_graph = (
+            verify_forward_batch, can_run_rtriton_graph = (
                 verify_input.prepare_for_v2_verify(
                     self.req_to_token_pool,
                     batch,
@@ -654,7 +654,7 @@ class MultiLayerEagleWorkerV2(BaseSpecWorker):
                 verify_input,
                 (
                     self.target_worker.model_runner.graph_runner.bs
-                    if can_run_cuda_graph
+                    if can_run_rtriton_graph
                     else None
                 ),
             )
@@ -700,7 +700,7 @@ class MultiLayerEagleWorkerV2(BaseSpecWorker):
         return GenerationBatchResult(
             logits_output=logits_output,
             next_token_ids=predict,
-            can_run_cuda_graph=can_run_cuda_graph,
+            can_run_rtriton_graph=can_run_rtriton_graph,
             next_draft_input=next_draft_input,
             accept_lens=accept_length,
         )

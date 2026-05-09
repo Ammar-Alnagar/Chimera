@@ -2,7 +2,7 @@ import unittest
 
 from sglang.srt.environ import envs
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.kits.gsm8k_accuracy_kit import GSM8KMixin
 from sglang.test.test_utils import (
     DEFAULT_TARGET_MODEL_NGRAM,
@@ -12,7 +12,7 @@ from sglang.test.test_utils import (
     popen_launch_server,
 )
 
-register_cuda_ci(est_time=117, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=117, suite="stage-b-test-small-1-gpu")
 
 GSM_DATASET_PATH = None
 
@@ -20,7 +20,7 @@ GSM_DATASET_PATH = None
 # Default server arguments shared across all tests
 DEFAULT_SERVER_ARGS = [
     "--trust-remote-code",
-    "--cuda-graph-max-bs",
+    "--rtriton-graph-max-bs",
     "8",
     "--speculative-algorithm",
     "NGRAM",

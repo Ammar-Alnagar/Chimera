@@ -64,7 +64,7 @@ def init_process(
     event_dst_ready_list,
     remote_instance_loader_backend,
 ):
-    torch.cuda.set_device(rank)
+    torch.rtriton.set_device(rank)
 
     if rank == 0:
         init_process_seed(
@@ -106,13 +106,13 @@ def init_process_seed(
     event_dst_ready_list,
 ):
     # These two environment variables are very important
-    # to avoid unexpected behaviors of CUDA and NCCL.
+    # to avoid unexpected behaviors of RTRITON and NCCL.
     os.environ["NCCL_CUMEM_ENABLE"] = "0"
     os.environ["NCCL_NVLS_ENABLE"] = "0"
 
     # Load model and get parameters
-    torch.cuda.set_device(rank)
-    torch.cuda.synchronize()
+    torch.rtriton.set_device(rank)
+    torch.rtriton.synchronize()
 
     url = DEFAULT_URL_FOR_TEST
     process = popen_launch_server(
@@ -127,7 +127,7 @@ def init_process_seed(
             "--remote-instance-weight-loader-start-seed-via-transfer-engine",
         ),
     )
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     seed_params = []
     # Get the weights of seed instance for correctness check.
@@ -164,8 +164,8 @@ def init_process_dst(
     event_dst_ready_list,
     remote_instance_loader_backend,
 ):
-    torch.cuda.set_device(rank * tp_size)
-    torch.cuda.synchronize()
+    torch.rtriton.set_device(rank * tp_size)
+    torch.rtriton.synchronize()
     base_gpu_id = rank * tp_size
 
     event_seed_ready.wait()
@@ -184,7 +184,7 @@ def init_process_dst(
             model_path=model_name,
             base_gpu_id=base_gpu_id,
             tp_size=tp_size,
-            cuda_graph_max_bs=2,
+            rtriton_graph_max_bs=2,
             tokenizer_path=model_name,
             remote_instance_weight_loader_seed_instance_ip=seed_instance_ip,
             remote_instance_weight_loader_seed_instance_service_port=seed_instance_service_port,
@@ -209,7 +209,7 @@ def init_process_dst(
                 str(base_gpu_id),
                 "--tp-size",
                 str(tp_size),
-                "--cuda-graph-max-bs",
+                "--rtriton-graph-max-bs",
                 2,
                 "--tokenizer-path",
                 model_name,
@@ -226,7 +226,7 @@ def init_process_dst(
                 "--remote-instance-weight-loader-start-seed-via-transfer-engine",
             ),
         )
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     event_dst_ready_list[rank - 1].set()
 
@@ -342,14 +342,14 @@ def test_load_weights_from_remote_instance(
     param_queue.close()
     param_queue.join_thread()
     gc.collect()
-    torch.cuda.empty_cache()
+    torch.rtriton.empty_cache()
 
 
 class TestLoadWeightsFromRemoteInstance(CustomTestCase):
 
     def test_load_weights_from_remote_instance(self):
 
-        assert torch.cuda.device_count() >= 2, "At least 2 GPUs are required"
+        assert torch.rtriton.device_count() >= 2, "At least 2 GPUs are required"
         # test_suits : tp, dp, model_name, backend, dst_instance_id
         if is_in_ci():
             mode = random.choice(["Engine", "Server"])

@@ -81,15 +81,15 @@ class Softcap:
         return self.forward(*args, **kwargs)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if x.is_cuda:
-            return self.forward_cuda(x)
+        if x.is_rtriton:
+            return self.forward_rtriton(x)
         else:
             return self.forward_native(x)
 
     def forward_native(self, x: torch.Tensor) -> torch.Tensor:
         return torch.tanh(x.float() / self.softcap_const) * self.softcap_const
 
-    def forward_cuda(self, x: torch.Tensor, autotune=False) -> torch.Tensor:
+    def forward_rtriton(self, x: torch.Tensor, autotune=False) -> torch.Tensor:
         return fused_softcap(x, self.softcap_const, autotune=autotune)
 
 
@@ -292,12 +292,12 @@ class FusedDualResidualRMSNorm:
     def forward(
         self, x: torch.Tensor, residual: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        if x.is_cuda:
-            return self.forward_cuda(x, residual)
+        if x.is_rtriton:
+            return self.forward_rtriton(x, residual)
         else:
             return self.forward_flashinfer(x, residual)
 
-    def forward_cuda(
+    def forward_rtriton(
         self, x: torch.Tensor, residual: torch.Tensor, autotune=False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         return fused_dual_residual_rmsnorm(

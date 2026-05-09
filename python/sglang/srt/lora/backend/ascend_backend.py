@@ -201,22 +201,22 @@ class AscendLoRABackend(BaseLoRABackend):
 
         return output_tensor
 
-    def init_cuda_graph_batch_info(
+    def init_rtriton_graph_batch_info(
         self,
-        max_bs_in_cuda_graph: int,
+        max_bs_in_rtriton_graph: int,
         num_tokens_per_bs: int,
     ):
         with torch.device("npu"):
             self.npu_graph_batch_info = LoRABatchInfo(
-                bs=max_bs_in_cuda_graph,
-                use_cuda_graph=True,
+                bs=max_bs_in_rtriton_graph,
+                use_rtriton_graph=True,
                 num_segments=None,
                 seg_lens=torch.full(
-                    (max_bs_in_cuda_graph,), num_tokens_per_bs, dtype=torch.int32
+                    (max_bs_in_rtriton_graph,), num_tokens_per_bs, dtype=torch.int32
                 ),
-                seg_indptr=torch.empty(max_bs_in_cuda_graph + 1, dtype=torch.int32),
+                seg_indptr=torch.empty(max_bs_in_rtriton_graph + 1, dtype=torch.int32),
                 max_len=num_tokens_per_bs,
-                weight_indices=torch.zeros(max_bs_in_cuda_graph, dtype=torch.int32),
+                weight_indices=torch.zeros(max_bs_in_rtriton_graph, dtype=torch.int32),
                 lora_ranks=torch.zeros(self.max_loras_per_batch, dtype=torch.int32),
                 scalings=torch.zeros(self.max_loras_per_batch, dtype=torch.float),
                 permutation=None,
@@ -225,9 +225,9 @@ class AscendLoRABackend(BaseLoRABackend):
             # Initialize seg_indptr for NPU graph as they remain constant
             # across batches.
             torch.cumsum(
-                self.npu_graph_batch_info.seg_lens[:max_bs_in_cuda_graph],
+                self.npu_graph_batch_info.seg_lens[:max_bs_in_rtriton_graph],
                 dim=0,
-                out=self.npu_graph_batch_info.seg_indptr[1 : max_bs_in_cuda_graph + 1],
+                out=self.npu_graph_batch_info.seg_indptr[1 : max_bs_in_rtriton_graph + 1],
             )
 
     def prepare_lora_batch(
@@ -236,7 +236,7 @@ class AscendLoRABackend(BaseLoRABackend):
         weight_indices: list[int],
         lora_ranks: list[int],
         scalings: list[float],
-        use_cuda_graph: bool,
+        use_rtriton_graph: bool,
     ):
         # Use pinned memory to avoid synchronizations during host-to-device transfer
         weight_indices_tensor = torch.tensor(
@@ -251,7 +251,7 @@ class AscendLoRABackend(BaseLoRABackend):
 
         bs = forward_batch.batch_size
 
-        if use_cuda_graph:
+        if use_rtriton_graph:
             assert (
                 self.npu_graph_batch_info is not None
             ), "NPU Graph batch info is not initialized."
@@ -277,7 +277,7 @@ class AscendLoRABackend(BaseLoRABackend):
                 bs=forward_batch.batch_size,
                 num_segments=forward_batch.batch_size,
                 max_len=max_len,
-                use_cuda_graph=False,
+                use_rtriton_graph=False,
                 seg_lens=seg_lens,
                 seg_indptr=seg_indptr,
                 weight_indices=torch.empty(

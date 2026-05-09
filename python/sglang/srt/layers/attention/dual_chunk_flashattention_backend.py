@@ -34,9 +34,9 @@ class DualChunkFlashAttentionMetadata:
     """Metadata for FlashAttentionBackend.
 
     NOTE: Any python object stored here is not updated when it is
-    cuda-graph replayed. If you have values that need to be changed
+    rtriton-graph replayed. If you have values that need to be changed
     dynamically, it should be stored in tensor. The tensor has to be
-    updated from `CUDAGraphRunner.forward` API.
+    updated from `RTRITONGraphRunner.forward` API.
     """
 
     # (batch_size,). The sequence length per sequence. Sequence length means
@@ -57,7 +57,7 @@ class DualChunkFlashAttentionMetadata:
     # Block addresses per sequence. (Seq id -> list of physical block)
     # E.g., [0, 1, 2] means tokens are stored in 0th, 1st, and 2nd blocks
     # in the kv cache. Each block can contain up to block_size tokens.
-    # 2nd dimensions are padded up to max_blocks_per_seq if it is cuda-graph
+    # 2nd dimensions are padded up to max_blocks_per_seq if it is rtriton-graph
     # captured.
     block_tables: Optional[torch.Tensor] = None
 
@@ -151,7 +151,7 @@ class DualChunkFlashAttentionBackend(AttentionBackend):
         self.dual_chunk_attention_config = dual_chunk_attention_config
 
         if self.sparse_attention_enabled:
-            self.arange = torch.arange(self.sparse_attention_last_q, device="cuda")
+            self.arange = torch.arange(self.sparse_attention_last_q, device="rtriton")
             self.last_q_mask = (
                 self.arange[None, None, :, None] >= self.arange[None, None, None, :]
             )
@@ -483,13 +483,13 @@ class DualChunkFlashAttentionBackend(AttentionBackend):
         ).squeeze(1)
         return o.view(-1, layer.tp_q_head_num * layer.v_head_dim)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
-        """Initialize CUDA graph state for the attention backend.
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
+        """Initialize RTRITON graph state for the attention backend.
 
         Args:
-            max_bs (int): Maximum batch size to support in CUDA graphs
+            max_bs (int): Maximum batch size to support in RTRITON graphs
 
-        This creates fixed-size tensors that will be reused during CUDA graph replay
+        This creates fixed-size tensors that will be reused during RTRITON graph replay
         to avoid memory allocations.
         """
         self.decode_metadata = {
@@ -529,7 +529,7 @@ class DualChunkFlashAttentionBackend(AttentionBackend):
             ),
         }
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -577,7 +577,7 @@ class DualChunkFlashAttentionBackend(AttentionBackend):
 
         self.forward_metadata = metadata
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -589,7 +589,7 @@ class DualChunkFlashAttentionBackend(AttentionBackend):
         seq_lens_cpu: Optional[torch.Tensor],
         out_cache_loc: torch.Tensor = None,
     ):
-        """Initialize forward metadata for replaying CUDA graph."""
+        """Initialize forward metadata for replaying RTRITON graph."""
         assert forward_mode.is_decode()
         seq_lens = seq_lens[:bs]
         req_pool_indices = req_pool_indices[:bs]
@@ -667,8 +667,8 @@ class DualChunkFlashAttentionBackend(AttentionBackend):
 
         self.forward_metadata = metadata
 
-    def get_cuda_graph_seq_len_fill_value(self):
-        """Get the fill value for sequence length in CUDA graph."""
+    def get_rtriton_graph_seq_len_fill_value(self):
+        """Get the fill value for sequence length in RTRITON graph."""
         return 1
 
     def _dual_chunk_flash_attn_prefill(

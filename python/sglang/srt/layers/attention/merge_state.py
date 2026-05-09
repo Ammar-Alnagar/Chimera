@@ -4,9 +4,9 @@ import torch
 from sgl_kernel import merge_state_v2
 
 from sglang.srt.layers.attention.triton_ops.merge_state import merge_state_triton
-from sglang.srt.utils import is_cuda
+from sglang.srt.utils import is_rtriton
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
 
 # Automatically fallback to the Triton kernel in some cases
@@ -32,7 +32,7 @@ def merge_state(
     output_lse: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
     if (
-        _is_cuda
+        _is_rtriton
         and _supported_dtypes(prefix_output)
         and _supported_headdim(prefix_output)
     ):

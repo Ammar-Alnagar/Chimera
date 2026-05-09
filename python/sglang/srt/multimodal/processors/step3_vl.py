@@ -26,8 +26,8 @@ class GPUToTensor(torch.nn.Module):
             return transforms.ToTensor()(raw_image)
         if raw_image.ndim == 2:
             raw_image = raw_image[:, :, None].repeat(3, -1)
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
+        if torch.rtriton.is_available():
+            device = torch.device("rtriton")
         else:
             device = torch.device("cpu")
         image_tensor = torch.from_numpy(raw_image).to(device)

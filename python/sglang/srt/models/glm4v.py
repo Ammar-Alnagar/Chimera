@@ -809,8 +809,8 @@ class Glm4vForConditionalGeneration(nn.Module):
         else:
             del self.lm_head.weight
             self.lm_head.weight = head
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        torch.rtriton.empty_cache()
+        torch.rtriton.synchronize()
 
 
 EntryClass = [Glm4vForConditionalGeneration]

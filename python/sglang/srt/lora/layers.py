@@ -110,7 +110,7 @@ class VocabParallelEmbeddingWithLoRA(BaseLayerWithLoRA):
         self, input_: torch.Tensor, batch_info: LoRABatchInfo
     ) -> torch.Tensor:
         """
-        Apply LoRA A weights using efficient embedding lookup with CUDA graph support.
+        Apply LoRA A weights using efficient embedding lookup with RTRITON graph support.
         Maps tokens to their corresponding LoRA adapters internally.
         It also includes added/extra token processing.
         """
@@ -156,7 +156,7 @@ class VocabParallelEmbeddingWithLoRA(BaseLayerWithLoRA):
 
     def forward(self, input_: torch.Tensor):
         """
-        Forward pass with LoRA support and CUDA graph compatibility.
+        Forward pass with LoRA support and RTRITON graph compatibility.
 
         Extra tokens (tokens >= vocab_size) are now handled efficiently
         in the backend's run_lora_a_embedding method.
@@ -180,7 +180,7 @@ class VocabParallelEmbeddingWithLoRA(BaseLayerWithLoRA):
         # Apply LoRA if configured
         if self.set_lora:
             # The backend's run_lora_a_embedding now handles both regular
-            # and extra tokens efficiently with CUDA graph support
+            # and extra tokens efficiently with RTRITON graph support
             base_output = self.apply_lora(base_output, input_, batch_info)
 
         return base_output

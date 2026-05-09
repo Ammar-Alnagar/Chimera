@@ -23,7 +23,7 @@ void es_sm100_mxfp8_blockscaled_grouped_quant(
       blockscale_offsets.dim() == 1 && blockscale_offsets.size(0) == groups,
       "blockscale_offsets must be 1D and have size equal to the number of groups");
 
-  auto stream = at::cuda::getCurrentCUDAStream();
+  auto stream = at::rtriton::getCurrentRTRITONStream();
   if (input.dtype() == torch::kBFloat16) {
     expert_specialization::launch_es_sm100_mxfp8_blockscaled_grouped_quant<__nv_bfloat16>(
         input, problem_sizes, expert_offsets, blockscale_offsets, quant_output, scale_factor);

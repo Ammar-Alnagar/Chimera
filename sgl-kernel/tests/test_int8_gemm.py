@@ -20,10 +20,10 @@ def torch_scaled_mm(a, b, scale_a, scale_b, out_dtype, bias):
 def _test_accuracy_once(M, N, K, with_bias, out_dtype, device):
     a = to_int8(torch.randn((M, K), device=device) * 5)
     b = to_int8(torch.randn((N, K), device=device).t() * 5)
-    scale_a = torch.randn((M,), device="cuda", dtype=torch.float32)
-    scale_b = torch.randn((N,), device="cuda", dtype=torch.float32)
+    scale_a = torch.randn((M,), device="rtriton", dtype=torch.float32)
+    scale_b = torch.randn((N,), device="rtriton", dtype=torch.float32)
     if with_bias:
-        bias = torch.randn((N,), device="cuda", dtype=out_dtype) * 10
+        bias = torch.randn((N,), device="rtriton", dtype=out_dtype) * 10
     else:
         bias = None
     o = int8_scaled_mm(a, b, scale_a, scale_b, out_dtype, bias)
@@ -41,7 +41,7 @@ def _test_accuracy_once(M, N, K, with_bias, out_dtype, device):
 @pytest.mark.parametrize("with_bias", [True, False])
 @pytest.mark.parametrize("out_dtype", [torch.float16, torch.bfloat16])
 def test_accuracy(M, N, K, with_bias, out_dtype):
-    _test_accuracy_once(M, N, K, with_bias, out_dtype, "cuda")
+    _test_accuracy_once(M, N, K, with_bias, out_dtype, "rtriton")
 
 
 if __name__ == "__main__":

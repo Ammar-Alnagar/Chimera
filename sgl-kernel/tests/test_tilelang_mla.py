@@ -5,7 +5,7 @@ from sgl_kernel import tilelang_mla_decode, tilelang_mla_get_workspace_size
 from torch import Tensor
 
 # Disable tests on SM103 until the accuracy issues are fixed.
-if torch.cuda.get_device_capability() != (10, 0):
+if torch.rtriton.get_device_capability() != (10, 0):
     pytest.skip(
         reason="TileLang MLA Requires compute capability of 10.",
         allow_module_level=True,
@@ -53,7 +53,7 @@ def test_tilelang_mla_decode(
     num_kv_splits: int,
 ):
     torch.set_default_dtype(dtype)
-    torch.set_default_device("cuda")
+    torch.set_default_device("rtriton")
     torch.manual_seed(42)
 
     d = 576
@@ -85,7 +85,7 @@ def test_tilelang_mla_decode(
     workspace_size = tilelang_mla_get_workspace_size(
         block_num * block_size, bs, num_kv_splits=num_kv_splits
     )
-    workspace = torch.empty(workspace_size, device="cuda", dtype=torch.uint8)
+    workspace = torch.empty(workspace_size, device="rtriton", dtype=torch.uint8)
 
     q_nope = torch.empty((h_q, bs, dv)).transpose(0, 1)
     q_nope.copy_(q[:, :, :dv])

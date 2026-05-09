@@ -9,8 +9,8 @@ from sgl_kernel import (
 
 random.seed(42)
 torch.manual_seed(42)
-torch.cuda.manual_seed(42)
-torch.cuda.manual_seed_all(42)
+torch.rtriton.manual_seed(42)
+torch.rtriton.manual_seed_all(42)
 
 
 def align(val: int, alignment: int = 128) -> int:
@@ -26,8 +26,8 @@ def calc_diff(x, y):
 
 
 def is_sm100_supported(device=None) -> bool:
-    return (torch.cuda.get_device_capability(device)[0] == 10) and (
-        torch.version.cuda >= "12.8"
+    return (torch.rtriton.get_device_capability(device)[0] == 10) and (
+        torch.version.rtriton >= "12.8"
     )
 
 
@@ -38,7 +38,7 @@ def is_sm100_supported(device=None) -> bool:
 @pytest.mark.parametrize("num_experts", [8, 16, 32, 64])
 @pytest.mark.parametrize("out_dtype", [torch.half, torch.bfloat16])
 def test_es_sm100_mxfp8_blockscaled_grouped_mm(num_experts, out_dtype):
-    device = "cuda"
+    device = "rtriton"
     alignment = 128
     n_g = random.randint(1, 64) * alignment
     k_g = random.randint(1, 64) * alignment

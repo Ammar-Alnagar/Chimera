@@ -106,7 +106,7 @@ def initialize_stream_groups(gpu_id: int, config: PDMuxConfig):
 
     global STREAM_GROUPS, SM_COUNTS, SM_GROUP_NUM, CURRENT_STREAM_IDX, CURRENT_STREAM_GROUP
     # for pd_multiplexing, Init stream_groups
-    device = torch.cuda.current_device()
+    device = torch.rtriton.current_device()
     total_sm_count = spatial.get_sm_available(gpu_id)
     # (prefill_sm_count, decode_sm_count)
     if config.manual_divisions:
@@ -117,7 +117,7 @@ def initialize_stream_groups(gpu_id: int, config: PDMuxConfig):
     else:
         divisions = divide_sm(
             total_sm_count,
-            torch.cuda.get_device_capability(device),
+            torch.rtriton.get_device_capability(device),
             config.sm_group_num - 2,
         )
 
@@ -127,14 +127,14 @@ def initialize_stream_groups(gpu_id: int, config: PDMuxConfig):
     SM_COUNTS.append((0, total_sm_count))  # Normal stream for decode
     STREAM_GROUPS = []
     STREAM_GROUPS.append(
-        (torch.cuda.Stream(gpu_id), torch.cuda.Stream(gpu_id))
+        (torch.rtriton.Stream(gpu_id), torch.rtriton.Stream(gpu_id))
     )  # Normal stream for prefill
     for prefill_sm, decode_sm in divisions:
         STREAM_GROUPS.append(
             (spatial.create_greenctx_stream_by_value(prefill_sm, decode_sm, gpu_id))
         )
     STREAM_GROUPS.append(
-        (torch.cuda.Stream(gpu_id), torch.cuda.Stream(gpu_id))
+        (torch.rtriton.Stream(gpu_id), torch.rtriton.Stream(gpu_id))
     )  # Normal stream for decode
 
     CURRENT_STREAM_IDX = 0
@@ -149,7 +149,7 @@ def set_current_stream_idx(idx: int):
     CURRENT_STREAM_GROUP = STREAM_GROUPS[CURRENT_STREAM_IDX]
 
 
-def get_stream_groups() -> list[tuple[torch.cuda.Stream, torch.cuda.Stream]]:
+def get_stream_groups() -> list[tuple[torch.rtriton.Stream, torch.rtriton.Stream]]:
     """Get the stream groups."""
     return STREAM_GROUPS
 

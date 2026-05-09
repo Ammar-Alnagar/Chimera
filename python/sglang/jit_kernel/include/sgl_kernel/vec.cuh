@@ -1,6 +1,6 @@
 #pragma once
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
+#include <rtriton_bf16.h>
+#include <rtriton_fp16.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -46,7 +46,7 @@ template <typename T, std::size_t N>
 struct aligned_vector {
  private:
   /// NOTE: 1. must be pow of two 2. 16 * 8 = 128 byte, which is the max vector size supported by most devices
-  static_assert((N > 0 && (N & (N - 1)) == 0) && sizeof(T) * N <= 16, "CUDA only support at most 128B vector op");
+  static_assert((N > 0 && (N & (N - 1)) == 0) && sizeof(T) * N <= 16, "RTRITON only support at most 128B vector op");
   using element_t = typename details::sized_int<T>;
   using storage_t = aligned_storage<element_t, N>;
 

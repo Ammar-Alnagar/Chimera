@@ -1,6 +1,6 @@
-#include <ATen/cuda/Exceptions.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <c10/cuda/CUDAStream.h>
+#include <ATen/rtriton/Exceptions.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <c10/rtriton/RTRITONStream.h>
 #include <torch/all.h>
 
 #ifdef USE_ROCM
@@ -50,8 +50,8 @@ void qr_open_handles(quickreduce::fptr_t _fa, const std::vector<torch::Tensor>& 
 void qr_all_reduce(
     quickreduce::fptr_t _fa, torch::Tensor& inp, torch::Tensor& out, int64_t quant_level, bool cast_bf2half) {
   auto fa = reinterpret_cast<quickreduce::DeviceComms*>(_fa);
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(inp));
-  auto stream = at::cuda::getCurrentHIPStreamMasqueradingAsCUDA();
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(inp));
+  auto stream = at::rtriton::getCurrentHIPStreamMasqueradingAsRTRITON();
 
   TORCH_CHECK_EQ(inp.scalar_type(), out.scalar_type());
   TORCH_CHECK_EQ(inp.numel(), out.numel());

@@ -35,7 +35,7 @@ from sglang.srt.batch_overlap.two_batch_overlap import (
     MaybeTboDeepEPDispatcher,
     model_forward_maybe_tbo,
 )
-from sglang.srt.compilation.piecewise_context_manager import is_in_piecewise_cuda_graph
+from sglang.srt.compilation.piecewise_context_manager import is_in_piecewise_rtriton_graph
 from sglang.srt.configs.model_config import (
     get_nsa_index_head_dim,
     get_nsa_index_n_heads,
@@ -149,7 +149,7 @@ from sglang.srt.utils import (
     get_bool_env_var,
     get_device_sm,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_gfx95_supported,
     is_hip,
     is_non_idle_and_non_empty,
@@ -161,7 +161,7 @@ from sglang.srt.utils import (
 )
 
 _is_hip = is_hip()
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_npu = is_npu()
 _is_fp8_fnuz = is_fp8_fnuz()
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
@@ -194,7 +194,7 @@ if _use_aiter_gfx95:
         get_dsv3_gemm_output_zero_allocator_size,
     )
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import (
         awq_dequantize,
         bmm_fp8,
@@ -354,7 +354,7 @@ def _support_mha_one_shot(attn: DeepseekV2AttentionMLA, forward_batch, backend_n
 def _handle_attention_backend(
     attn: DeepseekV2AttentionMLA, forward_batch, backend_name
 ):
-    if is_in_piecewise_cuda_graph():
+    if is_in_piecewise_rtriton_graph():
         return AttnForwardMethod.MLA
 
     sum_extend_prefix_lens = _get_sum_extend_prefix_lens(forward_batch)
@@ -406,7 +406,7 @@ def handle_attention_fa4(attn, forward_batch):
 
 
 def handle_attention_trtllm_mla(attn, forward_batch):
-    if is_in_piecewise_cuda_graph():
+    if is_in_piecewise_rtriton_graph():
         return AttnForwardMethod.MLA
 
     sum_extend_prefix_lens = _get_sum_extend_prefix_lens(forward_batch)
@@ -440,7 +440,7 @@ def handle_attention_nsa(attn, forward_batch):
 
 
 def handle_attention_triton(attn, forward_batch):
-    if is_in_piecewise_cuda_graph():
+    if is_in_piecewise_rtriton_graph():
         return AttnForwardMethod.MLA
 
     # when deterministic inference is enabled, use MLA
@@ -585,7 +585,7 @@ class MoEGate(nn.Module):
         else:
             # NOTE: For some unknown reason, router_gemm seems degrade accept length.
             if (
-                _is_cuda
+                _is_rtriton
                 and hidden_states.shape[0] <= 16
                 and hidden_states.shape[1] == 7168
                 and (self.weight.shape[0] == 256 or self.weight.shape[0] == 384)
@@ -614,7 +614,7 @@ class DeepseekV2MoE(nn.Module):
         layer_id: int,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
         is_nextn: bool = False,
     ):
         super().__init__()
@@ -798,7 +798,7 @@ class DeepseekV2MoE(nn.Module):
         gemm_output_zero_allocator: BumpAllocator = None,
     ) -> torch.Tensor:
         if not self._enable_a2a_moe:
-            from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
+            from sglang.srt.model_executor.rtriton_graph_runner import get_is_capture_mode
 
             if (
                 self.alt_stream is not None
@@ -830,18 +830,18 @@ class DeepseekV2MoE(nn.Module):
         gemm_output_zero_allocator: BumpAllocator = None,
     ) -> torch.Tensor:
 
-        current_stream = torch.cuda.current_stream()
+        current_stream = torch.rtriton.current_stream()
         self.alt_stream.wait_stream(current_stream)
         shared_output = self._forward_shared_experts(
             hidden_states, gemm_output_zero_allocator
         )
 
-        with torch.cuda.stream(self.alt_stream):
+        with torch.rtriton.stream(self.alt_stream):
             # router_logits: (num_tokens, n_experts)
             router_logits = self.gate(hidden_states, gemm_output_zero_allocator)
             topk_output = self.topk(hidden_states, router_logits)
             final_hidden_states = self.experts(hidden_states, topk_output)
-            if not _is_cuda or isinstance(self.experts.quant_method, KTEPWrapperMethod):
+            if not _is_rtriton or isinstance(self.experts.quant_method, KTEPWrapperMethod):
                 final_hidden_states *= self.routed_scaling_factor
 
         current_stream.wait_stream(self.alt_stream)
@@ -889,8 +889,8 @@ class DeepseekV2MoE(nn.Module):
             ):
 
                 nonlocal shared_output
-                self.alt_stream.wait_stream(torch.cuda.current_stream())
-                with torch.cuda.stream(self.alt_stream):
+                self.alt_stream.wait_stream(torch.rtriton.current_stream())
+                with torch.rtriton.stream(self.alt_stream):
                     shared_output = self._forward_shared_experts(
                         hidden_states, gemm_output_zero_allocator
                     )
@@ -901,7 +901,7 @@ class DeepseekV2MoE(nn.Module):
                 dispatcher: BaseDispatcher, hidden_states: torch.Tensor
             ):
                 nonlocal shared_output
-                torch.cuda.current_stream().wait_stream(self.alt_stream)
+                torch.rtriton.current_stream().wait_stream(self.alt_stream)
                 post_combine_hook_handle.remove()
 
             pre_combine_hook_handle = self.experts.dispatcher.register_pre_combine_hook(
@@ -916,7 +916,7 @@ class DeepseekV2MoE(nn.Module):
             topk_output,
         )
         if (
-            not _is_cuda
+            not _is_rtriton
             and not _use_aiter
             or isinstance(self.experts.quant_method, KTEPWrapperMethod)
         ):
@@ -1010,8 +1010,8 @@ class DeepseekV2MoE(nn.Module):
             router_logits = self.gate(hidden_states, forward_batch=forward_batch)
             if not sbo_enabled_flag:
                 if self.alt_stream is not None:
-                    self.alt_stream.wait_stream(torch.cuda.current_stream())
-                    with torch.cuda.stream(self.alt_stream):
+                    self.alt_stream.wait_stream(torch.rtriton.current_stream())
+                    with torch.rtriton.stream(self.alt_stream):
                         shared_output = self._forward_shared_experts(hidden_states)
                         shared_output.record_stream(self.alt_stream)
                         shared_event = self.alt_stream.record_event()
@@ -1140,7 +1140,7 @@ class DeepseekV2MoE(nn.Module):
             and not sbo_enabled_flag
             and self.alt_stream is not None
         ):
-            torch.cuda.current_stream().wait_event(shared_event)
+            torch.rtriton.current_stream().wait_event(shared_event)
         if shared_output is not None:
             x = shared_output
             if self.experts.should_fuse_routed_scaling_factor_in_topk:
@@ -1287,7 +1287,7 @@ class DeepseekV2AttentionMLA(nn.Module):
         reduce_results: bool = True,
         layer_id: int = None,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
         skip_rope: bool = False,
     ) -> None:
         super().__init__()
@@ -1495,7 +1495,7 @@ class DeepseekV2AttentionMLA(nn.Module):
             and self.fused_qkv_a_proj_with_mqa.weight.dtype == torch.bfloat16
             and self.fused_qkv_a_proj_with_mqa.weight.shape[0] == 2112
             and self.fused_qkv_a_proj_with_mqa.weight.shape[1] == 7168
-            and _is_cuda
+            and _is_rtriton
             and 90 <= _device_sm < 120
         )
 
@@ -1849,7 +1849,7 @@ class DeepseekV2AttentionMLA(nn.Module):
             latent_cache.contiguous(),
             self.cp_size,
             forward_batch,
-            torch.cuda.current_stream(),
+            torch.rtriton.current_stream(),
         )
         k_nope = latent_cache_output[..., : self.kv_lora_rank].unsqueeze(1)
         k_pe = latent_cache_output[..., self.kv_lora_rank :].unsqueeze(1)
@@ -1863,7 +1863,7 @@ class DeepseekV2AttentionMLA(nn.Module):
         zero_allocator: BumpAllocator,
         llama_4_scaling: Optional[torch.Tensor] = None,
     ):
-        from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
+        from sglang.srt.model_executor.rtriton_graph_runner import get_is_capture_mode
 
         q_lora = None
         if self.q_lora_rank is not None:
@@ -1879,10 +1879,10 @@ class DeepseekV2AttentionMLA(nn.Module):
 
             # overlap qk norm
             if self.alt_stream is not None and get_is_capture_mode():
-                current_stream = torch.cuda.current_stream()
+                current_stream = torch.rtriton.current_stream()
                 self.alt_stream.wait_stream(current_stream)
                 q = self.q_a_layernorm(q)
-                with torch.cuda.stream(self.alt_stream):
+                with torch.rtriton.stream(self.alt_stream):
                     k_nope = self.kv_a_layernorm(k_nope)
                 current_stream.wait_stream(self.alt_stream)
             else:
@@ -2204,7 +2204,7 @@ class DeepseekV2AttentionMLA(nn.Module):
             )
             attn_bmm_output = attn_bmm_output.transpose(0, 1).flatten(1, 2)
         else:
-            if is_in_piecewise_cuda_graph():
+            if is_in_piecewise_rtriton_graph():
                 # torch dynamo requires out= op was called where output tensor was non-contiguous
                 attn_bmm_output = (
                     torch.bmm(attn_output.transpose(0, 1), self.w_vc)
@@ -2627,7 +2627,7 @@ class DeepseekV2AttentionMLA(nn.Module):
         k_pe: torch.Tensor,
         forward_batch: ForwardBatch,
     ):
-        if _is_cuda or _use_aiter_gfx95:
+        if _is_rtriton or _use_aiter_gfx95:
             # Save latent cache
             forward_batch.token_to_kv_pool.set_mla_kv_buffer(
                 self.attn_mha, forward_batch.out_cache_loc, kv_a.unsqueeze(1), k_pe
@@ -2652,7 +2652,7 @@ class DeepseekV2AttentionMLA(nn.Module):
         dst_dtype: torch.dtype,
         forward_batch: ForwardBatch,
     ):
-        if _is_cuda or _use_aiter_gfx95:
+        if _is_rtriton or _use_aiter_gfx95:
             kv_a, k_pe = forward_batch.token_to_kv_pool.get_mla_kv_buffer(
                 self.attn_mha, kv_indices, dst_dtype
             )
@@ -2701,14 +2701,14 @@ class DeepseekV2AttentionMLA(nn.Module):
         # Temporary for DeepSeek V3/R1 only, but can generalize if needed
         k_shape = (k_nope.shape[0], self.num_local_heads, self.qk_head_dim)
         if (
-            _is_cuda
+            _is_rtriton
             and (self.num_local_heads == 128)
             and (self.qk_nope_head_dim == 128)
             and (self.qk_rope_head_dim == 64)
         ):
             k = k_nope.new_empty(*k_shape)
             concat_mla_k(k=k, k_nope=k_nope, k_rope=k_pe)
-        elif _is_cuda:
+        elif _is_rtriton:
             # fa3 mha support fp8 inputs
             if (
                 self.current_attention_backend == "fa3"
@@ -2750,7 +2750,7 @@ class DeepseekV2DecoderLayer(nn.Module):
         moe_quant_config_override: Optional[QuantizationConfig] = None,
         is_nextn: bool = False,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.hidden_size = config.hidden_size
@@ -3045,8 +3045,8 @@ class DeepseekV2Model(nn.Module):
             self.embed_tokens = PPMissingLayer()
 
         self.alt_stream = (
-            torch.cuda.Stream()
-            if _is_cuda or envs.SGLANG_NPU_USE_MULTI_STREAM.get()
+            torch.rtriton.Stream()
+            if _is_rtriton or envs.SGLANG_NPU_USE_MULTI_STREAM.get()
             else None
         )
 
@@ -3211,7 +3211,7 @@ class DeepseekV2Model(nn.Module):
             # NOTE: torch dynamo does not support graph break in context manager
             ctx = (
                 nullcontext()
-                if get_global_server_args().enable_piecewise_cuda_graph
+                if get_global_server_args().enable_piecewise_rtriton_graph
                 else get_global_expert_distribution_recorder().with_current_layer(i)
             )
             with ctx:
@@ -3268,7 +3268,7 @@ class DeepseekV2Model(nn.Module):
                 hidden_states,
                 self.cp_size,
                 forward_batch,
-                torch.cuda.current_stream(),
+                torch.rtriton.current_stream(),
             )
         if len(aux_hidden_states) == 0:
             return hidden_states
@@ -3360,15 +3360,15 @@ class DeepseekV2ForCausalLM(nn.Module):
             or self.config.n_shared_experts != 1
         ):
             disable_reason = "Config not support fused shared expert(s)."
-        elif (not _is_cuda or torch.cuda.get_device_capability("cuda") < (8, 0)) and (
-            not _is_hip or torch.cuda.get_device_capability("cuda") < (9, 4)
+        elif (not _is_rtriton or torch.rtriton.get_device_capability("rtriton") < (8, 0)) and (
+            not _is_hip or torch.rtriton.get_device_capability("rtriton") < (9, 4)
         ):
             disable_reason = (
                 "Only Deepseek V3/R1 on NV-platform with capability >= 80 "
                 "or AMD-platform with capability >= gfx942(MI30x) can use shared experts fusion optimization."
             )
         elif get_moe_expert_parallel_world_size() > 1 and (
-            not _is_hip or torch.cuda.get_device_capability("cuda") < (9, 4)
+            not _is_hip or torch.rtriton.get_device_capability("rtriton") < (9, 4)
         ):
             disable_reason = "Only Deepseek V3/R1 on AMD-platform with capability >= gfx942(MI30x) can use shared experts fusion optimization under expert parallelism."
         elif disable_reason is None and get_moe_a2a_backend().is_deepep():
@@ -3459,7 +3459,7 @@ class DeepseekV2ForCausalLM(nn.Module):
             )
             if hasattr(self_attn.kv_b_proj, "qweight"):
                 # AWQ compatible
-                if _is_cuda or _is_hip or _is_npu:
+                if _is_rtriton or _is_hip or _is_npu:
                     w = awq_dequantize(
                         self_attn.kv_b_proj.qweight,
                         self_attn.kv_b_proj.scales,
@@ -3526,7 +3526,7 @@ class DeepseekV2ForCausalLM(nn.Module):
                         )
 
                     if (
-                        _is_cuda
+                        _is_rtriton
                         and weight_block_size[0] == 128
                         and weight_block_size[1] == 128
                     ):
@@ -3924,8 +3924,8 @@ class DeepseekV2ForCausalLM(nn.Module):
         del self.lm_head.weight
         self.model.embed_tokens.weight = embed
         self.lm_head.weight = head
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        torch.rtriton.empty_cache()
+        torch.rtriton.synchronize()
 
     @classmethod
     def get_model_config_for_expert_location(cls, config):

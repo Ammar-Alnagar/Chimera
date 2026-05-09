@@ -87,14 +87,14 @@ def baseline_scaled_mm(
 
 
 def is_blackwell_supported(device=None) -> bool:
-    return (torch.cuda.get_device_capability(device)[0] in [10, 12]) and (
-        torch.version.cuda >= "12.8"
+    return (torch.rtriton.get_device_capability(device)[0] in [10, 12]) and (
+        torch.version.rtriton >= "12.8"
     )
 
 
 def is_sm90_supported(device=None) -> bool:
-    return (torch.cuda.get_device_capability(device)[0] == 9) and (
-        torch.version.cuda >= "12.3"
+    return (torch.rtriton.get_device_capability(device)[0] == 9) and (
+        torch.version.rtriton >= "12.3"
     )
 
 
@@ -105,7 +105,7 @@ def is_sm90_supported(device=None) -> bool:
 @pytest.mark.parametrize("num_experts", [8, 16, 32, 64, 128])
 @pytest.mark.parametrize("out_dtype", [torch.half, torch.bfloat16])
 def test_fp8_blockwise_scaled_grouped_mm(num_experts, out_dtype):
-    device = "cuda"
+    device = "rtriton"
     alignment = 128
     n_g = random.randint(1, 64) * 128
     k_g = random.randint(1, 64) * 128

@@ -55,12 +55,12 @@ from sglang.srt.utils import (
     add_prefix,
     fast_topk,
     get_compiler_backend,
-    is_cuda,
+    is_rtriton,
     make_layers,
 )
 from sglang.srt.utils.common import get_current_device_stream_fast
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ class Llama4MoE(nn.Module):
         return out_aD
 
     def _forward_core(self, hidden_states, forward_mode: ForwardMode):
-        if _is_cuda:
+        if _is_rtriton:
             return self._forward_core_shared_routed_overlap(hidden_states)
         else:
             return self._forward_core_normal(hidden_states)
@@ -331,7 +331,7 @@ class Llama4Attention(nn.Module):
             del q_view, k_view, q_out_unused, k_out_unused
 
         if self.qk_norm is not None:
-            # TODO there are still 2 redundant direct_copy_kernel_cuda for this `reshape` and (in attn backend) q.contiguous(), maybe we can fuse them later
+            # TODO there are still 2 redundant direct_copy_kernel_rtriton for this `reshape` and (in attn backend) q.contiguous(), maybe we can fuse them later
             qk = qk.reshape(-1, self.head_dim).contiguous().bfloat16()
             qk = self.qk_norm(qk).to(torch.bfloat16)
             qk = qk.reshape(-1, self.q_size + self.kv_size)

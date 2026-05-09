@@ -46,7 +46,7 @@ def check_quant_method(model_path: str, use_marlin_kernel: bool):
     model_config = ModelConfig.from_server_args(server_args)
 
     load_config = LoadConfig()
-    device_config = DeviceConfig("cuda")
+    device_config = DeviceConfig("rtriton")
     model = get_model(
         model_config=model_config, load_config=load_config, device_config=device_config
     )

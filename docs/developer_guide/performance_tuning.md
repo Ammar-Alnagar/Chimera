@@ -177,7 +177,7 @@ os.environ["SGL_KERNEL_USE_TILELANG"] = "1"
 
 ```python
 # Enable TF32 for better performance (slight precision loss)
-torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.rtriton.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 # Enable benchmark mode for optimal kernel selection
@@ -385,7 +385,7 @@ python -m pytorch_profiler.analyze /tmp/profile
 ```bash
 # Profile with Nsight Systems
 nsys profile --stats=true \
-  -t cuda,nvtx,osrt \
+  -t rtriton,nvtx,osrt \
   -o /tmp/profile.qdrep \
   python -m sglang.launch_server \
   --model-path meta-llama/Llama-3.1-8B-Instruct
@@ -445,7 +445,7 @@ python benchmark/multi_turn.py \
 
 - [ ] Select appropriate GPU for model size
 - [ ] Set GPU to performance mode
-- [ ] Install latest CUDA and drivers
+- [ ] Install latest RTRITON and drivers
 - [ ] Configure NCCL for multi-GPU
 - [ ] Enable huge pages for memory
 
@@ -559,7 +559,7 @@ python -m sglang.launch_server \
 
 ### Issue 3: Out of Memory
 
-**Symptoms:** CUDA OOM errors
+**Symptoms:** RTRITON OOM errors
 
 **Solutions:**
 - Reduce `--mem-fraction-static`

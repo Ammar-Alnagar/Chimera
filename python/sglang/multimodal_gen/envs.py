@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     SGLANG_DIFFUSION_NCCL_SO_PATH: str | None = None
     LD_LIBRARY_PATH: str | None = None
     LOCAL_RANK: int = 0
-    CUDA_VISIBLE_DEVICES: str | None = None
+    RTRITON_VISIBLE_DEVICES: str | None = None
     SGLANG_DIFFUSION_CACHE_ROOT: str = os.path.expanduser("~/.cache/sgl_diffusion")
     SGLANG_DIFFUSION_CONFIG_ROOT: str = os.path.expanduser("~/.config/sgl_diffusion")
     SGLANG_DIFFUSION_CONFIGURE_LOGGING: int = 1
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     SGLANG_DIFFUSION_LOGGING_CONFIG_PATH: str | None = None
     SGLANG_DIFFUSION_TRACE_FUNCTION: int = 0
     SGLANG_DIFFUSION_WORKER_MULTIPROC_METHOD: str = "fork"
-    SGLANG_DIFFUSION_TARGET_DEVICE: str = "cuda"
+    SGLANG_DIFFUSION_TARGET_DEVICE: str = "rtriton"
     MAX_JOBS: str | None = None
     NVCC_THREADS: str | None = None
     CMAKE_BUILD_TYPE: str | None = None
@@ -133,10 +133,10 @@ def _lazy_path(
 
 environment_variables: dict[str, Callable[[], Any]] = {
     # ================== Installation Time Env Vars ==================
-    # Target device of sglang-diffusion, supporting [cuda (by default),
+    # Target device of sglang-diffusion, supporting [rtriton (by default),
     # rocm, neuron, cpu, openvino]
     "SGLANG_DIFFUSION_TARGET_DEVICE": _lazy_str(
-        "SGLANG_DIFFUSION_TARGET_DEVICE", "cuda"
+        "SGLANG_DIFFUSION_TARGET_DEVICE", "rtriton"
     ),
     # Maximum number of compilation jobs to run in parallel.
     # By default this is the number of CPUs
@@ -192,7 +192,7 @@ environment_variables: dict[str, Callable[[], Any]] = {
     # the GPU device id
     "LOCAL_RANK": _lazy_int("LOCAL_RANK", 0),
     # used to control the visible devices in the distributed setting
-    "CUDA_VISIBLE_DEVICES": _lazy_str("CUDA_VISIBLE_DEVICES"),
+    "RTRITON_VISIBLE_DEVICES": _lazy_str("RTRITON_VISIBLE_DEVICES"),
     # timeout for each iteration in the engine
     "SGLANG_DIFFUSION_ENGINE_ITERATION_TIMEOUT_S": _lazy_int(
         "SGLANG_DIFFUSION_ENGINE_ITERATION_TIMEOUT_S", 60

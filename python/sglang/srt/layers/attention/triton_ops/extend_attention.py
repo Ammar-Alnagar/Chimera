@@ -23,11 +23,11 @@ import triton.language as tl
 from sglang.srt.layers.attention.triton_ops.prefill_attention import (
     context_attention_fwd,
 )
-from sglang.srt.utils import is_cuda, is_hip
+from sglang.srt.utils import is_rtriton, is_hip
 
-_is_cuda = is_cuda()
-if _is_cuda:
-    CUDA_CAPABILITY = torch.cuda.get_device_capability()
+_is_rtriton = is_rtriton()
+if _is_rtriton:
+    RTRITON_CAPABILITY = torch.rtriton.get_device_capability()
 
 _is_hip = is_hip()
 
@@ -64,16 +64,16 @@ def _get_block_sizes_for_extend_attention(Lq: int, Lv: int):
         BLOCK_M, BLOCK_N = (64, 64)
         num_warps = 4
     else:
-        if _is_cuda and CUDA_CAPABILITY[0] >= 9:
+        if _is_rtriton and RTRITON_CAPABILITY[0] >= 9:
             # Hopper architecture (H100, etc.)
             if Lq <= 256:
                 BLOCK_M, BLOCK_N = (128, 64)
             else:
                 BLOCK_M, BLOCK_N = (32, 64)
-        elif _is_cuda and CUDA_CAPABILITY[0] >= 8:
+        elif _is_rtriton and RTRITON_CAPABILITY[0] >= 8:
             # Ampere architecture (A100, etc.)
             # sm86/sm89 has a much smaller shared memory size (100K) than sm80 (160K)
-            if CUDA_CAPABILITY[1] == 9 or CUDA_CAPABILITY[1] == 6:
+            if RTRITON_CAPABILITY[1] == 9 or RTRITON_CAPABILITY[1] == 6:
                 if Lq <= 128:
                     BLOCK_M, BLOCK_N = (64, 128)
                 elif Lq <= 256:
@@ -180,7 +180,7 @@ def build_unified_kv_indices(
 
     prefix_lens = prefix_kv_indptr[1 : bs + 1] - prefix_kv_indptr[:bs]
 
-    # Create unified_kv_indptr avoiding direct assignment (for CUDA graph compatibility)
+    # Create unified_kv_indptr avoiding direct assignment (for RTRITON graph compatibility)
     unified_lens = prefix_lens + extend_seq_lens[:bs]
     unified_kv_indptr = torch.cat(
         [

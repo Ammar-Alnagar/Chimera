@@ -107,11 +107,11 @@ When launching the model server for **multimodal support**, you can use the foll
 - `--mm-max-concurrent-calls <value>`: Specifies the **maximum number of concurrent asynchronous multimodal data processing calls** allowed on the server. Use this to control parallel throughput and GPU memory usage during image/video inference.
 - `--mm-per-request-timeout <seconds>`: Defines the **timeout duration (in seconds)** for each multimodal request. If a request exceeds this time limit (e.g., for very large video inputs), it will be automatically terminated.
 - `--keep-mm-feature-on-device`: Instructs the server to **retain multimodal feature tensors on the GPU** after processing. This avoids device-to-host (D2H) memory copies and improves performance for repeated or high-frequency inference workloads.
-- `SGLANG_USE_CUDA_IPC_TRANSPORT=1`: Shared memory pool based CUDA IPC for multi-modal data transport. For significantly improving e2e latency.
+- `SGLANG_USE_RTRITON_IPC_TRANSPORT=1`: Shared memory pool based RTRITON IPC for multi-modal data transport. For significantly improving e2e latency.
 
 ### Example usage with the above optimizations:
 ```bash
-SGLANG_USE_CUDA_IPC_TRANSPORT=1 \
+SGLANG_USE_RTRITON_IPC_TRANSPORT=1 \
 SGLANG_VLM_CACHE_SIZE_MB=0 \
 python -m sglang.launch_server \
   --model-path Qwen/Qwen3-VL-235B-A22B-Instruct \

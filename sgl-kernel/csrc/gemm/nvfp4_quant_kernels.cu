@@ -13,10 +13,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <rtriton_runtime.h>
+#include <rtriton_runtime_api.h>
 #include <torch/all.h>
 
 #include "nvfp4_quant.cuh"
@@ -25,7 +25,7 @@ limitations under the License.
 // Quantizes the provided PackedVec into the uint32_t output
 template <class Type, bool UE8M0_SF = false>
 __device__ uint32_t cvt_warp_fp16_to_fp4(PackedVec<Type>& vec, float SFScaleVal, uint8_t* SFout) {
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
   // Get absolute maximum values among the local 8 values.
   auto localMax = __habs2(vec.elts[0]);
 
@@ -49,7 +49,7 @@ __device__ uint32_t cvt_warp_fp16_to_fp4(PackedVec<Type>& vec, float SFScaleVal,
   // Write the SF to global memory (STG.8).
   if constexpr (UE8M0_SF) {
     __nv_fp8_e8m0 tmp;
-    tmp.__x = __nv_cvt_float_to_e8m0(SFValue, __NV_SATFINITE, cudaRoundPosInf);
+    tmp.__x = __nv_cvt_float_to_e8m0(SFValue, __NV_SATFINITE, rtritonRoundPosInf);
     SFValue = static_cast<float>(tmp);
     fp8SFVal = tmp.__x;
   } else {
@@ -96,13 +96,13 @@ __device__ uint32_t cvt_warp_fp16_to_fp4(PackedVec<Type>& vec, float SFScaleVal,
 // Use UE4M3 by default.
 template <class Type, bool UE8M0_SF = false>
 __global__ void
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
 __launch_bounds__(512, 4) cvt_fp16_to_fp4(
 #else
 cvt_fp16_to_fp4(
 #endif
     int32_t numRows, int32_t numCols, Type const* in, float const* SFScale, uint32_t* out, uint32_t* SFout) {
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
   using PackedVec = PackedVec<Type>;
   static constexpr int CVT_FP4_NUM_THREADS_PER_SF = (CVT_FP4_SF_VEC_SIZE / CVT_FP4_ELTS_PER_THREAD);
   static_assert(sizeof(PackedVec) == sizeof(Type) * CVT_FP4_ELTS_PER_THREAD, "Vec size is not matched.");
@@ -141,7 +141,7 @@ void invokeFP4Quantization(
     int32_t* SFOuput,
     bool useUE8M0,
     int multiProcessorCount,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   // Grid, Block size.
   // Each thread converts 8 values.
   dim3 block(std::min(int(n / ELTS_PER_THREAD), 512));
@@ -169,7 +169,7 @@ template void invokeFP4Quantization(
     int32_t* SFOuput,
     bool useUE8M0,
     int multiProcessorCount,
-    cudaStream_t stream);
+    rtritonStream_t stream);
 
 template void invokeFP4Quantization(
     int m,
@@ -180,18 +180,18 @@ template void invokeFP4Quantization(
     int32_t* SFOuput,
     bool useUE8M0,
     int multiProcessorCount,
-    cudaStream_t stream);
+    rtritonStream_t stream);
 
 inline int getMultiProcessorCount() {
   static int multi_processor_count = []() {
     int device_id = 0;
     int count = 0;
 
-    // Get the current CUDA device ID
-    CHECK_CUDA_SUCCESS(cudaGetDevice(&device_id));
+    // Get the current RTRITON device ID
+    CHECK_RTRITON_SUCCESS(rtritonGetDevice(&device_id));
 
     // Get the number of multiprocessors for the current device
-    CHECK_CUDA_SUCCESS(cudaDeviceGetAttribute(&count, cudaDevAttrMultiProcessorCount, device_id));
+    CHECK_RTRITON_SUCCESS(rtritonDeviceGetAttribute(&count, rtritonDevAttrMultiProcessorCount, device_id));
 
     return count;  // Initialize the static variable
   }();
@@ -217,8 +217,8 @@ void scaled_fp4_quant_sm100a_sm120a(
   auto input_sf_ptr = static_cast<float const*>(input_sf.data_ptr());
   auto sf_out = static_cast<int32_t*>(output_sf.data_ptr());
   auto output_ptr = static_cast<int64_t*>(output.data_ptr());
-  at::cuda::CUDAGuard device_guard{(char)input.get_device()};
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream(input.get_device());
+  at::rtriton::RTRITONGuard device_guard{(char)input.get_device()};
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream(input.get_device());
 
   // We don't support e8m0 scales at this moment.
   bool useUE8M0 = false;

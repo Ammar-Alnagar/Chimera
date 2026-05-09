@@ -434,7 +434,7 @@ sequenceDiagram
     Scheduler->>Kernel: Execute kernel
     Note over Kernel: span: kernel_execution
     
-    Kernel->>GPU: Launch CUDA kernel
+    Kernel->>GPU: Launch RTRITON kernel
     Note over GPU: span: gpu_execution
     
     GPU-->>Kernel: Complete
@@ -767,7 +767,7 @@ curl http://localhost:30000/metrics | grep chimera_gpu_memory
 **Resolution:**
 1. Review error logs for root cause
 2. If OOM errors, reduce batch size or memory fraction
-3. If kernel errors, check CUDA/driver compatibility
+3. If kernel errors, check RTRITON/driver compatibility
 4. Restart pod if necessary
 5. Roll back recent changes if errors started after deployment
 

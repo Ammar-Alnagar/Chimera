@@ -349,10 +349,10 @@ class SchedulerOutputProcessorMixin:
         if result.copy_done is not None:
             result.copy_done.synchronize()
 
-        logits_output, next_token_ids, can_run_cuda_graph = (
+        logits_output, next_token_ids, can_run_rtriton_graph = (
             result.logits_output,
             result.next_token_ids,
-            result.can_run_cuda_graph,
+            result.can_run_rtriton_graph,
         )
 
         if batch.spec_algorithm.is_none():
@@ -366,7 +366,7 @@ class SchedulerOutputProcessorMixin:
         if not batch.spec_algorithm.is_none():
             self.update_spec_metrics(batch.batch_size(), result.num_accepted_tokens)
         if self.enable_metrics:
-            self.metrics_collector.increment_cuda_graph_pass(value=can_run_cuda_graph)
+            self.metrics_collector.increment_rtriton_graph_pass(value=can_run_rtriton_graph)
 
         self.token_to_kv_pool_allocator.free_group_begin()
 
@@ -459,7 +459,7 @@ class SchedulerOutputProcessorMixin:
             self.current_scheduler_metrics_enabled
             and self.forward_ct_decode % self.server_args.decode_log_interval == 0
         ):
-            self.log_decode_stats(can_run_cuda_graph, running_batch=batch)
+            self.log_decode_stats(can_run_rtriton_graph, running_batch=batch)
         if self.enable_metrics:
             self.log_decode_stats_every_iteration(
                 batch, num_accepted_tokens=result.num_accepted_tokens

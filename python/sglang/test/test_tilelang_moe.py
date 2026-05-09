@@ -62,8 +62,8 @@ def to_fp8(tensor: torch.Tensor) -> torch.Tensor:
 
 def run_test(tp_size, batch_size, model_config, check=False):
     print(f"\n--- Batch Size: {batch_size} ---")
-    torch.set_default_device("cuda")
-    torch.cuda.manual_seed_all(42)  # For reproducible random numbers
+    torch.set_default_device("rtriton")
+    torch.rtriton.manual_seed_all(42)  # For reproducible random numbers
 
     E = model_config["num_experts"]
     topk = model_config["topk"]
@@ -78,11 +78,11 @@ def run_test(tp_size, batch_size, model_config, check=False):
 
     # --- Input Data ---
     # Use bf16/fp16 for input activation based on model config
-    x = torch.randn((batch_size, H), device="cuda", dtype=dtype)
+    x = torch.randn((batch_size, H), device="rtriton", dtype=dtype)
     # --- Weights (Generate in higher precision, then convert to FP8) ---
     # Generate weights suitable for FP8 conversion (e.g., scaled appropriately)
-    w1_hp = torch.randn((E, I, H), device="cuda", dtype=torch.float32)
-    w2_hp = torch.randn((E, H, I // 2), device="cuda", dtype=torch.float32)
+    w1_hp = torch.randn((E, I, H), device="rtriton", dtype=torch.float32)
+    w2_hp = torch.randn((E, H, I // 2), device="rtriton", dtype=torch.float32)
 
     w1 = to_fp8(w1_hp)
     w2 = to_fp8(w2_hp)
@@ -98,40 +98,40 @@ def run_test(tp_size, batch_size, model_config, check=False):
     # Scales are typically float32 or float16/bfloat16
     scale_dtype = torch.float32  # Or dtype if scales match model dtype
     w1_scale = torch.full(
-        (E, w1_blocks_dim1, w1_blocks_dim2), 1, device="cuda", dtype=scale_dtype
+        (E, w1_blocks_dim1, w1_blocks_dim2), 1, device="rtriton", dtype=scale_dtype
     )  # Avoid zero scales
     w2_scale = torch.full(
-        (E, w2_blocks_dim1, w2_blocks_dim2), 1, device="cuda", dtype=scale_dtype
+        (E, w2_blocks_dim1, w2_blocks_dim2), 1, device="rtriton", dtype=scale_dtype
     )  # Avoid zero scales
 
     # --- Routing Information ---
     topk_weights = torch.softmax(
-        torch.rand(batch_size, topk, device="cuda", dtype=dtype), dim=-1
+        torch.rand(batch_size, topk, device="rtriton", dtype=dtype), dim=-1
     )
-    topk_ids = torch.randint(0, E, (batch_size, topk), dtype=torch.int32, device="cuda")
+    topk_ids = torch.randint(0, E, (batch_size, topk), dtype=torch.int32, device="rtriton")
 
-    a1_strides = torch.full((E,), H, dtype=torch.int64, device="cuda")
-    c1_strides = torch.full((E,), I, dtype=torch.int64, device="cuda")
-    a2_strides = torch.full((E,), I // 2, dtype=torch.int64, device="cuda")
-    c2_strides = torch.full((E,), H, dtype=torch.int64, device="cuda")
+    a1_strides = torch.full((E,), H, dtype=torch.int64, device="rtriton")
+    c1_strides = torch.full((E,), I, dtype=torch.int64, device="rtriton")
+    a2_strides = torch.full((E,), I // 2, dtype=torch.int64, device="rtriton")
+    c2_strides = torch.full((E,), H, dtype=torch.int64, device="rtriton")
 
     workspace = torch.empty(
-        (7182 * 1024), device="cuda", dtype=torch.uint8
+        (7182 * 1024), device="rtriton", dtype=torch.uint8
     )  # Allocate sufficient workspace
     # Pointer arrays (often filled by the kernel or a prep step, but needed as args)
-    a_ptrs = torch.empty((E,), dtype=torch.int64, device="cuda")
-    b_ptrs = torch.empty((E,), dtype=torch.int64, device="cuda")
-    out_ptrs = torch.empty((E,), dtype=torch.int64, device="cuda")
-    a_scales_ptrs = torch.empty((E,), dtype=torch.int64, device="cuda")
-    b_scales_ptrs = torch.empty((E,), dtype=torch.int64, device="cuda")
-    expert_offsets = torch.empty((E + 1,), dtype=torch.int32, device="cuda")
-    problem_sizes1 = torch.empty((E, 3), dtype=torch.int32, device="cuda")
-    problem_sizes2 = torch.empty((E, 3), dtype=torch.int32, device="cuda")
+    a_ptrs = torch.empty((E,), dtype=torch.int64, device="rtriton")
+    b_ptrs = torch.empty((E,), dtype=torch.int64, device="rtriton")
+    out_ptrs = torch.empty((E,), dtype=torch.int64, device="rtriton")
+    a_scales_ptrs = torch.empty((E,), dtype=torch.int64, device="rtriton")
+    b_scales_ptrs = torch.empty((E,), dtype=torch.int64, device="rtriton")
+    expert_offsets = torch.empty((E + 1,), dtype=torch.int32, device="rtriton")
+    problem_sizes1 = torch.empty((E, 3), dtype=torch.int32, device="rtriton")
+    problem_sizes2 = torch.empty((E, 3), dtype=torch.int32, device="rtriton")
 
     enable_es = (False, False)
-    if torch.cuda.get_device_name(torch.cuda.current_device()) == "NVIDIA H200":
+    if torch.rtriton.get_device_name(torch.rtriton.current_device()) == "NVIDIA H200":
         enable_es = (False, True)
-    elif torch.cuda.get_device_name(torch.cuda.current_device()) == "NVIDIA H20":
+    elif torch.rtriton.get_device_name(torch.rtriton.current_device()) == "NVIDIA H20":
         enable_es = (True, True)
 
     # --- Lambdas for Benchmarking ---
@@ -195,17 +195,17 @@ def run_test(tp_size, batch_size, model_config, check=False):
     for _ in range(10):
         _ = tilelang_lambda()
         _ = triton_lambda()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     # --- Benchmarking ---
     quantiles = [0.5, 0.2, 0.8]
     print(f"Benchmarking TileLang fused_experts...")
-    tilelang_ms, tilelang_min, tilelang_max = triton.testing.do_bench_cudagraph(
+    tilelang_ms, tilelang_min, tilelang_max = triton.testing.do_bench_rtritongraph(
         tilelang_lambda, rep=1000, quantiles=quantiles
     )
 
     print(f"Benchmarking Triton fused_experts...")
-    triton_ms, triton_min, triton_max = triton.testing.do_bench_cudagraph(
+    triton_ms, triton_min, triton_max = triton.testing.do_bench_rtritongraph(
         triton_lambda, rep=1000, quantiles=quantiles
     )
     print(

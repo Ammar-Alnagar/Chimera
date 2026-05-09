@@ -18,13 +18,13 @@ from sglang.srt.utils import (
     get_bool_env_var,
     get_compiler_backend,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
     is_npu,
     is_xpu,
 )
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
 _is_npu = is_npu()
@@ -32,7 +32,7 @@ _is_cpu_amx_available = cpu_has_amx_support()
 _is_cpu = is_cpu()
 _is_xpu = is_xpu()
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import FusedSetKVBufferArg, apply_rope_with_cos_sin_cache_inplace
 else:
     FusedSetKVBufferArg = None
@@ -111,15 +111,15 @@ class RotaryEmbedding(MultiPlatformOp):
 
         cache = self._compute_cos_sin_cache()
         # NOTE(ByronHsu): cache needs to be in FP32 for numerical stability
-        if not _is_cuda:
+        if not _is_rtriton:
             cache = cache.to(dtype)
 
         if (
-            (not (_is_cuda or _is_npu) or self.head_size not in [64, 128, 256, 512])
+            (not (_is_rtriton or _is_npu) or self.head_size not in [64, 128, 256, 512])
             and not (_is_cpu and _is_cpu_amx_available)
             and not (_is_xpu)
         ):
-            if _is_cuda or _is_hip:
+            if _is_rtriton or _is_hip:
                 from sgl_kernel import rotary_embedding
             else:
                 from vllm._custom_ops import rotary_embedding
@@ -160,7 +160,7 @@ class RotaryEmbedding(MultiPlatformOp):
             )
         )
         if get_global_server_args().rl_on_policy_target is not None:
-            inv_freq = inv_freq.cuda()
+            inv_freq = inv_freq.rtriton()
         return inv_freq
 
     def _compute_cos_sin_cache(self) -> torch.Tensor:
@@ -339,7 +339,7 @@ class RotaryEmbedding(MultiPlatformOp):
                 positions, query, key, offsets, fused_set_kv_buffer_arg
             )
 
-    def forward_cuda(
+    def forward_rtriton(
         self,
         positions: torch.Tensor,
         query: torch.Tensor,
@@ -818,7 +818,7 @@ class DeepseekScalingRotaryEmbedding(RotaryEmbedding):
         beta_slow: int = 1,
         mscale: float = 1,
         mscale_all_dim: float = 0,
-        device: Optional[str] = "cuda" if not _is_npu else "npu",
+        device: Optional[str] = "rtriton" if not _is_npu else "npu",
     ) -> None:
         self.scaling_factor = scaling_factor
         self.extrapolation_factor = extrapolation_factor
@@ -1543,7 +1543,7 @@ class MRotaryEmbedding(RotaryEmbedding):
         """
         assert positions.ndim == 1 or positions.ndim == 2
 
-        if positions.ndim == 2 and self.mrope_section and _is_cuda:
+        if positions.ndim == 2 and self.mrope_section and _is_rtriton:
             return self._forward_triton(positions, query, key)
         elif _is_npu:
             return self._forward_npu(positions, query, key)
@@ -2342,7 +2342,7 @@ class DualChunkRotaryEmbedding(MultiPlatformOp):
         self.chunk_size = chunk_size
         self.local_size = local_size
         self.dtype = dtype
-        self.device = torch.device(f"cuda:{torch.cuda.current_device()}")
+        self.device = torch.device(f"rtriton:{torch.rtriton.current_device()}")
         (q_cache, qc_cache, k_cache, qc_no_clamp_cache, q_inter_cache) = (
             self._compute_cos_sin_cache()
         )

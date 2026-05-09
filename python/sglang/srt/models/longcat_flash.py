@@ -96,13 +96,13 @@ from sglang.srt.utils import (
     get_bool_env_var,
     get_device_sm,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
     is_npu,
 )
 
 _is_hip = is_hip()
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_npu = is_npu()
 _is_fp8_fnuz = is_fp8_fnuz()
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
@@ -110,7 +110,7 @@ _is_cpu_amx_available = cpu_has_amx_support()
 _is_cpu = is_cpu()
 _device_sm = get_device_sm()
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import awq_dequantize
 elif _is_cpu and _is_cpu_amx_available:
     pass
@@ -306,7 +306,7 @@ class LongcatFlashDecoderLayer(nn.Module):
         layer_id: int,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.config = config
@@ -502,7 +502,7 @@ class LongcatFlashModel(nn.Module):
             enable_tp=not is_dp_attention_enabled(),
         )
 
-        self.alt_stream = torch.cuda.Stream()
+        self.alt_stream = torch.rtriton.Stream()
         self.layers = nn.ModuleList(
             [
                 LongcatFlashDecoderLayer(
@@ -642,7 +642,7 @@ class LongcatFlashForCausalLM(nn.Module):
                 self_attn = self.model.layers[layer_id].self_attn[i]
                 if hasattr(self_attn.kv_b_proj, "qweight"):
                     # AWQ compatible
-                    if _is_cuda or _is_hip:
+                    if _is_rtriton or _is_hip:
                         w = awq_dequantize(
                             self_attn.kv_b_proj.qweight,
                             self_attn.kv_b_proj.scales,
@@ -682,7 +682,7 @@ class LongcatFlashForCausalLM(nn.Module):
                             weight_scale = self_attn.kv_b_proj.weight_scale_inv
 
                         if (
-                            _is_cuda
+                            _is_rtriton
                             and weight_block_size[0] == 128
                             and weight_block_size[1] == 128
                         ):
@@ -1031,8 +1031,8 @@ class LongcatFlashForCausalLM(nn.Module):
         del self.lm_head.weight
         self.model.embed_tokens.weight = embed
         self.lm_head.weight = head
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        torch.rtriton.empty_cache()
+        torch.rtriton.synchronize()
 
     @classmethod
     def get_model_config_for_expert_location(cls, config):

@@ -27,8 +27,8 @@ def get_open_port():
 
 
 def worker(world_size, rank, port):
-    device = torch.device(f"cuda:{rank}")
-    torch.cuda.set_device(device)
+    device = torch.device(f"rtriton:{rank}")
+    torch.rtriton.set_device(device)
 
     dist.init_process_group(
         backend="nccl",
@@ -70,7 +70,7 @@ def worker(world_size, rank, port):
 
         # Use default NCCL all-reduce
         dist.all_reduce(inp)
-        torch.cuda.synchronize()
+        torch.rtriton.synchronize()
 
         # Store checksum
         checksum = inp.view(-1).sum().item()
@@ -122,7 +122,7 @@ def worker(world_size, rank, port):
 
             # Use default NCCL all-reduce
             dist.all_reduce(batch_flat)
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
 
             # Reshape back to (bs, hidden_dim)
             batch_out = batch_flat.view(bs, hidden_dim)
@@ -163,7 +163,7 @@ def worker(world_size, rank, port):
 
 def main():
     world_size = 8
-    available_gpus = torch.cuda.device_count()
+    available_gpus = torch.rtriton.device_count()
 
     print("=" * 70)
     print("Default NCCL All-Reduce Determinism Test")

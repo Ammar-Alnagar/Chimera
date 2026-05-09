@@ -1,5 +1,5 @@
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/rtriton/RTRITONContext.h>
 
 #ifndef USE_ROCM
 #include "pytorch_extension_utils.h"
@@ -91,7 +91,7 @@ void reconstruct_indices_from_tree_mask(
     int64_t draft_token_num) {
   dim3 grid(batch_size);
   dim3 block(draft_token_num);
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
 
   reconstructIndicesFromTreeMask<<<grid, block, 0, stream>>>(
       static_cast<bool*>(tree_mask.data_ptr()),

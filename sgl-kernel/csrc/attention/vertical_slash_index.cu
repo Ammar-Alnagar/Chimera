@@ -1,10 +1,10 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
-// This file is for blocksparse attention utils cuda kernel.
+// This file is for blocksparse attention utils rtriton kernel.
 
 #include <assert.h>
-#include <c10/cuda/CUDAStream.h>
-#include <cuda.h>
+#include <c10/rtriton/RTRITONStream.h>
+#include <rtriton.h>
 #include <torch/all.h>
 
 // Save the start index of each block in the given range into block_offset.
@@ -29,7 +29,7 @@ __device__ int64_t save_blocks(
   return current_block_count;
 }
 
-// CUDA kernel: convert sparse vertical/slash indices to block/column offsets.
+// RTRITON kernel: convert sparse vertical/slash indices to block/column offsets.
 __global__ void convert_vertical_slash_indexes_kernel(
     const int* q_seqlens,         // [BATCH, ]
     const int* kv_seqlens,        // [BATCH, ]
@@ -177,7 +177,7 @@ void convert_vertical_slash_indexes_64x64(
   const dim3 dimBlock((int32_t)N_THREADS);
   const dim3 dimGrid(
       (int32_t)N_HEADS, (int32_t)BATCH_SIZE, ((int32_t)N_ROWS + (int32_t)N_THREADS - 1) / (int32_t)N_THREADS);
-  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   convert_vertical_slash_indexes_kernel<<<dimGrid, dimBlock, 0, stream>>>(
       q_seqlens,
       kv_seqlens,
@@ -196,7 +196,7 @@ void convert_vertical_slash_indexes_64x64(
       causal);
 }
 
-// Host function: prepares tensor pointers and launches the CUDA kernel.
+// Host function: prepares tensor pointers and launches the RTRITON kernel.
 void convert_vertical_slash_indexes(
     torch::Tensor& block_count,      // [BATCH, N_HEADS, NUM_ROWS]
     torch::Tensor& block_offset,     // [BATCH, N_HEADS, NUM_ROWS, NNZ_S]
@@ -210,7 +210,7 @@ void convert_vertical_slash_indexes(
     int64_t block_size_M,
     int64_t block_size_N,
     bool causal) {
-  cudaSetDevice(q_seqlens.get_device());
+  rtritonSetDevice(q_seqlens.get_device());
 
   int64_t batch_size = slash_indexes.size(0);
   int64_t num_heads = slash_indexes.size(1);
@@ -395,7 +395,7 @@ void convert_vertical_slash_indexes_64x64_mergehead(
   const int N_THREADS = 64;
   const dim3 dimBlock(N_THREADS);
   const dim3 dimGrid(N_HEADS, BATCH_SIZE, (N_ROWS + N_THREADS - 1) / N_THREADS);
-  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   convert_vertical_slash_indexes_kernel_mergehead<<<dimGrid, dimBlock, 0, stream>>>(
       q_seqlens,
       kv_seqlens,
@@ -432,7 +432,7 @@ void convert_vertical_slash_indexes_mergehead(
     int64_t block_size_M,
     int64_t block_size_N,
     bool causal) {
-  cudaSetDevice(q_seqlens.get_device());
+  rtritonSetDevice(q_seqlens.get_device());
 
   int batch_size = slash_indexes.size(0);
   int num_heads = slash_indexes.size(1);

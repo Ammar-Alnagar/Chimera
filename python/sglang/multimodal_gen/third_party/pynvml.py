@@ -328,7 +328,7 @@ NVML_ENCODER_QUERY_UNKNOWN = 255
 _nvmlFBCSessionType_t = c_uint
 NVML_FBC_SESSION_TYPE_UNKNOWN = 0
 NVML_FBC_SESSION_TYPE_TOSYS = 1
-NVML_FBC_SESSION_TYPE_CUDA = 2
+NVML_FBC_SESSION_TYPE_RTRITON = 2
 NVML_FBC_SESSION_TYPE_VID = 3
 NVML_FBC_SESSION_TYPE_HWENC = 4
 
@@ -2945,20 +2945,20 @@ def nvmlSystemGetNVMLVersion():
     return c_version.value
 
 
-def nvmlSystemGetCudaDriverVersion():
-    c_cuda_version = c_int()
-    fn = _nvmlGetFunctionPointer("nvmlSystemGetCudaDriverVersion")
-    ret = fn(byref(c_cuda_version))
+def nvmlSystemGetRtritonDriverVersion():
+    c_rtriton_version = c_int()
+    fn = _nvmlGetFunctionPointer("nvmlSystemGetRtritonDriverVersion")
+    ret = fn(byref(c_rtriton_version))
     _nvmlCheckReturn(ret)
-    return c_cuda_version.value
+    return c_rtriton_version.value
 
 
-def nvmlSystemGetCudaDriverVersion_v2():
-    c_cuda_version = c_int()
-    fn = _nvmlGetFunctionPointer("nvmlSystemGetCudaDriverVersion_v2")
-    ret = fn(byref(c_cuda_version))
+def nvmlSystemGetRtritonDriverVersion_v2():
+    c_rtriton_version = c_int()
+    fn = _nvmlGetFunctionPointer("nvmlSystemGetRtritonDriverVersion_v2")
+    ret = fn(byref(c_rtriton_version))
     _nvmlCheckReturn(ret)
-    return c_cuda_version.value
+    return c_rtriton_version.value
 
 
 # Added in 2.285
@@ -3799,10 +3799,10 @@ def nvmlDeviceGetComputeMode(handle):
     return c_mode.value
 
 
-def nvmlDeviceGetCudaComputeCapability(handle):
+def nvmlDeviceGetRtritonComputeCapability(handle):
     c_major = c_int()
     c_minor = c_int()
-    fn = _nvmlGetFunctionPointer("nvmlDeviceGetCudaComputeCapability")
+    fn = _nvmlGetFunctionPointer("nvmlDeviceGetRtritonComputeCapability")
     ret = fn(handle, byref(c_major), byref(c_minor))
     _nvmlCheckReturn(ret)
     return (c_major.value, c_minor.value)

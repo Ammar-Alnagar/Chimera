@@ -29,7 +29,7 @@ class SiluAndMul(CustomOp):
     def __init__(self) -> None:
         super().__init__()
 
-    def forward_cuda(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_rtriton(self, x: torch.Tensor) -> torch.Tensor:
         d = x.shape[-1] // 2
         output_shape = x.shape[:-1] + (d,)
         out = torch.empty(output_shape, dtype=x.dtype, device=x.device)
@@ -59,7 +59,7 @@ class GeluAndMul(CustomOp):
         if approximate not in ("none", "tanh"):
             raise ValueError(f"Unknown approximate mode: {approximate}")
 
-    def forward_cuda(self, *args, **kwargs) -> Any:
+    def forward_rtriton(self, *args, **kwargs) -> Any:
         return self.forward_native(*args, **kwargs)
 
     def forward_native(self, x: torch.Tensor) -> torch.Tensor:
@@ -77,7 +77,7 @@ class NewGELU(CustomOp):
     def __init__(self):
         super().__init__()
 
-    def forward_cuda(self, *args, **kwargs) -> Any:
+    def forward_rtriton(self, *args, **kwargs) -> Any:
         return self.forward_native(*args, **kwargs)
 
     def forward_native(self, x: torch.Tensor) -> torch.Tensor:
@@ -92,7 +92,7 @@ class QuickGELU(CustomOp):
     def __init__(self):
         super().__init__()
 
-    def forward_cuda(self, *args, **kwargs) -> Any:
+    def forward_rtriton(self, *args, **kwargs) -> Any:
         return self.forward_native(*args, **kwargs)
 
     def forward_native(self, x: torch.Tensor) -> torch.Tensor:

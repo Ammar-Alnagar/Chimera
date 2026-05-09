@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import requests
 
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.run_eval import run_eval
 from sglang.test.test_utils import (
     DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
@@ -15,7 +15,7 @@ from sglang.test.test_utils import (
 )
 
 # Sliding window attention with Triton backend (Gemma-3 model)
-register_cuda_ci(est_time=100, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=100, suite="stage-b-test-small-1-gpu")
 
 
 class TestSlidingWindowAttentionTriton(CustomTestCase):
@@ -98,12 +98,12 @@ class TestSlidingWindowAttentionTriton(CustomTestCase):
         print(f"Long context generation result: {result['text'][:100]}...")
 
     @unittest.skipIf(is_in_ci(), "To reduce the CI execution time.")
-    def test_no_cuda_graph(self):
-        self.no_cuda_graph_process = popen_launch_server(
+    def test_no_rtriton_graph(self):
+        self.no_rtriton_graph_process = popen_launch_server(
             self.model,
             self.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
-            other_args=self.common_args + ["--disable-cuda-graph"],
+            other_args=self.common_args + ["--disable-rtriton-graph"],
         )
 
         try:
@@ -111,10 +111,10 @@ class TestSlidingWindowAttentionTriton(CustomTestCase):
             self._test_long_context_generation()
             self._test_mmlu()
         finally:
-            kill_process_tree(self.no_cuda_graph_process.pid)
+            kill_process_tree(self.no_rtriton_graph_process.pid)
 
-    def test_cuda_graph(self):
-        self.cuda_graph_process = popen_launch_server(
+    def test_rtriton_graph(self):
+        self.rtriton_graph_process = popen_launch_server(
             self.model,
             self.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
@@ -126,7 +126,7 @@ class TestSlidingWindowAttentionTriton(CustomTestCase):
             self._test_long_context_generation()
             self._test_mmlu()
         finally:
-            kill_process_tree(self.cuda_graph_process.pid)
+            kill_process_tree(self.rtriton_graph_process.pid)
 
 
 if __name__ == "__main__":

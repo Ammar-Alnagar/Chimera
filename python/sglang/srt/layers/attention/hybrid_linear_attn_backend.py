@@ -36,14 +36,14 @@ from sglang.srt.model_executor.forward_batch_info import ForwardBatch, ForwardMo
 from sglang.srt.model_executor.model_runner import ModelRunner
 from sglang.srt.speculative.eagle_info import EagleDraftInput, EagleVerifyInput
 from sglang.srt.speculative.spec_info import SpecInput
-from sglang.srt.utils import is_cuda, is_npu
+from sglang.srt.utils import is_rtriton, is_npu
 
-if is_cuda():
+if is_rtriton():
     from sglang.srt.layers.attention.mamba.causal_conv1d import (
-        causal_conv1d_fn as causal_conv1d_fn_cuda,
+        causal_conv1d_fn as causal_conv1d_fn_rtriton,
     )
 
-    causal_conv1d_fn = causal_conv1d_fn_cuda
+    causal_conv1d_fn = causal_conv1d_fn_rtriton
 elif is_npu():
     from sgl_kernel_npu.fla.chunk import chunk_gated_delta_rule_npu
     from sgl_kernel_npu.fla.fused_sigmoid_gating_recurrent import (
@@ -174,8 +174,8 @@ class MambaAttnBackendBase(AttentionBackend):
         self.retrieve_next_token_list = []
         self.retrieve_next_sibling_list = []
         self.retrieve_parent_token_list = []
-        self.cached_cuda_graph_decode_query_start_loc: torch.Tensor = None
-        self.cached_cuda_graph_verify_query_start_loc: torch.Tensor = None
+        self.cached_rtriton_graph_decode_query_start_loc: torch.Tensor = None
+        self.cached_rtriton_graph_verify_query_start_loc: torch.Tensor = None
         self.conv_states_shape: tuple[int, int] = None
 
     def _forward_metadata(self, forward_batch: ForwardBatch):
@@ -377,7 +377,7 @@ class MambaAttnBackendBase(AttentionBackend):
             track_ssm_final_dst.to(self.device, non_blocking=True),
         )
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -391,7 +391,7 @@ class MambaAttnBackendBase(AttentionBackend):
             bs, req_pool_indices, forward_mode, spec_info
         )
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -406,7 +406,7 @@ class MambaAttnBackendBase(AttentionBackend):
             bs, req_pool_indices, forward_mode, spec_info, seq_lens_cpu
         )
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
         assert (
             max_num_tokens % max_bs == 0
         ), f"max_num_tokens={max_num_tokens} must be divisible by max_bs={max_bs}"
@@ -435,10 +435,10 @@ class MambaAttnBackendBase(AttentionBackend):
                     (i + 1, draft_token_num), dtype=torch.int32, device=self.device
                 )
             )
-        self.cached_cuda_graph_decode_query_start_loc = torch.arange(
+        self.cached_rtriton_graph_decode_query_start_loc = torch.arange(
             0, max_bs + 1, dtype=torch.int32, device=self.device
         )
-        self.cached_cuda_graph_verify_query_start_loc = torch.arange(
+        self.cached_rtriton_graph_verify_query_start_loc = torch.arange(
             0,
             max_bs * draft_token_num + 1,
             step=draft_token_num,
@@ -455,11 +455,11 @@ class MambaAttnBackendBase(AttentionBackend):
     ):
         if forward_mode.is_decode_or_idle():
             self.query_start_loc_list[bs - 1].copy_(
-                self.cached_cuda_graph_decode_query_start_loc[: bs + 1]
+                self.cached_rtriton_graph_decode_query_start_loc[: bs + 1]
             )
         elif forward_mode.is_target_verify():
             self.query_start_loc_list[bs - 1].copy_(
-                self.cached_cuda_graph_verify_query_start_loc[: bs + 1]
+                self.cached_rtriton_graph_verify_query_start_loc[: bs + 1]
             )
         else:
             raise ValueError(f"Invalid forward mode: {forward_mode=}")
@@ -468,7 +468,7 @@ class MambaAttnBackendBase(AttentionBackend):
 
         # If topk > 1, we need to use retrieve_next_token and retrieve_next_sibling to handle the eagle tree custom attention mask
         if forward_mode.is_target_verify() and spec_info.topk > 1:
-            # They are None during cuda graph capture so skip the copy_...
+            # They are None during rtriton graph capture so skip the copy_...
             # self.retrieve_next_token_list[bs - 1].copy_(spec_info.retrive_next_token)
             # self.retrieve_next_sibling_list[bs - 1].copy_(spec_info.retrive_next_sibling)
             return ForwardMetadata(
@@ -493,7 +493,7 @@ class MambaAttnBackendBase(AttentionBackend):
         seq_lens_cpu: Optional[torch.Tensor],
     ):
         num_padding = torch.count_nonzero(
-            seq_lens_cpu == self.get_cuda_graph_seq_len_fill_value()
+            seq_lens_cpu == self.get_rtriton_graph_seq_len_fill_value()
         )
         # Make sure forward metadata is correctly handled for padding reqs
         req_pool_indices[bs - num_padding :] = 0
@@ -503,11 +503,11 @@ class MambaAttnBackendBase(AttentionBackend):
         if forward_mode.is_decode_or_idle():
             if num_padding == 0:
                 self.query_start_loc_list[bs - 1].copy_(
-                    self.cached_cuda_graph_decode_query_start_loc[: bs + 1]
+                    self.cached_rtriton_graph_decode_query_start_loc[: bs + 1]
                 )
             else:
                 self.query_start_loc_list[bs - 1][: bs - num_padding].copy_(
-                    self.cached_cuda_graph_decode_query_start_loc[: bs - num_padding]
+                    self.cached_rtriton_graph_decode_query_start_loc[: bs - num_padding]
                 )
                 self.query_start_loc_list[bs - 1][bs - num_padding :].copy_(
                     bs - num_padding
@@ -515,11 +515,11 @@ class MambaAttnBackendBase(AttentionBackend):
         elif forward_mode.is_target_verify():
             if num_padding == 0:
                 self.query_start_loc_list[bs - 1].copy_(
-                    self.cached_cuda_graph_verify_query_start_loc[: bs + 1]
+                    self.cached_rtriton_graph_verify_query_start_loc[: bs + 1]
                 )
             else:
                 self.query_start_loc_list[bs - 1][: bs - num_padding].copy_(
-                    self.cached_cuda_graph_verify_query_start_loc[: bs - num_padding]
+                    self.cached_rtriton_graph_verify_query_start_loc[: bs - num_padding]
                 )
                 self.query_start_loc_list[bs - 1][bs - num_padding :].copy_(
                     (bs - num_padding) * spec_info.draft_token_num
@@ -549,7 +549,7 @@ class MambaAttnBackendBase(AttentionBackend):
                 mamba_cache_indices=self.state_indices_list[bs - 1],
             )
 
-    def get_cuda_graph_seq_len_fill_value(self):
+    def get_rtriton_graph_seq_len_fill_value(self):
         return 1  # Mamba attn does not use seq lens to index kv cache
 
     def _track_mamba_state_decode(
@@ -1059,7 +1059,7 @@ class GDNAttnBackend(MambaAttnBackendBase):
                 retrieve_parent_token=retrieve_parent_token,
             )
         else:
-            # Only cuda env uses fuse ssm_states update
+            # Only rtriton env uses fuse ssm_states update
             recurrent_state = ssm_states
             recurrent_state_indices_args = {"initial_state_indices": cache_indices}
             if is_npu():
@@ -1107,7 +1107,7 @@ class Mamba2AttnBackend(MambaAttnBackendBase):
             forward_batch,
         )
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -1126,7 +1126,7 @@ class Mamba2AttnBackend(MambaAttnBackendBase):
             draft_token_num=draft_token_num,
         )
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -1197,11 +1197,11 @@ class HybridLinearAttnBackend(AttentionBackend):
         for attn_backend in self.attn_backend_list:
             attn_backend.init_forward_metadata(forward_batch)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
         for attn_backend in self.attn_backend_list:
-            attn_backend.init_cuda_graph_state(max_bs, max_num_tokens)
+            attn_backend.init_rtriton_graph_state(max_bs, max_num_tokens)
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -1212,7 +1212,7 @@ class HybridLinearAttnBackend(AttentionBackend):
         spec_info: Optional[SpecInput],
     ):
         for attn_backend in self.attn_backend_list:
-            attn_backend.init_forward_metadata_capture_cuda_graph(
+            attn_backend.init_forward_metadata_capture_rtriton_graph(
                 bs,
                 num_tokens,
                 req_pool_indices,
@@ -1222,7 +1222,7 @@ class HybridLinearAttnBackend(AttentionBackend):
                 spec_info,
             )
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -1234,7 +1234,7 @@ class HybridLinearAttnBackend(AttentionBackend):
         seq_lens_cpu: Optional[torch.Tensor],
     ):
         for attn_backend in self.attn_backend_list:
-            attn_backend.init_forward_metadata_replay_cuda_graph(
+            attn_backend.init_forward_metadata_replay_rtriton_graph(
                 bs,
                 req_pool_indices,
                 seq_lens,
@@ -1245,8 +1245,8 @@ class HybridLinearAttnBackend(AttentionBackend):
                 seq_lens_cpu,
             )
 
-    def get_cuda_graph_seq_len_fill_value(self):
-        return self.full_attn_backend.get_cuda_graph_seq_len_fill_value()
+    def get_rtriton_graph_seq_len_fill_value(self):
+        return self.full_attn_backend.get_rtriton_graph_seq_len_fill_value()
 
     def forward_decode(
         self,

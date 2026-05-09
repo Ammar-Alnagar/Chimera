@@ -172,14 +172,14 @@ class FlashInferAttnBackend(AttentionBackend):
             envs.SGLANG_FLASHINFER_WORKSPACE_SIZE.set(512 * 1024 * 1024)
 
         # When deterministic inference is enabled, tensor cores should be used for decode
-        # Also set split tile sizes for prefill and decode from environment variables, and disable kv split for cuda graph
+        # Also set split tile sizes for prefill and decode from environment variables, and disable kv split for rtriton graph
         # More information can be found here: https://github.com/flashinfer-ai/flashinfer/pull/1675
         self.enable_deterministic = (
             model_runner.server_args.enable_deterministic_inference
         )
         self.prefill_split_tile_size = None
         self.decode_split_tile_size = None
-        self.disable_cuda_graph_kv_split = False
+        self.disable_rtriton_graph_kv_split = False
         if self.enable_deterministic:
             self.decode_use_tensor_cores = True
             self.prefill_split_tile_size = get_int_env_var(
@@ -188,7 +188,7 @@ class FlashInferAttnBackend(AttentionBackend):
             self.decode_split_tile_size = get_int_env_var(
                 "SGLANG_FLASHINFER_DECODE_SPLIT_TILE_SIZE", 2048
             )
-            self.disable_cuda_graph_kv_split = True
+            self.disable_rtriton_graph_kv_split = True
             envs.SGLANG_FLASHINFER_WORKSPACE_SIZE.set(2048 * 1024 * 1024)
 
         # Allocate buffers
@@ -239,11 +239,11 @@ class FlashInferAttnBackend(AttentionBackend):
 
         fmha_backend = "auto"
         if is_sm100_supported():
-            # Disable TILELANG backend when piecewise cuda graph is enabled
+            # Disable TILELANG backend when piecewise rtriton graph is enabled
             # due to TMA descriptor initialization issues on B200
-            if model_runner.server_args.enable_piecewise_cuda_graph:
+            if model_runner.server_args.enable_piecewise_rtriton_graph:
                 logger.warning(
-                    "TILELANG backend is disabled when piecewise cuda graph is enabled "
+                    "TILELANG backend is disabled when piecewise rtriton graph is enabled "
                     "due to TMA descriptor initialization issues on B200. "
                     "Using auto backend instead for stability."
                 )
@@ -291,9 +291,9 @@ class FlashInferAttnBackend(AttentionBackend):
         # Other metadata
         self.forward_metadata: Union[PrefillMetadata, DecodeMetadata] = None
 
-        self.decode_cuda_graph_metadata = {}
-        self.prefill_cuda_graph_metadata = {}  # For verify
-        self.draft_extend_cuda_graph_metadata = {}  # For draft extend
+        self.decode_rtriton_graph_metadata = {}
+        self.prefill_rtriton_graph_metadata = {}  # For verify
+        self.draft_extend_rtriton_graph_metadata = {}  # For draft extend
 
     def _process_multi_item_scoring(
         self, forward_batch: ForwardBatch
@@ -504,41 +504,41 @@ class FlashInferAttnBackend(AttentionBackend):
                 multi_item_params,
             )
 
-    def init_cuda_graph_state(
+    def init_rtriton_graph_state(
         self,
         max_bs: int,
         max_num_tokens: int,
         kv_indices_buf: Optional[torch.Tensor] = None,
     ):
         if kv_indices_buf is None:
-            cuda_graph_kv_indices = torch.zeros(
+            rtriton_graph_kv_indices = torch.zeros(
                 (max_num_tokens * self.max_context_len,),
                 dtype=torch.int32,
-                device="cuda",
+                device="rtriton",
             )
         else:
-            cuda_graph_kv_indices = kv_indices_buf
+            rtriton_graph_kv_indices = kv_indices_buf
 
-        self.cuda_graph_kv_indices = [cuda_graph_kv_indices] + [
-            cuda_graph_kv_indices.clone() for _ in range(self.num_wrappers - 1)
+        self.rtriton_graph_kv_indices = [rtriton_graph_kv_indices] + [
+            rtriton_graph_kv_indices.clone() for _ in range(self.num_wrappers - 1)
         ]
 
         # Ensure tensors are properly allocated
         for i in range(self.num_wrappers):
             # Force allocation by performing a small operation
-            if len(self.cuda_graph_kv_indices[i]) > 0:
-                self.cuda_graph_kv_indices[i][0] = 0
+            if len(self.rtriton_graph_kv_indices[i]) > 0:
+                self.rtriton_graph_kv_indices[i][0] = 0
 
         if not self.skip_prefill:
-            self.cuda_graph_custom_mask = torch.zeros(
+            self.rtriton_graph_custom_mask = torch.zeros(
                 (max_num_tokens * self.max_context_len),
                 dtype=torch.uint8,
-                device="cuda",
+                device="rtriton",
             )
-            self.cuda_graph_qk_indptr = [x.clone() for x in self.kv_indptr]
-            self.cuda_graph_qo_indptr = [x.clone() for x in self.kv_indptr]
+            self.rtriton_graph_qk_indptr = [x.clone() for x in self.kv_indptr]
+            self.rtriton_graph_qo_indptr = [x.clone() for x in self.kv_indptr]
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -555,10 +555,10 @@ class FlashInferAttnBackend(AttentionBackend):
                     BatchDecodeWithPagedKVCacheWrapper(
                         self.workspace_buffer,
                         "NHD",
-                        use_cuda_graph=True,
+                        use_rtriton_graph=True,
                         use_tensor_cores=self.decode_use_tensor_cores,
                         paged_kv_indptr_buffer=self.kv_indptr[i][: num_tokens + 1],
-                        paged_kv_indices_buffer=self.cuda_graph_kv_indices[i],
+                        paged_kv_indices_buffer=self.rtriton_graph_kv_indices[i],
                         paged_kv_last_page_len_buffer=self.kv_last_page_len[
                             :num_tokens
                         ],
@@ -574,9 +574,9 @@ class FlashInferAttnBackend(AttentionBackend):
                 encoder_lens=encoder_lens,
                 spec_info=spec_info,
                 fixed_split_size=None,
-                disable_split_kv=self.disable_cuda_graph_kv_split,
+                disable_split_kv=self.disable_rtriton_graph_kv_split,
             )
-            self.decode_cuda_graph_metadata[bs] = decode_wrappers
+            self.decode_rtriton_graph_metadata[bs] = decode_wrappers
             self.forward_metadata = DecodeMetadata(decode_wrappers)
             for i in range(self.num_wrappers):
                 decode_wrappers[i].begin_forward = partial(
@@ -589,13 +589,13 @@ class FlashInferAttnBackend(AttentionBackend):
                     BatchPrefillWithPagedKVCacheWrapper(
                         self.workspace_buffer,
                         "NHD",
-                        use_cuda_graph=True,
-                        qo_indptr_buf=self.cuda_graph_qo_indptr[i][: bs + 1],
+                        use_rtriton_graph=True,
+                        qo_indptr_buf=self.rtriton_graph_qo_indptr[i][: bs + 1],
                         paged_kv_indptr_buf=self.kv_indptr[i][: bs + 1],
-                        paged_kv_indices_buf=self.cuda_graph_kv_indices[i],
+                        paged_kv_indices_buf=self.rtriton_graph_kv_indices[i],
                         paged_kv_last_page_len_buf=self.kv_last_page_len[:bs],
-                        custom_mask_buf=self.cuda_graph_custom_mask,
-                        mask_indptr_buf=self.cuda_graph_qk_indptr[i][: bs + 1],
+                        custom_mask_buf=self.rtriton_graph_custom_mask,
+                        mask_indptr_buf=self.rtriton_graph_qk_indptr[i][: bs + 1],
                     )
                 )
             seq_lens_sum = seq_lens.sum().item()
@@ -610,7 +610,7 @@ class FlashInferAttnBackend(AttentionBackend):
                 encoder_lens=encoder_lens,
                 spec_info=spec_info,
             )
-            self.prefill_cuda_graph_metadata[bs] = prefill_wrappers
+            self.prefill_rtriton_graph_metadata[bs] = prefill_wrappers
             self.forward_metadata = PrefillMetadata(prefill_wrappers, False, False)
         elif forward_mode.is_draft_extend():
             prefill_wrappers = []
@@ -620,10 +620,10 @@ class FlashInferAttnBackend(AttentionBackend):
                         self.workspace_buffer,
                         "NHD",
                         backend="fa2",
-                        use_cuda_graph=True,
-                        qo_indptr_buf=self.cuda_graph_qo_indptr[i][: bs + 1],
+                        use_rtriton_graph=True,
+                        qo_indptr_buf=self.rtriton_graph_qo_indptr[i][: bs + 1],
                         paged_kv_indptr_buf=self.kv_indptr[i][: bs + 1],
-                        paged_kv_indices_buf=self.cuda_graph_kv_indices[i],
+                        paged_kv_indices_buf=self.rtriton_graph_kv_indices[i],
                         paged_kv_last_page_len_buf=self.kv_last_page_len[:bs],
                     )
                 )
@@ -640,7 +640,7 @@ class FlashInferAttnBackend(AttentionBackend):
                 encoder_lens=encoder_lens,
                 spec_info=spec_info,
             )
-            self.prefill_cuda_graph_metadata[bs] = prefill_wrappers
+            self.prefill_rtriton_graph_metadata[bs] = prefill_wrappers
             self.forward_metadata = PrefillMetadata(prefill_wrappers, False, False)
         elif forward_mode.is_dllm_extend():
             prefill_wrappers = []
@@ -650,10 +650,10 @@ class FlashInferAttnBackend(AttentionBackend):
                         self.workspace_buffer,
                         "NHD",
                         backend="fa2",
-                        use_cuda_graph=True,
-                        qo_indptr_buf=self.cuda_graph_qo_indptr[i][: bs + 1],
+                        use_rtriton_graph=True,
+                        qo_indptr_buf=self.rtriton_graph_qo_indptr[i][: bs + 1],
                         paged_kv_indptr_buf=self.kv_indptr[i][: bs + 1],
-                        paged_kv_indices_buf=self.cuda_graph_kv_indices[i],
+                        paged_kv_indices_buf=self.rtriton_graph_kv_indices[i],
                         paged_kv_last_page_len_buf=self.kv_last_page_len[:bs],
                     )
                 )
@@ -669,12 +669,12 @@ class FlashInferAttnBackend(AttentionBackend):
                 encoder_lens=encoder_lens,
                 spec_info=None,
             )
-            self.prefill_cuda_graph_metadata[bs] = prefill_wrappers
+            self.prefill_rtriton_graph_metadata[bs] = prefill_wrappers
             self.forward_metadata = PrefillMetadata(prefill_wrappers, True, False)
         else:
             raise ValueError(f"Invalid mode: {forward_mode=}")
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -691,11 +691,11 @@ class FlashInferAttnBackend(AttentionBackend):
                 seq_lens[:bs],
                 seq_lens_cpu[:bs] if seq_lens_cpu is not None else None,
                 seq_lens_sum,
-                decode_wrappers=self.decode_cuda_graph_metadata[bs],
+                decode_wrappers=self.decode_rtriton_graph_metadata[bs],
                 encoder_lens=encoder_lens[:bs] if encoder_lens is not None else None,
                 spec_info=spec_info,
                 fixed_split_size=None,
-                disable_split_kv=self.disable_cuda_graph_kv_split,
+                disable_split_kv=self.disable_rtriton_graph_kv_split,
             )
         elif forward_mode.is_target_verify():
             self.indices_updater_prefill.update(
@@ -704,7 +704,7 @@ class FlashInferAttnBackend(AttentionBackend):
                 seq_lens_cpu[:bs] if seq_lens_cpu is not None else None,
                 seq_lens_sum,
                 prefix_lens=None,
-                prefill_wrappers=self.prefill_cuda_graph_metadata[bs],
+                prefill_wrappers=self.prefill_rtriton_graph_metadata[bs],
                 use_ragged=False,
                 encoder_lens=encoder_lens[:bs] if encoder_lens is not None else None,
                 spec_info=spec_info,
@@ -716,7 +716,7 @@ class FlashInferAttnBackend(AttentionBackend):
                 seq_lens_cpu[:bs] if seq_lens_cpu is not None else None,
                 seq_lens_sum,
                 prefix_lens=None,
-                prefill_wrappers=self.prefill_cuda_graph_metadata[bs],
+                prefill_wrappers=self.prefill_rtriton_graph_metadata[bs],
                 use_ragged=False,
                 encoder_lens=encoder_lens[:bs] if encoder_lens is not None else None,
                 spec_info=spec_info,
@@ -728,7 +728,7 @@ class FlashInferAttnBackend(AttentionBackend):
                 seq_lens_cpu[:bs] if seq_lens_cpu is not None else None,
                 seq_lens_sum,
                 prefix_lens=seq_lens - self.dllm_config.block_size,
-                prefill_wrappers=self.prefill_cuda_graph_metadata[bs],
+                prefill_wrappers=self.prefill_rtriton_graph_metadata[bs],
                 use_ragged=True,
                 encoder_lens=encoder_lens[:bs] if encoder_lens is not None else None,
                 spec_info=None,
@@ -736,7 +736,7 @@ class FlashInferAttnBackend(AttentionBackend):
         else:
             raise ValueError("Invalid forward mode")
 
-    def get_cuda_graph_seq_len_fill_value(self):
+    def get_rtriton_graph_seq_len_fill_value(self):
         return 1
 
     def forward_extend(
@@ -788,7 +788,7 @@ class FlashInferAttnBackend(AttentionBackend):
                     else -1
                 ),
                 logits_soft_cap=logits_soft_cap,
-                # Must use _float to avoid device-to-host copy that breaks cuda graph capture.
+                # Must use _float to avoid device-to-host copy that breaks rtriton graph capture.
                 k_scale=layer.k_scale_float,
                 v_scale=layer.v_scale_float,
             )
@@ -877,7 +877,7 @@ class FlashInferAttnBackend(AttentionBackend):
             forward_batch.token_to_kv_pool.get_kv_buffer(layer.layer_id),
             sm_scale=layer.scaling,
             logits_soft_cap=layer.logit_cap,
-            # Must use _float to avoid device-to-host copy that breaks cuda graph capture.
+            # Must use _float to avoid device-to-host copy that breaks rtriton graph capture.
             k_scale=layer.k_scale_float,
             v_scale=layer.v_scale_float,
         )
@@ -1070,12 +1070,12 @@ class FlashInferIndicesUpdaterDecode:
             kv_indptr[1 : bs + 1] = torch.cumsum(paged_kernel_lens, dim=0)
             kv_indptr = kv_indptr[: bs + 1]
 
-            if wrapper.is_cuda_graph_enabled:
-                # Directly write to the cuda graph input buffer
+            if wrapper.is_rtriton_graph_enabled:
+                # Directly write to the rtriton graph input buffer
                 kv_indices = wrapper._paged_kv_indices_buf
             else:
                 kv_indices = torch.empty(
-                    paged_kernel_lens_sum, dtype=torch.int32, device="cuda"
+                    paged_kernel_lens_sum, dtype=torch.int32, device="rtriton"
                 )
 
             create_flashinfer_kv_indices_triton[(bs,)](
@@ -1543,7 +1543,7 @@ class FlashInferMultiStepDraftBackend:
                 forward_batch.batch_size * self.topk * self.max_context_len,
             ),
             dtype=torch.int32,
-            device="cuda",
+            device="rtriton",
         )
 
         def call_fn(i, forward_batch):
@@ -1557,21 +1557,21 @@ class FlashInferMultiStepDraftBackend:
 
         self.common_template(forward_batch, kv_indices, call_fn)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
-        self.cuda_graph_kv_indices = torch.zeros(
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
+        self.rtriton_graph_kv_indices = torch.zeros(
             (self.speculative_num_steps, max_bs * self.max_context_len),
             dtype=torch.int32,
-            device="cuda",
+            device="rtriton",
         )
 
         for i in range(self.speculative_num_steps - 1):
-            self.attn_backends[i].init_cuda_graph_state(
-                max_bs, max_num_tokens, kv_indices_buf=self.cuda_graph_kv_indices[i]
+            self.attn_backends[i].init_rtriton_graph_state(
+                max_bs, max_num_tokens, kv_indices_buf=self.rtriton_graph_kv_indices[i]
             )
 
-    def init_forward_metadata_capture_cuda_graph(self, forward_batch: ForwardBatch):
+    def init_forward_metadata_capture_rtriton_graph(self, forward_batch: ForwardBatch):
         def call_fn(i, forward_batch):
-            self.attn_backends[i].init_forward_metadata_capture_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_capture_rtriton_graph(
                 forward_batch.batch_size,
                 forward_batch.batch_size * self.topk,
                 forward_batch.req_pool_indices,
@@ -1581,13 +1581,13 @@ class FlashInferMultiStepDraftBackend:
                 spec_info=forward_batch.spec_info,
             )
 
-        self.common_template(forward_batch, self.cuda_graph_kv_indices, call_fn)
+        self.common_template(forward_batch, self.rtriton_graph_kv_indices, call_fn)
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self, forward_batch: ForwardBatch, bs: int
     ):
         def call_fn(i, forward_batch):
-            self.attn_backends[i].init_forward_metadata_replay_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_replay_rtriton_graph(
                 bs,
                 forward_batch.req_pool_indices,
                 forward_batch.seq_lens,
@@ -1598,7 +1598,7 @@ class FlashInferMultiStepDraftBackend:
                 seq_lens_cpu=forward_batch.seq_lens_cpu,
             )
 
-        self.common_template(forward_batch, self.cuda_graph_kv_indices, call_fn)
+        self.common_template(forward_batch, self.rtriton_graph_kv_indices, call_fn)
 
 
 def should_use_tensor_core(

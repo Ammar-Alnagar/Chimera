@@ -74,7 +74,7 @@ def bench_es(
     num_warmup: int,
     num_run: int,
 ) -> Tuple[float, int]:
-    device = "cuda"
+    device = "rtriton"
     alignment = 128
     n_g = ceil_div(n, alignment) * alignment
     k_g = ceil_div(k, alignment) * alignment
@@ -154,17 +154,17 @@ def bench_es(
     # warmup
     for _ in range(num_warmup):
         run_tilelang()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     # run
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
+    start_event = torch.rtriton.Event(enable_timing=True)
+    end_event = torch.rtriton.Event(enable_timing=True)
     start_event.record()
     for _ in range(num_run):
         run_tilelang()
     end_event.record()
     end_event.synchronize()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     avg = start_event.elapsed_time(end_event) / num_run * 1000  # us
 
     return avg, expert_offsets[-1]
@@ -177,7 +177,7 @@ def bench_sgl(
     num_warmup: int,
     num_run: int,
 ) -> Tuple[float, int]:
-    device = "cuda"
+    device = "rtriton"
     alignment = 128
     n_g = ceil_div(n, alignment) * alignment
     k_g = ceil_div(k, alignment) * alignment
@@ -268,17 +268,17 @@ def bench_sgl(
     # warmup
     for _ in range(num_warmup):
         run_tilelang()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     # run
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
+    start_event = torch.rtriton.Event(enable_timing=True)
+    end_event = torch.rtriton.Event(enable_timing=True)
     start_event.record()
     for _ in range(num_run):
         run_tilelang()
     end_event.record()
     end_event.synchronize()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     avg = start_event.elapsed_time(end_event) / num_run * 1000  # us
 
     return avg, expert_offsets[-1]

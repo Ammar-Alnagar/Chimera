@@ -6,9 +6,9 @@ from sglang.srt.speculative.eagle_utils import (
     build_tree_kernel_efficient,
     organize_draft_results,
 )
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 
-register_cuda_ci(est_time=3, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=3, suite="stage-b-test-small-1-gpu")
 
 
 class TestBuildEagleTree(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestBuildEagleTree(unittest.TestCase):
 
     def test_build_tree_kernel_efficient(self):
         """Test the build_tree_kernel_efficient function with known inputs and expected outputs."""
-        verified_id = torch.tensor([29974, 13], device="cuda", dtype=torch.int32)
+        verified_id = torch.tensor([29974, 13], device="rtriton", dtype=torch.int32)
         score_list = [
             torch.tensor(
                 [
@@ -24,7 +24,7 @@ class TestBuildEagleTree(unittest.TestCase):
                     [[9.7476e-01, 2.2219e-02, 6.5031e-04, 1.3212e-04]],
                 ],
                 dtype=torch.float32,
-                device="cuda",
+                device="rtriton",
             ),
             torch.tensor(
                 [
@@ -42,7 +42,7 @@ class TestBuildEagleTree(unittest.TestCase):
                     ],
                 ],
                 dtype=torch.float32,
-                device="cuda",
+                device="rtriton",
             ),
             torch.tensor(
                 [
@@ -60,7 +60,7 @@ class TestBuildEagleTree(unittest.TestCase):
                     ],
                 ],
                 dtype=torch.float32,
-                device="cuda",
+                device="rtriton",
             ),
             torch.tensor(
                 [
@@ -78,14 +78,14 @@ class TestBuildEagleTree(unittest.TestCase):
                     ],
                 ],
                 dtype=torch.float32,
-                device="cuda",
+                device="rtriton",
             ),
         ]
         token_list = [
             torch.tensor(
                 [[29896, 29906, 29900, 29945], [13, 2, 29871, 28956]],
                 dtype=torch.int64,
-                device="cuda",
+                device="rtriton",
             ),
             torch.tensor(
                 [
@@ -126,7 +126,7 @@ class TestBuildEagleTree(unittest.TestCase):
                         259,
                     ],
                 ],
-                device="cuda",
+                device="rtriton",
             ),
             torch.tensor(
                 [
@@ -167,7 +167,7 @@ class TestBuildEagleTree(unittest.TestCase):
                         2186,
                     ],
                 ],
-                device="cuda",
+                device="rtriton",
             ),
             torch.tensor(
                 [
@@ -208,24 +208,24 @@ class TestBuildEagleTree(unittest.TestCase):
                         13,
                     ],
                 ],
-                device="cuda",
+                device="rtriton",
             ),
         ]
         parents_list = [
             torch.tensor(
-                [[-1, 0, 1, 2, 3], [-1, 0, 1, 2, 3]], dtype=torch.int64, device="cuda"
+                [[-1, 0, 1, 2, 3], [-1, 0, 1, 2, 3]], dtype=torch.int64, device="rtriton"
             ),
             torch.tensor(
-                [[4, 8, 9, 10], [4, 5, 6, 7]], dtype=torch.int64, device="cuda"
+                [[4, 8, 9, 10], [4, 5, 6, 7]], dtype=torch.int64, device="rtriton"
             ),
             torch.tensor(
-                [[20, 24, 21, 28], [24, 28, 20, 21]], dtype=torch.int64, device="cuda"
+                [[20, 24, 21, 28], [24, 28, 20, 21]], dtype=torch.int64, device="rtriton"
             ),
             torch.tensor(
-                [[36, 40, 41, 44], [36, 40, 44, 45]], dtype=torch.int64, device="cuda"
+                [[36, 40, 41, 44], [36, 40, 44, 45]], dtype=torch.int64, device="rtriton"
             ),
         ]
-        seq_lens = torch.tensor([5, 10], dtype=torch.int64, device="cuda")
+        seq_lens = torch.tensor([5, 10], dtype=torch.int64, device="rtriton")
         topk = 4
         depth = 4
         num_draft_token = 8

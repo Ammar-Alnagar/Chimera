@@ -63,10 +63,10 @@ def construct_contiguous_grouped(
     group_ms = [int(expected_m_per_group) for _ in range(num_groups)]
     m = sum([ceil_div(x, alignment) * alignment for x in group_ms])
 
-    x = torch.randn((m, k), device="cuda", dtype=torch.bfloat16)
-    y = torch.randn((num_groups, n, k), device="cuda", dtype=torch.bfloat16)
-    m_indices = torch.empty(m, device="cuda", dtype=torch.int32)
-    out = torch.empty((m, n), device="cuda", dtype=torch.bfloat16)
+    x = torch.randn((m, k), device="rtriton", dtype=torch.bfloat16)
+    y = torch.randn((num_groups, n, k), device="rtriton", dtype=torch.bfloat16)
+    m_indices = torch.empty(m, device="rtriton", dtype=torch.int32)
+    out = torch.empty((m, n), device="rtriton", dtype=torch.bfloat16)
 
     start = 0
     for i, group_m in enumerate(group_ms):
@@ -81,7 +81,7 @@ def construct_contiguous_grouped(
     y_fp8 = (
         torch.empty_like(y, dtype=torch.float8_e4m3fn),
         torch.empty(
-            (num_groups, ceil_div(n, 128), k // 128), device="cuda", dtype=torch.float
+            (num_groups, ceil_div(n, 128), k // 128), device="rtriton", dtype=torch.float
         ),
     )
     for i in range(num_groups):
@@ -109,18 +109,18 @@ def bench_deepgemm(
     # warmup
     for _ in range(num_warmup):
         run_deepgemm()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     # run
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
+    start_event = torch.rtriton.Event(enable_timing=True)
+    end_event = torch.rtriton.Event(enable_timing=True)
     latencies: list[float] = []
     start_event.record()
     for _ in range(num_run):
         run_deepgemm()
     end_event.record()
     end_event.synchronize()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     avg = start_event.elapsed_time(end_event) / num_run * 1000  # us
 
     return avg, m
@@ -134,7 +134,7 @@ def bench_tilelang(
     num_warmup: int,
     num_run: int,
 ) -> Tuple[float, int]:
-    device = "cuda"
+    device = "rtriton"
     alignment = 16
     n_g = ceil_div(n, alignment) * alignment
     k_g = ceil_div(k, alignment) * alignment
@@ -230,17 +230,17 @@ def bench_tilelang(
     # warmup
     for _ in range(num_warmup):
         run_tilelang()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     # run
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
+    start_event = torch.rtriton.Event(enable_timing=True)
+    end_event = torch.rtriton.Event(enable_timing=True)
     start_event.record()
     for _ in range(num_run):
         run_tilelang()
     end_event.record()
     end_event.synchronize()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     avg = start_event.elapsed_time(end_event) / num_run * 1000  # us
 
     return avg, expert_offsets[-1]

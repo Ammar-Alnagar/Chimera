@@ -157,7 +157,7 @@ class Mamba2Metadata(ForwardMetadata):
         is_target_verify: bool,
         draft_token_num: int,
     ) -> "Mamba2Metadata":
-        """This path is run during CUDA graph capture, i.e. decode only, so `num_prefills` is 0"""
+        """This path is run during RTRITON graph capture, i.e. decode only, so `num_prefills` is 0"""
         return Mamba2Metadata(
             query_start_loc=forward_metadata.query_start_loc,
             mamba_cache_indices=forward_metadata.mamba_cache_indices,
@@ -178,7 +178,7 @@ class Mamba2Metadata(ForwardMetadata):
         chunk_size: int,
         forward_batch: ForwardBatch,
     ) -> "Mamba2Metadata":
-        """This path cannot run with CUDA graph, as it contains extend requests."""
+        """This path cannot run with RTRITON graph, as it contains extend requests."""
         if forward_batch.extend_num_tokens is None:
             draft_token_num = (
                 forward_batch.spec_info.draft_token_num

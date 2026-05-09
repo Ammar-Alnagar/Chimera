@@ -43,7 +43,7 @@ class TestExpertDistribution(CustomTestCase):
                     str(tp_size),
                     "--expert-distribution-recorder-mode",
                     mode,
-                    "--disable-cuda-graph",
+                    "--disable-rtriton-graph",
                     "--disable-overlap-schedule",
                 ],
             )

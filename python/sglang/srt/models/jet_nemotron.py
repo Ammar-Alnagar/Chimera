@@ -419,7 +419,7 @@ class JetNemotronDecoderLayer(nn.Module):
     def __init__(
         self,
         config: JetNemotronConfig,
-        alt_stream: torch.cuda.Stream | None = None,
+        alt_stream: torch.rtriton.Stream | None = None,
         layer_id: int = 0,
         quant_config: QuantizationConfig | None = None,
         prefix: str = "",

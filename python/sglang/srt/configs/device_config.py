@@ -10,8 +10,8 @@ class DeviceConfig:
     device: Optional[torch.device]
     gpu_id: Optional[int]
 
-    def __init__(self, device: str = "cuda", gpu_id: int = -1) -> None:
-        if device in ["cuda", "xpu", "hpu", "cpu", "npu"]:
+    def __init__(self, device: str = "rtriton", gpu_id: int = -1) -> None:
+        if device in ["rtriton", "xpu", "hpu", "cpu", "npu"]:
             self.device_type = device
         else:
             raise RuntimeError(f"Not supported device type: {device}")

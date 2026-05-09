@@ -7,18 +7,18 @@ from sgl_kernel import reconstruct_indices_from_tree_mask
 def test_reconstruct_indices_from_tree_mask():
     bs = 1
     num_branch_token = 4
-    seq_lens = torch.tensor([12], device="cuda", dtype=torch.int64)
+    seq_lens = torch.tensor([12], device="rtriton", dtype=torch.int64)
 
     retrive_index = torch.full(
-        (bs, num_branch_token), -1, device="cuda", dtype=torch.int64
+        (bs, num_branch_token), -1, device="rtriton", dtype=torch.int64
     )
     retrive_next_token = torch.full(
-        (bs, num_branch_token), -1, device="cuda", dtype=torch.int64
+        (bs, num_branch_token), -1, device="rtriton", dtype=torch.int64
     )
     retrive_next_sibling = torch.full(
-        (bs, num_branch_token), -1, device="cuda", dtype=torch.int64
+        (bs, num_branch_token), -1, device="rtriton", dtype=torch.int64
     )
-    positions = torch.empty((bs * num_branch_token), device="cuda", dtype=torch.int64)
+    positions = torch.empty((bs * num_branch_token), device="rtriton", dtype=torch.int64)
 
     tree_mask = torch.tensor(
         [
@@ -39,7 +39,7 @@ def test_reconstruct_indices_from_tree_mask():
             1,
             1,
         ],
-        device="cuda",
+        device="rtriton",
         dtype=torch.int32,
     ).to(torch.bool)
 

@@ -10,7 +10,7 @@ from sgl_kernel import merge_state
 
 
 def check_input(x: torch.Tensor):
-    assert x.is_cuda, f"{str(x)} must be a CUDA Tensor"
+    assert x.is_rtriton, f"{str(x)} must be a RTRITON Tensor"
     assert x.is_contiguous(), f"{str(x)} must be contiguous"
 
 
@@ -127,10 +127,10 @@ def merge_state_triton(
 @pytest.mark.parametrize("num_heads", [32])
 @pytest.mark.parametrize("head_dim", [128])
 def test_merge_state(seq_len, num_heads, head_dim):
-    va = torch.randn(seq_len, num_heads, head_dim).half().to("cuda:0")
-    sa = torch.randn(seq_len, num_heads, dtype=torch.float32).to("cuda:0")
-    vb = torch.randn(seq_len, num_heads, head_dim).half().to("cuda:0")
-    sb = torch.randn(seq_len, num_heads, dtype=torch.float32).to("cuda:0")
+    va = torch.randn(seq_len, num_heads, head_dim).half().to("rtriton:0")
+    sa = torch.randn(seq_len, num_heads, dtype=torch.float32).to("rtriton:0")
+    vb = torch.randn(seq_len, num_heads, head_dim).half().to("rtriton:0")
+    sb = torch.randn(seq_len, num_heads, dtype=torch.float32).to("rtriton:0")
     v_merged, s_merged = merge_state_triton(va, sa, vb, sb)
     v_merged_std, s_merged_std = merge_state(va, sa, vb, sb)
 

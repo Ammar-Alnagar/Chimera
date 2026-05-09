@@ -25,7 +25,7 @@ from sglang.srt.layers.quantization.utils import (
     pack_cols,
     unpack_cols,
 )
-from sglang.srt.utils import get_device_capability, is_cuda
+from sglang.srt.utils import get_device_capability, is_rtriton
 from sglang.srt.utils.custom_op import register_custom_op
 
 if TYPE_CHECKING:
@@ -40,9 +40,9 @@ except ImportError:
     ops = None
 
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import gptq_marlin_gemm
 
 logger = logging.getLogger(__name__)
@@ -262,7 +262,7 @@ def marlin_make_workspace(
 ) -> torch.Tensor:
     # In the new marlin kernel, we use the num of threadblocks as workspace
     # size. The num of threadblocks is is sms_count * max_blocks_per_sm.
-    sms = torch.cuda.get_device_properties(device).multi_processor_count
+    sms = torch.rtriton.get_device_properties(device).multi_processor_count
     return torch.zeros(
         sms * max_blocks_per_sm, dtype=torch.int, device=device, requires_grad=False
     )
@@ -411,7 +411,7 @@ def moe_awq_to_marlin_zero_points(
 def maybe_warn_marlin_atomic_add(device, dtype):
     if torch.compiler.is_dynamo_compiling():
         return
-    device_capability = torch.cuda.get_device_capability(device)
+    device_capability = torch.rtriton.get_device_capability(device)
     if device_capability[0] < 9 and dtype == torch.bfloat16:
         logger.info_once(
             "You are running Marlin kernel with bf16 on GPUs before SM90. "
@@ -442,7 +442,7 @@ def should_use_atomic_add_reduce(
 
     # the performance of atomicAdd is better than global reduce
     # only when m*n is small and k is large
-    if n >= 2048 or k < 2048 or device.type != "cuda":
+    if n >= 2048 or k < 2048 or device.type != "rtriton":
         return False
 
     # disable atomicAdd reduce by default,
@@ -453,7 +453,7 @@ def should_use_atomic_add_reduce(
         return False
 
     # sm8x doesn't support atomicAdd + bfloat16 natively
-    device_capability = torch.cuda.get_device_capability(device)
+    device_capability = torch.rtriton.get_device_capability(device)
     if device_capability[0] < 9 and dtype == torch.bfloat16:
         maybe_warn_marlin_atomic_add(device, dtype)
         return False
@@ -778,7 +778,7 @@ class MarlinLinearMethod(LinearMethodBase):
                 output_size_per_partition
                 * self.quant_config.tile_size
                 // self.quant_config.pack_factor,
-                device="cuda",
+                device="rtriton",
                 dtype=torch.int32,
             ),
             input_dim=0,
@@ -800,7 +800,7 @@ class MarlinLinearMethod(LinearMethodBase):
             "data": torch.empty(
                 input_groups,
                 output_size_per_partition,
-                device="cuda",
+                device="rtriton",
                 dtype=params_dtype,
             ),
             "weight_loader": weight_loader,
@@ -818,7 +818,7 @@ class MarlinLinearMethod(LinearMethodBase):
         ) * self.quant_config.max_parallel
 
         workspace = BasevLLMParameter(
-            data=torch.zeros(max_workspace_size, device="cuda", dtype=torch.int),
+            data=torch.zeros(max_workspace_size, device="rtriton", dtype=torch.int),
             weight_loader=weight_loader,
         )
 

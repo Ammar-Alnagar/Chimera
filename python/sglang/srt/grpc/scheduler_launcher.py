@@ -69,7 +69,7 @@ def launch_scheduler_process_only(
     configure_logger(server_args)
     server_args.check_server_args()
 
-    # Fix CUDA multiprocessing issues - must be called before any CUDA operations
+    # Fix RTRITON multiprocessing issues - must be called before any RTRITON operations
     mp.set_start_method("spawn", force=True)
 
     # Allocate ports for inter-process communications

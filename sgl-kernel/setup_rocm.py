@@ -20,7 +20,7 @@ from pathlib import Path
 
 import torch
 from setuptools import find_packages, setup
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+from torch.utils.cpp_extension import BuildExtension, RTRITONExtension
 
 root = Path(__file__).parent.resolve()
 arch = platform.machine().lower()
@@ -47,7 +47,7 @@ sources = [
     "csrc/common_extension_rocm.cc",
     "csrc/elementwise/activation.cu",
     "csrc/elementwise/topk.cu",
-    "csrc/grammar/apply_token_bitmask_inplace_cuda.cu",
+    "csrc/grammar/apply_token_bitmask_inplace_rtriton.cu",
     "csrc/moe/moe_align_kernel.cu",
     "csrc/moe/moe_topk_softmax_kernels.cu",
     "csrc/moe/moe_topk_sigmoid_kernels.cu",
@@ -63,13 +63,13 @@ extra_link_args = ["-Wl,-rpath,$ORIGIN/../../torch/lib", f"-L/usr/lib/{arch}-lin
 default_target = "gfx942"
 amdgpu_target = os.environ.get("AMDGPU_TARGET", default_target)
 
-if torch.cuda.is_available():
+if torch.rtriton.is_available():
     try:
-        amdgpu_target = torch.cuda.get_device_properties(0).gcnArchName.split(":")[0]
+        amdgpu_target = torch.rtriton.get_device_properties(0).gcnArchName.split(":")[0]
     except Exception as e:
         print(f"Warning: Failed to detect GPU properties: {e}")
 else:
-    print(f"Warning: torch.cuda not available. Using default target: {amdgpu_target}")
+    print(f"Warning: torch.rtriton not available. Using default target: {amdgpu_target}")
 
 if amdgpu_target not in ["gfx942", "gfx950"]:
     print(
@@ -102,7 +102,7 @@ hipcc_flags = [
 ]
 
 ext_modules = [
-    CUDAExtension(
+    RTRITONExtension(
         name="sgl_kernel.common_ops",
         sources=sources,
         include_dirs=include_dirs,

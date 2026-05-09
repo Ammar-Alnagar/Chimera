@@ -13,10 +13,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <ATen/cuda/CUDAContext.h>
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
-#include <cuda_runtime.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <rtriton_bf16.h>
+#include <rtriton_fp16.h>
+#include <rtriton_runtime.h>
 #include <math.h>
 #include <torch/all.h>
 
@@ -89,15 +89,15 @@ torch::Tensor timestep_embedding(
   TORCH_CHECK(output.size(0) == batch_size, "Output batch size doesn't match t");
   TORCH_CHECK(output.size(1) == dim, "Output feature size doesn't match dim");
 
-  TORCH_CHECK(t.device().is_cuda(), "t must be a CUDA tensor");
-  TORCH_CHECK(output.device().is_cuda(), "output must be a CUDA tensor");
+  TORCH_CHECK(t.device().is_rtriton(), "t must be a RTRITON tensor");
+  TORCH_CHECK(output.device().is_rtriton(), "output must be a RTRITON tensor");
   TORCH_CHECK(t.device() == output.device(), "t and output must be on the same device");
 
   // To align with timestep_embedding python code.
   TORCH_CHECK(output.scalar_type() == at::ScalarType::Float, "Output buffer should be float32.");
 
   TORCH_CHECK(dim % 8 == 0, "dim should align to 8");
-  auto stream = at::cuda::getCurrentCUDAStream();
+  auto stream = at::rtriton::getCurrentRTRITONStream();
 
   constexpr int MAX_THREADS_PER_BLOCK = 1024;
   constexpr int MIN_THREADS_PER_BLOCK = 128;

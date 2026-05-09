@@ -11,7 +11,7 @@ from sglang.srt.layers.activation import SiluAndMul
 from sglang.srt.layers.moe.flashinfer_tilelang_moe import flashinfer_tilelang_moe_masked
 from sglang.srt.layers.moe.topk import TopKConfig, select_experts
 
-SKIP_TEST = torch.cuda.get_device_capability() < (10, 0)
+SKIP_TEST = torch.rtriton.get_device_capability() < (10, 0)
 SKIP_REASON = "Nvfp4 Requires compute capability of 10 or above."
 
 kE2M1ToFloat = torch.tensor(
@@ -158,7 +158,7 @@ def torch_moe_nvfp4(a, w1, w2, topk, topk_weight, topk_ids):
             # Note: w1 and w3 are swapped!
             w3_expert, w1_expert = w1[i][m // 2 :, :], w1[i][: m // 2, :]
             inter = F.silu(a[mask] @ w1_expert.t()) * (a[mask] @ w3_expert.t())
-            inter_gs = torch.tensor(1.0).cuda()
+            inter_gs = torch.tensor(1.0).rtriton()
             inter_q, inter_blockscale = fp4_quantize(inter, inter_gs)
             inter = dequantize_nvfp4_to_dtype(
                 inter_q,
@@ -167,7 +167,7 @@ def torch_moe_nvfp4(a, w1, w2, topk, topk_weight, topk_ids):
                 dtype=inter.dtype,
                 device=inter.device,
                 block_size=16,
-            ).cuda()
+            ).rtriton()
             out[mask] = inter @ w2[i].transpose(0, 1)
     return (
         out.view(B, -1, w2.shape[1]) * topk_weight.view(B, -1, 1).to(out.dtype)
@@ -185,27 +185,27 @@ def check_moe(
     flip_w13: bool,
 ):
     torch.manual_seed(7)
-    a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
-    w1 = torch.randn((e, 2 * n, k), device="cuda", dtype=dtype) / 10
+    a = torch.randn((m, k), device="rtriton", dtype=dtype) / 10
+    w1 = torch.randn((e, 2 * n, k), device="rtriton", dtype=dtype) / 10
     quant_blocksize = 16
     round_up = lambda x, y: (x + y - 1) // y * y
     sf_w1_2n = round_up(2 * n, 128)
     sf_w1_k = round_up(k // quant_blocksize, 4)
     w1_blockscale = torch.empty(
-        (e, sf_w1_2n, sf_w1_k), device="cuda", dtype=torch.float8_e4m3fn
+        (e, sf_w1_2n, sf_w1_k), device="rtriton", dtype=torch.float8_e4m3fn
     )
 
-    w2 = torch.randn((e, k, n), device="cuda", dtype=dtype) / 10
+    w2 = torch.randn((e, k, n), device="rtriton", dtype=dtype) / 10
     sf_w2_k = round_up(k, 128)
     sf_w2_n = round_up(n // quant_blocksize, 4)
     w2_blockscale = torch.empty(
-        (e, sf_w2_k, sf_w2_n), device="cuda", dtype=torch.float8_e4m3fn
+        (e, sf_w2_k, sf_w2_n), device="rtriton", dtype=torch.float8_e4m3fn
     )
 
-    w1_q = torch.empty((e, 2 * n, k // 2), device="cuda", dtype=torch.uint8)
-    w2_q = torch.empty((e, k, n // 2), device="cuda", dtype=torch.uint8)
-    w1_gs = torch.empty((e,), device="cuda", dtype=torch.float32)
-    w2_gs = torch.empty((e,), device="cuda", dtype=torch.float32)
+    w1_q = torch.empty((e, 2 * n, k // 2), device="rtriton", dtype=torch.uint8)
+    w2_q = torch.empty((e, k, n // 2), device="rtriton", dtype=torch.uint8)
+    w1_gs = torch.empty((e,), device="rtriton", dtype=torch.float32)
+    w2_gs = torch.empty((e,), device="rtriton", dtype=torch.float32)
 
     for expert in range(e):
         w1_amax = torch.abs(w1).max().to(torch.float32)
@@ -221,7 +221,7 @@ def check_moe(
             w2[expert], w2_gs[expert]
         )
 
-    score = torch.randn((m, e), device="cuda", dtype=dtype)
+    score = torch.randn((m, e), device="rtriton", dtype=dtype)
 
     topk_output = select_experts(
         hidden_states=a,
@@ -230,8 +230,8 @@ def check_moe(
     )
     topk_weights, topk_ids, _ = topk_output
 
-    a1_gs = torch.ones((e,), device="cuda", dtype=torch.float32)
-    a2_gs = torch.ones((e,), device="cuda", dtype=torch.float32)
+    a1_gs = torch.ones((e,), device="rtriton", dtype=torch.float32)
+    a2_gs = torch.ones((e,), device="rtriton", dtype=torch.float32)
     test_output = moe_impl(
         a=a,
         topk_weights=topk_weights,
@@ -261,8 +261,8 @@ def check_moe(
         block_size=quant_blocksize,
     )
 
-    w1_d = torch.empty((e, 2 * n, k), device="cuda", dtype=dtype)
-    w2_d = torch.empty((e, k, n), device="cuda", dtype=dtype)
+    w1_d = torch.empty((e, 2 * n, k), device="rtriton", dtype=dtype)
+    w2_d = torch.empty((e, k, n), device="rtriton", dtype=dtype)
 
     for idx in range(0, e):
         w1_d[idx] = dequantize_nvfp4_to_dtype(
@@ -318,7 +318,7 @@ class TestFlashinferTilelangMoe(unittest.TestCase):
                 )
                 with torch.inference_mode():
                     torch.manual_seed(42)
-                    device = "cuda"
+                    device = "rtriton"
                     dtype = torch.bfloat16
                     num_experts = 8
                     hidden_states = (

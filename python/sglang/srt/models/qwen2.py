@@ -196,7 +196,7 @@ class Qwen2DecoderLayer(nn.Module):
         layer_id: int = 0,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.hidden_size = config.hidden_size
@@ -264,7 +264,7 @@ class Qwen2Model(nn.Module):
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
         decoder_layer_type: type[nn.Module] = Qwen2DecoderLayer,
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.config = config
@@ -643,8 +643,8 @@ class Qwen2ForCausalLM(nn.Module):
         del self.lm_head.weight
         self.model.embed_tokens.weight = embed
         self.lm_head.weight = head
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        torch.rtriton.empty_cache()
+        torch.rtriton.synchronize()
 
     def load_kv_cache_scales(self, quantization_param_path: str) -> None:
         self.model.load_kv_cache_scales(quantization_param_path)

@@ -131,7 +131,7 @@ def triton_kernel_fused_experts(
 
     # consistent with default implementation
     intermediate_cache2 = torch.empty(
-        (M * n_expts_act, N // 2), device="cuda", dtype=dtype
+        (M * n_expts_act, N // 2), device="rtriton", dtype=dtype
     )
 
     intermediate_cache1 = matmul_ogs(
@@ -278,7 +278,7 @@ def triton_kernel_fused_experts_with_bias(
 
     # TODO maybe completely remove this branch
     if w1.dtype == torch.bfloat16:
-        device = "cuda"
+        device = "rtriton"
         optg = dict()
         w1, w1_flex = quantize(w1, "bf16", device, **optg)
         w1_pcg = PrecisionConfig(flex_ctx=FlexCtx(rhs_data=w1_flex))

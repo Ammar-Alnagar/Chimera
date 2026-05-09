@@ -145,14 +145,14 @@ class StandardDispatcher(BaseDispatcher):
         ):
             if self.local_expert_mapping is None:
                 self.local_expert_mapping = torch.full(
-                    (self.num_experts,), -1, dtype=torch.int32, device="cuda"
+                    (self.num_experts,), -1, dtype=torch.int32, device="rtriton"
                 )
                 self.local_expert_mapping[
                     self.moe_ep_rank
                     * self.num_local_routed_experts : (self.moe_ep_rank + 1)
                     * self.num_local_routed_experts
                 ] = torch.arange(
-                    0, self.num_local_routed_experts, dtype=torch.int32, device="cuda"
+                    0, self.num_local_routed_experts, dtype=torch.int32, device="rtriton"
                 )
 
                 if self.num_local_shared_experts > 0:

@@ -12,7 +12,7 @@ import torch
 import triton
 import triton.language as tl
 
-from sglang.srt.compilation.piecewise_context_manager import is_in_piecewise_cuda_graph
+from sglang.srt.compilation.piecewise_context_manager import is_in_piecewise_rtriton_graph
 from sglang.srt.layers.attention.flashinfer_mla_backend import (
     FlashInferMLAAttnBackend,
     FlashInferMLAMultiStepDraftBackend,
@@ -25,7 +25,7 @@ from sglang.srt.layers.dp_attention import get_attention_tp_size
 from sglang.srt.layers.quantization.fp8_kernel import scaled_fp8_quant
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch, ForwardMode
 from sglang.srt.server_args import get_global_server_args
-from sglang.srt.utils import is_cuda, is_flashinfer_available, is_float4_e2m1fn_x2
+from sglang.srt.utils import is_rtriton, is_flashinfer_available, is_float4_e2m1fn_x2
 
 if is_flashinfer_available():
     import flashinfer
@@ -35,9 +35,9 @@ if TYPE_CHECKING:
     from sglang.srt.model_executor.model_runner import ModelRunner
     from sglang.srt.speculative.spec_info import SpecInput
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import concat_mla_absorb_q
 
 # Constants
@@ -301,9 +301,9 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
             )
         self.workspace_buffer = global_zero_init_workspace_buffer
 
-        # CUDA graph state
-        self.decode_cuda_graph_metadata = {}
-        self.decode_cuda_graph_kv_indices = None
+        # RTRITON graph state
+        self.decode_rtriton_graph_metadata = {}
+        self.decode_rtriton_graph_kv_indices = None
         self.padded_q_buffer = None
         self.unpad_output_buffer = None
         self.forward_prefill_metadata: Optional[TRTLLMMLAPrefillMetadata] = None
@@ -376,17 +376,17 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
 
         return block_kv_indices
 
-    def init_cuda_graph_state(
+    def init_rtriton_graph_state(
         self,
         max_bs: int,
         max_num_tokens: int,
         kv_indices_buf: Optional[torch.Tensor] = None,
     ):
-        """Initialize CUDA graph state for TRTLLM MLA."""
+        """Initialize RTRITON graph state for TRTLLM MLA."""
 
         max_blocks_per_seq = self._calc_padded_blocks(self.max_context_len)
 
-        self.decode_cuda_graph_kv_indices = torch.full(
+        self.decode_rtriton_graph_kv_indices = torch.full(
             (max_bs, max_blocks_per_seq), -1, dtype=torch.int32, device=self.device
         )
         num_tokens_per_bs = max_num_tokens // max_bs
@@ -421,9 +421,9 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
                 device=self.device,
             )
 
-        super().init_cuda_graph_state(max_bs, max_num_tokens, kv_indices_buf)
+        super().init_rtriton_graph_state(max_bs, max_num_tokens, kv_indices_buf)
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -433,7 +433,7 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
         forward_mode: ForwardMode,
         spec_info: Optional[SpecInput],
     ):
-        """Initialize metadata for CUDA graph capture."""
+        """Initialize metadata for RTRITON graph capture."""
 
         # Delegate to parent for non-decode modes.
         if (
@@ -441,7 +441,7 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
             and not forward_mode.is_target_verify()
             and not forward_mode.is_draft_extend(include_v2=True)
         ):
-            return super().init_forward_metadata_capture_cuda_graph(
+            return super().init_forward_metadata_capture_rtriton_graph(
                 bs,
                 num_tokens,
                 req_pool_indices,
@@ -487,7 +487,7 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
         # Custom fast-path for decode/idle.
         # Capture with full width so future longer sequences are safe during replay
         max_blocks_per_seq = self._calc_padded_blocks(self.max_context_len)
-        block_kv_indices = self.decode_cuda_graph_kv_indices[:bs, :max_blocks_per_seq]
+        block_kv_indices = self.decode_rtriton_graph_kv_indices[:bs, :max_blocks_per_seq]
 
         create_flashmla_kv_indices_triton[(bs,)](
             self.req_to_token,
@@ -503,10 +503,10 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
         metadata.block_kv_indices = block_kv_indices
         metadata.max_seq_len_k = self.max_context_len
 
-        self.decode_cuda_graph_metadata[bs] = metadata
+        self.decode_rtriton_graph_metadata[bs] = metadata
         self.forward_decode_metadata = metadata
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -517,14 +517,14 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
         spec_info: Optional[SpecInput],
         seq_lens_cpu: Optional[torch.Tensor],
     ):
-        """Replay CUDA graph with new inputs."""
+        """Replay RTRITON graph with new inputs."""
         # Delegate to parent for non-decode modes.
         if (
             not forward_mode.is_decode_or_idle()
             and not forward_mode.is_target_verify()
             and not forward_mode.is_draft_extend(include_v2=True)
         ):
-            return super().init_forward_metadata_replay_cuda_graph(
+            return super().init_forward_metadata_replay_rtriton_graph(
                 bs,
                 req_pool_indices,
                 seq_lens,
@@ -535,7 +535,7 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
                 seq_lens_cpu,
             )
 
-        metadata = self.decode_cuda_graph_metadata[bs]
+        metadata = self.decode_rtriton_graph_metadata[bs]
 
         if forward_mode.is_target_verify():
             seq_lens = seq_lens[:bs] + self.num_draft_tokens
@@ -569,8 +569,8 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
             PAGED_SIZE=self.page_size,
         )
 
-    def get_cuda_graph_seq_len_fill_value(self) -> int:
-        """Get the fill value for sequence lengths in CUDA graph."""
+    def get_rtriton_graph_seq_len_fill_value(self) -> int:
+        """Get the fill value for sequence lengths in RTRITON graph."""
         return 1
 
     def init_forward_metadata(self, forward_batch: ForwardBatch):
@@ -583,11 +583,11 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
         ):
             # For extend batch with prefix length > 0, fallback to ragged kernel implemented in flashinfer MLA backend
             # when chunked prefix cache is disabled.
-            # Also fallback to flashinfer MLA backend when in piecewise cuda graph, since it only supports MLA forward mode.
+            # Also fallback to flashinfer MLA backend when in piecewise rtriton graph, since it only supports MLA forward mode.
             has_prefix = any(forward_batch.extend_prefix_lens_cpu)
             fallback_to_flashinfer_impl = (
                 self.disable_chunked_prefix_cache and has_prefix
-            ) or is_in_piecewise_cuda_graph()
+            ) or is_in_piecewise_rtriton_graph()
             if fallback_to_flashinfer_impl:
                 super().init_forward_metadata(forward_batch)
 
@@ -789,14 +789,14 @@ class TRTLLMMLABackend(FlashInferMLAAttnBackend):
         v_head_dim = raw_out.shape[3]  # head_dim
         total_tokens = sum_seq_lens_q
 
-        # Check if we're in CUDA graph mode (buffers are pre-allocated)
+        # Check if we're in RTRITON graph mode (buffers are pre-allocated)
         if self.unpad_output_buffer is not None:
-            # Use pre-allocated buffer for CUDA graph compatibility
+            # Use pre-allocated buffer for RTRITON graph compatibility
             output = self.unpad_output_buffer[:total_tokens, :, :].to(
                 dtype=raw_out.dtype
             )
         else:
-            # Dynamic allocation for non-CUDA graph mode
+            # Dynamic allocation for non-RTRITON graph mode
             output = torch.empty(
                 (total_tokens, tp_q_head_num, v_head_dim),
                 dtype=raw_out.dtype,
@@ -1151,7 +1151,7 @@ class TRTLLMMLAMultiStepDraftBackend(FlashInferMLAMultiStepDraftBackend):
 
 
 def _concat_mla_absorb_q_general(q_nope, q_rope):
-    if _is_cuda and q_nope.shape[-1] == 512 and q_rope.shape[-1] == 64:
+    if _is_rtriton and q_nope.shape[-1] == 512 and q_rope.shape[-1] == 64:
         return concat_mla_absorb_q(q_nope, q_rope)
     else:
         return torch.cat([q_nope, q_rope], dim=-1)

@@ -19,10 +19,10 @@
  */
 
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/rtriton/RTRITONContext.h>
 
-#include "cuda_bf16.h"
-#include "cuda_runtime.h"
+#include "rtriton_bf16.h"
+#include "rtriton_runtime.h"
 #include "utils.h"
 
 // Custom FMA implementation using PTX assembly instructions
@@ -74,7 +74,7 @@ __launch_bounds__(128, 1) void router_gemm_kernel_bf16_output(__nv_bfloat16* out
     k_bases[ki] = ki * k_elems_per_k_iteration + tid * VPT;
   }
 
-#if (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 900))
+#if (defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 900))
   asm volatile("griddepcontrol.wait;");
 #endif
 
@@ -158,26 +158,26 @@ __launch_bounds__(128, 1) void router_gemm_kernel_bf16_output(__nv_bfloat16* out
       out[m * kNumExperts + n_idx] = __float2bfloat16(final_sum);
     }
   }
-#if (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 900))
+#if (defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 900))
   asm volatile("griddepcontrol.launch_dependents;");
 #endif
 }
 
 template <typename T, int kNumTokens, int kNumExperts, int kHiddenDim>
-void invokeRouterGemmBf16Output(__nv_bfloat16* output, T const* mat_a, T const* mat_b, cudaStream_t stream) {
+void invokeRouterGemmBf16Output(__nv_bfloat16* output, T const* mat_a, T const* mat_b, rtritonStream_t stream) {
   constexpr int VPT = 16 / sizeof(T);
   constexpr int kBlockSize = 128;
-  cudaLaunchConfig_t config;
+  rtritonLaunchConfig_t config;
   config.gridDim = kNumExperts;
   config.blockDim = kBlockSize;
   config.dynamicSmemBytes = 0;
   config.stream = stream;
-  cudaLaunchAttribute attrs[1];
-  attrs[0].id = cudaLaunchAttributeProgrammaticStreamSerialization;
+  rtritonLaunchAttribute attrs[1];
+  attrs[0].id = rtritonLaunchAttributeProgrammaticStreamSerialization;
   attrs[0].val.programmaticStreamSerializationAllowed = getEnvEnablePDL();
   config.numAttrs = 1;
   config.attrs = attrs;
-  cudaLaunchKernelEx(
+  rtritonLaunchKernelEx(
       &config,
       router_gemm_kernel_bf16_output<T, kBlockSize, VPT, kNumTokens, kNumExperts, kHiddenDim>,
       output,
@@ -187,98 +187,98 @@ void invokeRouterGemmBf16Output(__nv_bfloat16* output, T const* mat_a, T const* 
 
 // Template instantiations for DEFAULT_NUM_EXPERTS experts
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 1, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 2, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 3, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 4, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 5, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 6, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 7, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 8, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 9, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 10, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 11, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 12, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 13, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 14, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 15, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 16, 256, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 // Template instantiations for KIMI_K2_NUM_EXPERTS experts
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 1, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 2, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 3, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 4, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 5, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 6, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 7, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 8, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 9, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 10, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 11, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 12, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 13, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 14, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 15, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);
 
 template void invokeRouterGemmBf16Output<__nv_bfloat16, 16, 384, 7168>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, rtritonStream_t);

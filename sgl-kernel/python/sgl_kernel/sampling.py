@@ -141,7 +141,7 @@ def top_p_sampling_from_probs(
     this operator implements GPU-based rejection sampling without explicit sorting.
     Check the `blog post <https://flashinfer.ai/2025/03/10/sampling.html>`_ for more details.
 
-    The multiple rounds of rejection sampling are implemented in a single CUDA kernel,
+    The multiple rounds of rejection sampling are implemented in a single RTRITON kernel,
     which is more efficient than the naive implementation that launches a series of kernels.
 
     Parameters
@@ -232,7 +232,7 @@ def top_k_top_p_sampling_from_probs(
     this operator implements GPU-based rejection sampling without explicit sorting.
     Check the `blog post <https://flashinfer.ai/2025/03/10/sampling.html>`_ for more details.
 
-    The multiple rounds of rejection sampling are implemented in a single CUDA kernel,
+    The multiple rounds of rejection sampling are implemented in a single RTRITON kernel,
     which is more efficient than the naive implementation that launches a series of kernels.
 
     Parameters
@@ -342,7 +342,7 @@ def min_p_sampling_from_probs(
     this operator implements GPU-based rejection sampling without explicit sorting.
     Check the `blog post <https://flashinfer.ai/2025/03/10/sampling.html>`_ for more details.
 
-    The multiple rounds of rejection sampling are implemented in a single CUDA kernel,
+    The multiple rounds of rejection sampling are implemented in a single RTRITON kernel,
     which is more efficient than the naive implementation that launches a series of kernels.
 
     Parameters
@@ -436,13 +436,13 @@ def top_k_mask_logits(
     tensor([[ 1.9269,  1.4873,  0.9007, -2.1055, -0.7581],
             [ 1.0783,  0.8008,  1.6806,  0.3559, -0.6866],
             [-0.4934,  0.2415, -0.2316,  0.0418, -0.2516],
-            [ 0.8599, -0.3097, -0.3957,  0.8034, -0.6216]], device='cuda:0')
+            [ 0.8599, -0.3097, -0.3957,  0.8034, -0.6216]], device='rtriton:0')
     >>> masked_logits = flashinfer.sampling.top_k_mask_logits(logits, top_k)
     >>> masked_logits
     tensor([[ 1.9269,  1.4873,  0.9007,    -inf,    -inf],
             [ 1.0783,  0.8008,  1.6806,    -inf,    -inf],
             [   -inf,  0.2415, -0.2316,  0.0418,    -inf],
-            [ 0.8599, -0.3097,    -inf,  0.8034,    -inf]], device='cuda:0')
+            [ 0.8599, -0.3097,    -inf,  0.8034,    -inf]], device='rtriton:0')
 
     Note
     ----
@@ -471,7 +471,7 @@ def top_k_top_p_sampling_from_logits(
     this operator implements GPU-based rejection sampling without explicit sorting.
     Check the `blog post <https://flashinfer.ai/2025/03/10/sampling.html>`_ for more details.
 
-    The multiple rounds of rejection sampling are implemented in a single CUDA kernel,
+    The multiple rounds of rejection sampling are implemented in a single RTRITON kernel,
     which is more efficient than the naive implementation that launches a series of kernels.
 
     Parameters

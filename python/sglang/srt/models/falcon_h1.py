@@ -35,10 +35,10 @@ from sglang.srt.layers.vocab_parallel_embedding import (
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
 from sglang.srt.model_loader.weight_utils import default_weight_loader
 from sglang.srt.server_args import get_global_server_args
-from sglang.srt.utils import add_prefix, is_cuda, make_layers
+from sglang.srt.utils import add_prefix, is_rtriton, make_layers
 
 logger = logging.getLogger(__name__)
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
 
 class FalconH1MLP(nn.Module):
@@ -108,7 +108,7 @@ class FalconH1HybridAttentionDecoderLayer(nn.Module):
         layer_id: int,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.config = config
@@ -387,7 +387,7 @@ class FalconH1Model(nn.Module):
         super().__init__()
         self.config = config
 
-        alt_stream = torch.cuda.Stream() if _is_cuda else None
+        alt_stream = torch.rtriton.Stream() if _is_rtriton else None
         self.embedding_multiplier = config.embedding_multiplier
 
         self.embed_tokens = VocabParallelEmbedding(
@@ -508,8 +508,8 @@ class FalconH1ForCausalLM(nn.Module):
         del self.lm_head.weight
         self.model.embed_tokens.weight = embed
         self.lm_head.weight = head
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        torch.rtriton.empty_cache()
+        torch.rtriton.synchronize()
 
     def load_weights(
         self, weights: Iterable[Tuple[str, torch.Tensor]], is_mtp: bool = False

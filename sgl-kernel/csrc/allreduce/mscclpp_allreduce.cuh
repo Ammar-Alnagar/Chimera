@@ -4,8 +4,8 @@
 #ifdef USE_ROCM
 #include <hip/hip_fp16.h>
 #else
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
+#include <rtriton_bf16.h>
+#include <rtriton_fp16.h>
 #endif
 
 #include <mscclpp/concurrency_device.hpp>
@@ -48,7 +48,7 @@ __forceinline__ __device__ __half2 add_elements(__half2 a, __half2 b) {
   return __hadd2(a, b);
 }
 
-#if (__CUDA_ARCH__ >= 800 || !defined(__CUDA_ARCH__))
+#if (__RTRITON_ARCH__ >= 800 || !defined(__RTRITON_ARCH__))
 template <>
 __forceinline__ __device__ __nv_bfloat162 add_elements(__nv_bfloat162 a, __nv_bfloat162 b) {
   return __hadd2(a, b);
@@ -70,7 +70,7 @@ __forceinline__ __device__ int4 add_vectors(int4 a, int4 b) {
   return add_vectors_helper<T>(a, b);
 }
 
-#if (__CUDA_ARCH__ >= 800 || !defined(__CUDA_ARCH__))
+#if (__RTRITON_ARCH__ >= 800 || !defined(__RTRITON_ARCH__))
 template <>
 __forceinline__ __device__ int4 add_vectors<__nv_bfloat16>(int4 a, int4 b) {
   return add_vectors_helper<__nv_bfloat162>(a, b);
@@ -95,7 +95,7 @@ __forceinline__ __device__ uint2 add_vectors(uint2 a, uint2 b) {
   return add_vectors_helper<T>(a, b);
 }
 
-#if (__CUDA_ARCH__ >= 800 || !defined(__CUDA_ARCH__))
+#if (__RTRITON_ARCH__ >= 800 || !defined(__RTRITON_ARCH__))
 template <>
 __forceinline__ __device__ uint2 add_vectors<__nv_bfloat16>(uint2 a, uint2 b) {
   return add_vectors_helper<__nv_bfloat162>(a, b);
@@ -117,7 +117,7 @@ __forceinline__ __device__ int add_vectors(int a, int b) {
   return add_vectors_helper<T>(a, b);
 }
 
-#if (__CUDA_ARCH__ >= 800 || !defined(__CUDA_ARCH__))
+#if (__RTRITON_ARCH__ >= 800 || !defined(__RTRITON_ARCH__))
 template <>
 __forceinline__ __device__ int add_vectors<__nv_bfloat16>(int a, int b) {
   return add_vectors_helper<__nv_bfloat162>(a, b);
@@ -342,7 +342,7 @@ class MscclCommGroup {
     comm_ = std::make_shared<mscclpp::Communicator>(bootstrap);
   }
   template <typename T>
-  void allreduce(cudaStream_t stream, T* output, size_t input_numel, int threads = 512, int block_limit = 21) {
+  void allreduce(rtritonStream_t stream, T* output, size_t input_numel, int threads = 512, int block_limit = 21) {
     throw std::runtime_error("you should not call allreduce of a base context");
   }
   bool is_same_node(int r1, int r2) {
@@ -357,7 +357,7 @@ class MscclCommGroup {
     std::unordered_map<int, mscclpp::NonblockingFuture<std::shared_ptr<mscclpp::Connection>>> conn_futures;
     for (int r = 0; r < world_size_; ++r) {
       if (r == rank_) continue;
-      mscclpp::Transport transport = is_same_node(r, rank_) ? mscclpp::Transport::CudaIpc : IBs[rank_to_ib_[r]];
+      mscclpp::Transport transport = is_same_node(r, rank_) ? mscclpp::Transport::RtritonIpc : IBs[rank_to_ib_[r]];
       conn_futures.emplace(r, comm_->connectOnSetup(r, 0, transport));
     }
     comm_->setup();
@@ -468,7 +468,7 @@ class MscclCommGroup {
       mscclpp::GpuBuffer<mscclpp::MemoryChannelDeviceHandle>& device_memory_handle,
       void* input,
       void* scratch,
-      const cudaStream_t stream) {
+      const rtritonStream_t stream) {
     memory_channels.clear();
     for (const auto& [peer, channel] : old_memory_channels) {
       memory_channels.emplace(
@@ -492,7 +492,7 @@ class MscclCommGroup {
         memory_channel_handlers.data(),
         memory_channel_handlers.size(),
         stream,
-        cudaMemcpyHostToDevice);
+        rtritonMemcpyHostToDevice);
   }
 };
 
@@ -510,7 +510,7 @@ class Msccl1NodeLLcontext {
   mscclpp::GpuBuffer<mscclpp::MemoryChannelDeviceHandle> d_memHandles_;
   std::unordered_map<void*, std::unordered_map<int, mscclpp::MemoryChannel>> input_ptr2memory_channels_;
   std::unordered_map<void*, mscclpp::GpuBuffer<mscclpp::MemoryChannelDeviceHandle>> input_ptr2d_memHandles_;
-  cudaStream_t h2d_stream;
+  rtritonStream_t h2d_stream;
   const size_t nranks_per_node_;
 
  public:
@@ -527,7 +527,7 @@ class Msccl1NodeLLcontext {
         scratch_bytes_(scratch_bytes),
         nranks_per_node_(nranks_per_node),
         d_memHandles_(nranks_per_node - 1) {
-    CHECK_CUDA_SUCCESS(cudaStreamCreateWithFlags(&h2d_stream, cudaStreamNonBlocking));
+    CHECK_RTRITON_SUCCESS(rtritonStreamCreateWithFlags(&h2d_stream, rtritonStreamNonBlocking));
     comm_group_ = std::make_shared<MscclCommGroup>(unique_id, rank, world_size, rank_to_node, rank_to_ib);
     comm_group_->make_connection(same_node_connections_, cross_node_connections_);
     comm_group_->make_memory_channels_with_scratch(
@@ -551,21 +551,21 @@ class Msccl1NodeLLcontext {
         memory_channel_handlers.begin(),
         [](const mscclpp::MemoryChannel& channel) { return channel.deviceHandle(); });
     mscclpp::gpuMemcpy<mscclpp::MemoryChannelDeviceHandle>(
-        d_memHandles_.data(), memory_channel_handlers.data(), memory_channel_handlers.size(), cudaMemcpyHostToDevice);
+        d_memHandles_.data(), memory_channel_handlers.data(), memory_channel_handlers.size(), rtritonMemcpyHostToDevice);
   }
 
   ~Msccl1NodeLLcontext() {
-    CHECK_CUDA_SUCCESS(cudaStreamDestroy(h2d_stream));
+    CHECK_RTRITON_SUCCESS(rtritonStreamDestroy(h2d_stream));
   }
 
   template <typename T>
-  void allreduce(cudaStream_t stream, T* input, T* output, size_t input_numel, int nthreads = 512, int nblocks = 21) {
+  void allreduce(rtritonStream_t stream, T* input, T* output, size_t input_numel, int nthreads = 512, int nblocks = 21) {
     dim3 nthrs(nthreads);
     dim3 nblks(nblocks);
-    cudaStreamCaptureStatus capturing_status;
-    CHECK_CUDA_SUCCESS(cudaStreamIsCapturing(stream, &capturing_status));
+    rtritonStreamCaptureStatus capturing_status;
+    CHECK_RTRITON_SUCCESS(rtritonStreamIsCapturing(stream, &capturing_status));
     mscclpp::MemoryChannelDeviceHandle* memChans;
-    if (capturing_status != cudaStreamCaptureStatusActive) {
+    if (capturing_status != rtritonStreamCaptureStatusActive) {
       std::unordered_map<int, mscclpp::MemoryChannel> memory_channels;
       comm_group_->make_device_memory_handle_base_on_new_ptr(
           memory_channels_,
@@ -576,7 +576,7 @@ class Msccl1NodeLLcontext {
           input,
           scratch_,
           h2d_stream);
-      CHECK_CUDA_SUCCESS(cudaStreamSynchronize(h2d_stream));
+      CHECK_RTRITON_SUCCESS(rtritonStreamSynchronize(h2d_stream));
       memChans = d_memHandles_.data();
     } else {
       void* input_void_ptr = reinterpret_cast<void*>(input);
@@ -601,9 +601,9 @@ class Msccl1NodeLLcontext {
     allreduce_LL_1node<T><<<nblks, nthrs, 0, stream>>>(
         memChans, (T*)input, (T*)scratch_, output, comm_group_->rank_, comm_group_->world_size_, input_numel);
 
-    cudaError_t status = cudaGetLastError();
-    if (status != cudaSuccess) {
-      printf("rank: %lu failed to launch allreduce_LL_1node: %s\n", comm_group_->rank_, cudaGetErrorString(status));
+    rtritonError_t status = rtritonGetLastError();
+    if (status != rtritonSuccess) {
+      printf("rank: %lu failed to launch allreduce_LL_1node: %s\n", comm_group_->rank_, rtritonGetErrorString(status));
     }
   }
 };
@@ -631,7 +631,7 @@ class Msccl2NodeLLcontext {
   mscclpp::GpuBuffer<mscclpp::PortChannelDeviceHandle> d_portHandles_;
 
   std::shared_ptr<mscclpp::ProxyService> proxyService;
-  cudaStream_t h2d_stream;
+  rtritonStream_t h2d_stream;
   const size_t nranks_per_node_;
 
   std::unordered_map<void*, std::unordered_map<int, mscclpp::MemoryChannel>> input_ptr2memory_channels_;
@@ -656,7 +656,7 @@ class Msccl2NodeLLcontext {
         nranks_per_node_(nranks_per_node),
         d_memHandles_(nranks_per_node - 1),
         d_portHandles_(world_size - nranks_per_node) {
-    CHECK_CUDA_SUCCESS(cudaStreamCreateWithFlags(&h2d_stream, cudaStreamNonBlocking));
+    CHECK_RTRITON_SUCCESS(rtritonStreamCreateWithFlags(&h2d_stream, rtritonStreamNonBlocking));
     comm_group_ = std::make_shared<MscclCommGroup>(unique_id, rank, world_size, rank_to_node, rank_to_ib);
     proxyService = std::make_shared<mscclpp::ProxyService>();
     proxyService->startProxy();
@@ -697,7 +697,7 @@ class Msccl2NodeLLcontext {
         memory_channel_handlers.begin(),
         [](const mscclpp::MemoryChannel& channel) { return channel.deviceHandle(); });
     mscclpp::gpuMemcpy<mscclpp::MemoryChannelDeviceHandle>(
-        d_memHandles_.data(), memory_channel_handlers.data(), memory_channel_handlers.size(), cudaMemcpyHostToDevice);
+        d_memHandles_.data(), memory_channel_handlers.data(), memory_channel_handlers.size(), rtritonMemcpyHostToDevice);
 
     std::vector<mscclpp::PortChannelDeviceHandle> port_channel_handlers(port_channels_list.size());
     std::transform(
@@ -706,11 +706,11 @@ class Msccl2NodeLLcontext {
         port_channel_handlers.begin(),
         [](const mscclpp::PortChannel& channel) { return channel.deviceHandle(); });
     mscclpp::gpuMemcpy<mscclpp::PortChannelDeviceHandle>(
-        d_portHandles_.data(), port_channel_handlers.data(), port_channel_handlers.size(), cudaMemcpyHostToDevice);
+        d_portHandles_.data(), port_channel_handlers.data(), port_channel_handlers.size(), rtritonMemcpyHostToDevice);
   }
 
   ~Msccl2NodeLLcontext() {
-    CHECK_CUDA_SUCCESS(cudaStreamDestroy(h2d_stream));
+    CHECK_RTRITON_SUCCESS(rtritonStreamDestroy(h2d_stream));
     if (proxyService) {
       proxyService->stopProxy();
     }
@@ -718,13 +718,13 @@ class Msccl2NodeLLcontext {
 
   template <typename T>
   void
-  allreduce(cudaStream_t stream, T* input, T* output, const size_t input_numel, int nthreads = 512, int nblocks = 21) {
+  allreduce(rtritonStream_t stream, T* input, T* output, const size_t input_numel, int nthreads = 512, int nblocks = 21) {
     dim3 nthrs(nthreads);
     dim3 nblks(nblocks);
-    cudaStreamCaptureStatus capturing_status;
-    CHECK_CUDA_SUCCESS(cudaStreamIsCapturing(stream, &capturing_status));
+    rtritonStreamCaptureStatus capturing_status;
+    CHECK_RTRITON_SUCCESS(rtritonStreamIsCapturing(stream, &capturing_status));
     mscclpp::MemoryChannelDeviceHandle* memChans;
-    if (capturing_status != cudaStreamCaptureStatusActive) {
+    if (capturing_status != rtritonStreamCaptureStatusActive) {
       std::unordered_map<int, mscclpp::MemoryChannel> memory_channels;
       comm_group_->make_device_memory_handle_base_on_new_ptr(
           memory_channels_,
@@ -735,7 +735,7 @@ class Msccl2NodeLLcontext {
           input,
           scratch_,
           h2d_stream);
-      CHECK_CUDA_SUCCESS(cudaStreamSynchronize(h2d_stream));
+      CHECK_RTRITON_SUCCESS(rtritonStreamSynchronize(h2d_stream));
       memChans = d_memHandles_.data();
     } else {
       void* input_void_ptr = reinterpret_cast<void*>(input);
@@ -769,9 +769,9 @@ class Msccl2NodeLLcontext {
         comm_group_->world_size_,
         input_numel);
 
-    cudaError_t status = cudaGetLastError();
-    if (status != cudaSuccess) {
-      printf("rank: %lu failed to launch allreduce_LL_2node: %s\n", comm_group_->rank_, cudaGetErrorString(status));
+    rtritonError_t status = rtritonGetLastError();
+    if (status != rtritonSuccess) {
+      printf("rank: %lu failed to launch allreduce_LL_2node: %s\n", comm_group_->rank_, rtritonGetErrorString(status));
     }
   }
 };

@@ -92,12 +92,12 @@ class LoRAManager:
             lora_paths=lora_paths,
         )
 
-    def init_cuda_graph_batch_info(
-        self, max_bs_in_cuda_graph: int, num_tokens_per_bs: int
+    def init_rtriton_graph_batch_info(
+        self, max_bs_in_rtriton_graph: int, num_tokens_per_bs: int
     ):
-        self.max_bs_in_cuda_graph = max_bs_in_cuda_graph
-        self.lora_backend.init_cuda_graph_batch_info(
-            max_bs_in_cuda_graph=max_bs_in_cuda_graph,
+        self.max_bs_in_rtriton_graph = max_bs_in_rtriton_graph
+        self.lora_backend.init_rtriton_graph_batch_info(
+            max_bs_in_rtriton_graph=max_bs_in_rtriton_graph,
             num_tokens_per_bs=num_tokens_per_bs,
         )
 
@@ -256,10 +256,10 @@ class LoRAManager:
         # set up batch info shared by all lora modules
         bs = forward_batch.batch_size
 
-        use_cuda_graph = (
-            hasattr(self, "max_bs_in_cuda_graph")
-            and bs <= self.max_bs_in_cuda_graph
-            and forward_batch.forward_mode.is_cuda_graph()
+        use_rtriton_graph = (
+            hasattr(self, "max_bs_in_rtriton_graph")
+            and bs <= self.max_bs_in_rtriton_graph
+            and forward_batch.forward_mode.is_rtriton_graph()
         )
 
         weight_indices = [0] * len(forward_batch.lora_ids)
@@ -271,14 +271,14 @@ class LoRAManager:
                 lora = self.loras[uid]
                 lora_ranks[weight_indices[i]] = lora.config.r
                 scalings[weight_indices[i]] = lora.scaling
-        # Do in-place updates when CUDA graph is enabled and the batch forward mode
-        # could use CUDA graph.
+        # Do in-place updates when RTRITON graph is enabled and the batch forward mode
+        # could use RTRITON graph.
         self.lora_backend.prepare_lora_batch(
             forward_batch=forward_batch,
             weight_indices=weight_indices,
             lora_ranks=lora_ranks,
             scalings=scalings,
-            use_cuda_graph=use_cuda_graph,
+            use_rtriton_graph=use_rtriton_graph,
         )
 
     def update_lora_info(self):

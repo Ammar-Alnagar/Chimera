@@ -1,5 +1,5 @@
 #pragma once
-#include <cuda.h>
+#include <rtriton.h>
 
 #include "cute/tensor.hpp"
 #include "tilelang/util/packed_stride.hpp"

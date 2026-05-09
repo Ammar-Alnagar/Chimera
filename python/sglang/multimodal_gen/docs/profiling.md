@@ -80,7 +80,7 @@ sglang generate \
 
 ## Nsight Systems
 
-Nsight Systems provides low-level CUDA profiling with kernel details, register usage, and memory access patterns.
+Nsight Systems provides low-level RTRITON profiling with kernel details, register usage, and memory access patterns.
 
 ### Installation
 
@@ -93,7 +93,7 @@ Profile the entire pipeline execution:
 ```bash
 nsys profile \
   --trace-fork-before-exec=true \
-  --cuda-graph-trace=node \
+  --rtriton-graph-trace=node \
   --force-overwrite=true \
   -o QwenImage \
   sglang generate \
@@ -109,7 +109,7 @@ Use `--delay` and `--duration` to capture specific stages and reduce file size:
 ```bash
 nsys profile \
   --trace-fork-before-exec=true \
-  --cuda-graph-trace=node \
+  --rtriton-graph-trace=node \
   --force-overwrite=true \
   --delay 10 \
   --duration 30 \
@@ -133,4 +133,4 @@ nsys profile \
 
 ## FAQ
 
-- If you are profiling `sglang generate` with Nsight Systems and find that the generated profiler file did not capture any CUDA kernels, you can resolve this issue by increasing the model's inference steps to extend the execution time.
+- If you are profiling `sglang generate` with Nsight Systems and find that the generated profiler file did not capture any RTRITON kernels, you can resolve this issue by increasing the model's inference steps to extend the execution time.

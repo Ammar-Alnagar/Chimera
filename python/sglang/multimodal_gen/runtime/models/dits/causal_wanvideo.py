@@ -19,7 +19,7 @@ from sglang.multimodal_gen.runtime.utils.layerwise_offload import OffloadableDiT
 # see https://github.com/pytorch/pytorch/issues/133254
 # change to default for other models
 flex_attention = torch.compile(
-    flex_attention, dynamic=False, mode="max-autotune-no-cudagraphs"
+    flex_attention, dynamic=False, mode="max-autotune-no-rtritongraphs"
 )
 import torch.distributed as dist
 

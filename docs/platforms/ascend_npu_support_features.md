@@ -294,12 +294,12 @@ If you want to know the meaning and usage of each parameter, click [Service Argu
 | Argument                                                | Defaults | Options                        |                    A2                    |                    A3                    |
 |---------------------------------------------------------|----------|--------------------------------|:----------------------------------------:|:----------------------------------------:|
 | `--disable-radix-cache`                                 | `False`  | bool flag<br/> (set to enable) | **<span style="color: green;">√</span>** | **<span style="color: green;">√</span>** |
-| `--cuda-graph-max-bs`                                   | `None`   | Type: int                      |  **<span style="color: red;">×</span>**  | **<span style="color: green;">√</span>** |
-| `--cuda-graph-bs`                                       | `None`   | List[int]                      |  **<span style="color: red;">×</span>**  | **<span style="color: green;">√</span>** |
-| `--disable-cuda-graph`                                  | `False`  | bool flag<br/> (set to enable) | **<span style="color: green;">√</span>** | **<span style="color: green;">√</span>** |
-| `--disable-cuda-graph-`<br/>`padding`                   | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  | **<span style="color: green;">√</span>** |
-| `--enable-profile-`<br/>`cuda-graph`                    | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
-| `--enable-cudagraph-gc`                                 | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
+| `--rtriton-graph-max-bs`                                   | `None`   | Type: int                      |  **<span style="color: red;">×</span>**  | **<span style="color: green;">√</span>** |
+| `--rtriton-graph-bs`                                       | `None`   | List[int]                      |  **<span style="color: red;">×</span>**  | **<span style="color: green;">√</span>** |
+| `--disable-rtriton-graph`                                  | `False`  | bool flag<br/> (set to enable) | **<span style="color: green;">√</span>** | **<span style="color: green;">√</span>** |
+| `--disable-rtriton-graph-`<br/>`padding`                   | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  | **<span style="color: green;">√</span>** |
+| `--enable-profile-`<br/>`rtriton-graph`                    | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
+| `--enable-rtritongraph-gc`                                 | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--enable-nccl-nvls`                                    | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--enable-symm-mem`                                     | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--disable-flashinfer-`<br/>`tilelang-moe-fp4-allgather` | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
@@ -317,10 +317,10 @@ If you want to know the meaning and usage of each parameter, click [Service Argu
 | `--tbo-token-`<br/>`distribution-threshold`             | `0.48`   | Type: float                    |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--enable-torch-`<br/>`compile`                         | `False`  | bool flag<br/> (set to enable) | **<span style="color: green;">√</span>** | **<span style="color: green;">√</span>** |
 | `--enable-torch-`<br/>`compile-debug-mode`              | `False`  | bool flag<br/> (set to enable) | **<span style="color: green;">√</span>** | **<span style="color: green;">√</span>** |
-| `--enable-piecewise-`<br/>`cuda-graph`                  | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
-| `--piecewise-cuda-`<br/>`graph-tokens`                  | `None`   | Type: JSON<br/> list           |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
+| `--enable-piecewise-`<br/>`rtriton-graph`                  | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
+| `--piecewise-rtriton-`<br/>`graph-tokens`                  | `None`   | Type: JSON<br/> list           |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--torch-compile-max-bs`                                | `32`     | Type: int                      |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
-| `--piecewise-cuda-`<br/>`graph-max-tokens`              | `4096`   | Type: int                      |  **<span style="color: red;">×</span>**  | **<span style="color: green;">√</span>** |
+| `--piecewise-rtriton-`<br/>`graph-max-tokens`              | `4096`   | Type: int                      |  **<span style="color: red;">×</span>**  | **<span style="color: green;">√</span>** |
 | `--torchao-config`                                      | ``       | Type: str                      |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--enable-nan-detection`                                | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |
 | `--enable-p2p-check`                                    | `False`  | bool flag<br/> (set to enable) |  **<span style="color: red;">×</span>**  |  **<span style="color: red;">×</span>**  |

@@ -17,9 +17,9 @@ import unittest
 
 import openai
 
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 
-register_cuda_ci(est_time=150, suite="nightly-1-gpu", nightly=True)
+register_rtriton_ci(est_time=150, suite="nightly-1-gpu", nightly=True)
 
 from sglang.srt.utils import kill_process_tree
 from sglang.test.test_utils import (

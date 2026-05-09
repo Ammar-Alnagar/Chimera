@@ -52,7 +52,7 @@ class TensorWrapper:
 
     def __init__(self, tensor):
         # Ensure tensor is on CPU and contiguous
-        if tensor.is_cuda:
+        if tensor.is_rtriton:
             tensor = tensor.cpu()
         if not tensor.is_contiguous():
             tensor = tensor.contiguous()
@@ -412,7 +412,7 @@ class EncoderProfiler:
         if "CPU" in activities:
             torch_activities.append(torch.profiler.ProfilerActivity.CPU)
         if "GPU" in activities:
-            torch_activities.append(torch.profiler.ProfilerActivity.CUDA)
+            torch_activities.append(torch.profiler.ProfilerActivity.RTRITON)
 
         profile_memory = "MEM" in activities
         if not torch_activities and not profile_memory:

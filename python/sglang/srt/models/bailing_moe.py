@@ -71,7 +71,7 @@ from sglang.srt.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
 )
-from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
+from sglang.srt.model_executor.rtriton_graph_runner import get_is_capture_mode
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch, PPProxyTensors
 from sglang.srt.model_loader.weight_utils import default_weight_loader
 from sglang.srt.models.utils import (
@@ -80,11 +80,11 @@ from sglang.srt.models.utils import (
     enable_fused_set_kv_buffer,
 )
 from sglang.srt.server_args import get_global_server_args
-from sglang.srt.utils import add_prefix, is_cuda, is_non_idle_and_non_empty, make_layers
+from sglang.srt.utils import add_prefix, is_rtriton, is_non_idle_and_non_empty, make_layers
 
 LoraConfig = None
 logger = logging.getLogger(__name__)
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
 
 class BailingMoEMLP(nn.Module):
@@ -180,7 +180,7 @@ class BailingMoESparseMoeBlock(nn.Module):
         layer_id: int,
         config: PretrainedConfig,
         quant_config: Optional[QuantizationConfig] = None,
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
         prefix: str = "",
     ):
         super().__init__()
@@ -342,11 +342,11 @@ class BailingMoESparseMoeBlock(nn.Module):
         self,
         hidden_states: torch.Tensor,
     ) -> torch.Tensor:
-        current_stream = torch.cuda.current_stream()
+        current_stream = torch.rtriton.current_stream()
         self.alt_stream.wait_stream(current_stream)
         shared_output = self._forward_shared_experts(hidden_states.clone())
 
-        with torch.cuda.stream(self.alt_stream):
+        with torch.rtriton.stream(self.alt_stream):
             router_output = self._forward_router_experts(hidden_states)
         current_stream.wait_stream(self.alt_stream)
 
@@ -424,7 +424,7 @@ class BailingMoEAttention(nn.Module):
         quant_config: Optional[QuantizationConfig] = None,
         reduce_results: bool = True,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ):
         super().__init__()
         self.hidden_size = config.hidden_size
@@ -559,7 +559,7 @@ class BailingMoEBlock(nn.Module):
         layer_id: int = 0,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ):
         super().__init__()
         self.config = config
@@ -699,7 +699,7 @@ class BailingMoEModel(nn.Module):
         self,
         config: PretrainedConfig,
         quant_config: Optional[QuantizationConfig] = None,
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
         prefix: str = "",
     ):
         super().__init__()
@@ -799,7 +799,7 @@ class BailingMoEForCausalLM(nn.Module):
         self.pp_group = get_pp_group()
         self.config = config
         self.quant_config = quant_config
-        alt_stream = torch.cuda.Stream() if _is_cuda else None
+        alt_stream = torch.rtriton.Stream() if _is_rtriton else None
 
         self.model = BailingMoEModel(
             config,
@@ -840,8 +840,8 @@ class BailingMoEForCausalLM(nn.Module):
         del self.lm_head.weight
         self.model.word_embeddings.weight = embed
         self.lm_head.weight = head
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        torch.rtriton.empty_cache()
+        torch.rtriton.synchronize()
 
     @torch.no_grad()
     def forward(

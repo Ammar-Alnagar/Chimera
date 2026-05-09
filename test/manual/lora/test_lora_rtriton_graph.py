@@ -28,7 +28,7 @@ from sglang.test.lora_utils import (
 )
 from sglang.test.test_utils import CustomTestCase, is_in_ci
 
-TEST_CUDA_GRAPH_PADDING_PROMPTS = [
+TEST_RTRITON_GRAPH_PADDING_PROMPTS = [
     "AI is a field of computer science focused on",
     """
     ### Instruction:
@@ -43,11 +43,11 @@ TEST_CUDA_GRAPH_PADDING_PROMPTS = [
 ]
 
 
-class TestLoRACudaGraph(CustomTestCase):
+class TestLoRARtritonGraph(CustomTestCase):
 
-    def _run_without_cuda_graph_on_model_cases(self, model_cases: List[LoRAModelCase]):
-        # Since we have already enabled CUDA graph by default in other lora tests,
-        # we only need to run lora tests without CUDA graph here.
+    def _run_without_rtriton_graph_on_model_cases(self, model_cases: List[LoRAModelCase]):
+        # Since we have already enabled RTRITON graph by default in other lora tests,
+        # we only need to run lora tests without RTRITON graph here.
         for model_case in model_cases:
             # If skip_long_prompt is True, filter out prompts longer than 1000 characters
             prompts = (
@@ -61,27 +61,27 @@ class TestLoRACudaGraph(CustomTestCase):
                     model_case,
                     torch_dtype,
                     max_new_tokens=32,
-                    disable_cuda_graph=True,
-                    test_tag="without_cuda_graph",
+                    disable_rtriton_graph=True,
+                    test_tag="without_rtriton_graph",
                 )
 
-    def _run_cuda_graph_padding_on_model_cases(self, model_cases: List[LoRAModelCase]):
+    def _run_rtriton_graph_padding_on_model_cases(self, model_cases: List[LoRAModelCase]):
         for model_case in model_cases:
-            # Run a batch size of 3, which will not be captured by CUDA graph and need padding
-            prompts = TEST_CUDA_GRAPH_PADDING_PROMPTS
+            # Run a batch size of 3, which will not be captured by RTRITON graph and need padding
+            prompts = TEST_RTRITON_GRAPH_PADDING_PROMPTS
             for torch_dtype in TORCH_DTYPES:
                 run_lora_test_by_batch(
                     prompts,
                     model_case,
                     torch_dtype,
                     max_new_tokens=32,
-                    disable_cuda_graph=False,
-                    test_tag="cuda_graph_padding",
+                    disable_rtriton_graph=False,
+                    test_tag="rtriton_graph_padding",
                 )
 
     def test_ci_lora_models(self):
-        self._run_without_cuda_graph_on_model_cases(CI_LORA_MODELS)
-        self._run_cuda_graph_padding_on_model_cases(CI_LORA_MODELS)
+        self._run_without_rtriton_graph_on_model_cases(CI_LORA_MODELS)
+        self._run_rtriton_graph_padding_on_model_cases(CI_LORA_MODELS)
 
     def test_all_lora_models(self):
         if is_in_ci():
@@ -94,8 +94,8 @@ class TestLoRACudaGraph(CustomTestCase):
                 continue
             filtered_models.append(model_case)
 
-        self._run_without_cuda_graph_on_model_cases(filtered_models)
-        self._run_cuda_graph_padding_on_model_cases(filtered_models)
+        self._run_without_rtriton_graph_on_model_cases(filtered_models)
+        self._run_rtriton_graph_padding_on_model_cases(filtered_models)
 
 
 if __name__ == "__main__":

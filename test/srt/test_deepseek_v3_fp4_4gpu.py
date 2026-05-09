@@ -83,7 +83,7 @@ class TestDeepseekV3FP4(CustomTestCase):
         self.assertGreater(speed, 75)
 
 
-class TestDeepseekV3FP4PiecewiseCudaGraph(CustomTestCase):
+class TestDeepseekV3FP4PiecewiseRtritonGraph(CustomTestCase):
     @classmethod
     def setUpClass(cls):
         cls.model = FULL_DEEPSEEK_V3_FP4_MODEL_PATH
@@ -97,7 +97,7 @@ class TestDeepseekV3FP4PiecewiseCudaGraph(CustomTestCase):
             "flashinfer_trtllm",
             "--quantization",
             "modelopt_fp4",
-            "--enable-piecewise-cuda-graph",
+            "--enable-piecewise-rtriton-graph",
             "--kv-cache-dtype",
             "fp8_e4m3",
             "--model-loader-extra-config",

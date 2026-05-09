@@ -47,7 +47,7 @@ class TestLoRASpecDecoding(CustomTestCase):
             LORA_MODELS_QWEN3,
             attention_backend="triton",
             use_spec_decoding=True,
-            disable_cuda_graph=True,
+            disable_rtriton_graph=True,
             enable_deterministic_inference=True,
         )
 
@@ -56,7 +56,7 @@ class TestLoRASpecDecoding(CustomTestCase):
             CI_MULTI_LORA_MODELS,
             attention_backend="triton",
             use_spec_decoding=True,
-            disable_cuda_graph=True,
+            disable_rtriton_graph=True,
             enable_deterministic_inference=True,
         )
 

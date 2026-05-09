@@ -184,7 +184,7 @@ class DataParallelController:
         # Load balance budget
         self.dp_budget = DPBudget(server_args.dp_size)
 
-        # To protect changing env vars to set CUDA_VISIBLE_DEVICES.
+        # To protect changing env vars to set RTRITON_VISIBLE_DEVICES.
         self.env_lock = threading.Lock()
 
         # Launch data parallel workers

@@ -1,12 +1,12 @@
 #pragma once
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <cuda.h>
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <rtriton.h>
+#include <rtriton_bf16.h>
+#include <rtriton_fp16.h>
 #include <torch/all.h>
 
-#include <cuda/ptx>
+#include <rtriton/ptx>
 
 #include "cute/tensor.hpp"
 
@@ -83,7 +83,7 @@ __inline__ __device__ uint8_t cvt_warp_fp16_to_mxfp8(FragmentS& fragment_s, Frag
   uint8_t fp8_sf_val;
 
   __nv_fp8_e8m0 tmp_sf_val;
-  tmp_sf_val.__x = __nv_cvt_float_to_e8m0(sf_val, __NV_SATFINITE, cudaRoundPosInf);
+  tmp_sf_val.__x = __nv_cvt_float_to_e8m0(sf_val, __NV_SATFINITE, rtritonRoundPosInf);
   sf_val = static_cast<float>(tmp_sf_val);
   fp8_sf_val = tmp_sf_val.__x;
   // Get the output scale (reciprocal of the SFValue).
@@ -230,7 +230,7 @@ __inline__ __device__ void mxfp8_group_quant_tile(
     // Before first copy r2s, clear shared memory and wait previous group
     if (t == 0 && threadIdx.x == 0) {
       // Wait for the group to have completed reading from shared memory.
-      cuda::ptx::cp_async_bulk_wait_group_read(cuda::ptx::n32_t<0>());
+      rtriton::ptx::cp_async_bulk_wait_group_read(rtriton::ptx::n32_t<0>());
     }
     __syncthreads();
 
@@ -241,19 +241,19 @@ __inline__ __device__ void mxfp8_group_quant_tile(
   }
 
   // Wait for shared memory writes to be visible to TMA engine.
-  cuda::ptx::fence_proxy_async(cuda::ptx::space_shared);  // b)
+  rtriton::ptx::fence_proxy_async(rtriton::ptx::space_shared);  // b)
   __syncthreads();
 
   if (threadIdx.x == 0) {
-    cuda::ptx::cp_async_bulk(
-        cuda::ptx::space_global,
-        cuda::ptx::space_shared,
+    rtriton::ptx::cp_async_bulk(
+        rtriton::ptx::space_global,
+        rtriton::ptx::space_shared,
         squeeze_tiled_tensor_sf.data().get(),
         squeeze_tiled_tensor_shared_sf.data().get(),
         512);
     // Wait for TMA transfer to have finished reading shared memory.
     // Create a "bulk async-group" out of the previous bulk copy operation.
-    cuda::ptx::cp_async_bulk_commit_group();
+    rtriton::ptx::cp_async_bulk_commit_group();
   }
   __syncthreads();
 }
@@ -270,7 +270,7 @@ __global__ void mxfp8_group_quant(
     TiledCopyG2R tiled_copy_g2r,
     TiledCopyR2G tiled_copy_r2g,
     TiledCopyR2S tiled_copy_r2s) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 1000
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 1000
   __shared__ __align__(512) uint8_t shared_memory[512];
   ScaleFactorTileLayout scale_factor_tile_layout{};
   auto scale_factor_shared = make_tensor(
@@ -380,16 +380,16 @@ void launch_es_sm100_mxfp8_blockscaled_grouped_quant(
   auto tiled_copy_r2s = cute::make_tiled_copy(CopyAtomR2S{}, r2s_thr_layout, r2s_val_layout);  // Tiler_MN: (16, 4)
 
   int max_active_blocks_per_sm = -1;
-  AT_CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+  AT_RTRITON_CHECK(rtritonOccupancyMaxActiveBlocksPerMultiprocessor(
       &max_active_blocks_per_sm,
       mxfp8_group_quant<T_IN, decltype(tiled_copy_g2r), decltype(tiled_copy_r2g), decltype(tiled_copy_r2s)>,
       THREAD_BLOCK_SIZE,
       0));
 
-  dim3 grid(at::cuda::getCurrentDeviceProperties()->multiProcessorCount * max_active_blocks_per_sm, 1, 1);
+  dim3 grid(at::rtriton::getCurrentDeviceProperties()->multiProcessorCount * max_active_blocks_per_sm, 1, 1);
   dim3 block(THREAD_BLOCK_SIZE, 1, 1);
   int num_experts = (int)problem_sizes.size(0);
-  auto stream = at::cuda::getCurrentCUDAStream();
+  auto stream = at::rtriton::getCurrentRTRITONStream();
   mxfp8_group_quant<T_IN, decltype(tiled_copy_g2r), decltype(tiled_copy_r2g), decltype(tiled_copy_r2s)>
       <<<grid, block, 0, stream>>>(
           reinterpret_cast<const T_IN*>(input.data_ptr()),

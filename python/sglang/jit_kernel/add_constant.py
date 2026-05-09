@@ -17,8 +17,8 @@ def _jit_add_constant_module(constant: int) -> Module:
     return load_jit(
         "add_constant",
         *args,
-        cuda_files=["add_constant.cuh"],
-        cuda_wrappers=[("add_constant", f"add_constant<{args}>")],
+        rtriton_files=["add_constant.cuh"],
+        rtriton_wrappers=[("add_constant", f"add_constant<{args}>")],
     )
 
 

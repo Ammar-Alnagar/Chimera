@@ -36,12 +36,12 @@ class MMMUServerBase(CustomTestCase):
 
         # Prepare environment variables
         process_env = os.environ.copy()
-        process_env["SGLANG_USE_CUDA_IPC_TRANSPORT"] = "1"
+        process_env["SGLANG_USE_RTRITON_IPC_TRANSPORT"] = "1"
 
         # Build server args with MMMU-specific settings
         server_args = [
             "--trust-remote-code",
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             "64",
             "--enable-multimodal",
             "--mem-fraction-static",

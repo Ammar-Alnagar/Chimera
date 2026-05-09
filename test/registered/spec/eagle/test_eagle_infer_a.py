@@ -8,7 +8,7 @@ import torch
 import sglang as sgl
 from sglang.srt.utils import kill_process_tree
 from sglang.srt.utils.hf_transformers_utils import get_tokenizer
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.test_utils import (
     DEFAULT_DRAFT_MODEL_EAGLE,
     DEFAULT_DRAFT_MODEL_EAGLE3,
@@ -22,7 +22,7 @@ from sglang.test.test_utils import (
     popen_launch_server,
 )
 
-register_cuda_ci(est_time=500, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=500, suite="stage-b-test-small-1-gpu")
 
 torch_dtype = torch.float16
 prefill_tolerance = 5e-2
@@ -38,7 +38,7 @@ class TestEAGLEEngine(CustomTestCase):
         "speculative_eagle_topk": 4,
         "speculative_num_draft_tokens": 8,
         "mem_fraction_static": 0.7,
-        "cuda_graph_max_bs": 5,
+        "rtriton_graph_max_bs": 5,
         "trust_remote_code": True,
     }
     NUM_CONFIGS = 2
@@ -53,7 +53,7 @@ class TestEAGLEEngine(CustomTestCase):
         self.sampling_params = {"temperature": 0, "max_new_tokens": 8}
 
         ref_engine = sgl.Engine(
-            model_path=self.BASE_CONFIG["model_path"], cuda_graph_max_bs=1
+            model_path=self.BASE_CONFIG["model_path"], rtriton_graph_max_bs=1
         )
         self.ref_output = ref_engine.generate(self.prompt, self.sampling_params)["text"]
         ref_engine.shutdown()
@@ -175,7 +175,7 @@ class TestEAGLEEngineTokenMap(TestEAGLEEngine):
         "speculative_num_draft_tokens": 8,
         "speculative_token_map": "thunlp/LLaMA3-Instruct-8B-FR-Spec/freq_32768.pt",
         "mem_fraction_static": 0.7,
-        "cuda_graph_max_bs": 5,
+        "rtriton_graph_max_bs": 5,
         "dtype": "float16",
     }
     NUM_CONFIGS = 1
@@ -194,7 +194,7 @@ class TestEAGLE3Engine(TestEAGLEEngine):
         "speculative_eagle_topk": 16,
         "speculative_num_draft_tokens": 64,
         "mem_fraction_static": 0.7,
-        "cuda_graph_max_bs": 5,
+        "rtriton_graph_max_bs": 5,
         "dtype": "float16",
     }
     NUM_CONFIGS = 1
@@ -217,7 +217,7 @@ class TestEAGLERadixCache(CustomTestCase):
         "trust_remote_code": True,
         "attention_backend": "fa3",
         "skip_server_warmup": True,
-        "cuda_graph_max_bs": 5,
+        "rtriton_graph_max_bs": 5,
     }
 
     def test_correctness(self):
@@ -230,11 +230,11 @@ class TestEAGLERadixCache(CustomTestCase):
             {**self.BASE_CONFIG, "page_size": 4},
             # Large page size tend to expose IMA bugs.
             {**self.BASE_CONFIG, "page_size": 256},
-            {**self.BASE_CONFIG, "cuda_graph_bs": [5], "page_size": 4},
-            # Disable CUDA Graph
+            {**self.BASE_CONFIG, "rtriton_graph_bs": [5], "page_size": 4},
+            # Disable RTRITON Graph
             {
                 **self.BASE_CONFIG,
-                "disable_cuda_graph": True,
+                "disable_rtriton_graph": True,
                 "page_size": 4,
             },
         ]

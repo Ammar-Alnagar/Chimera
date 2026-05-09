@@ -10,12 +10,12 @@ import torch
 import torch.distributed as dist
 from torch.distributed import ProcessGroup
 
-from sglang.srt.distributed.device_communicators.cuda_wrapper import CudaRTLibrary
+from sglang.srt.distributed.device_communicators.rtriton_wrapper import RtritonRTLibrary
 
 
 def _run_correctness_worker(world_size, rank, distributed_init_port, test_sizes):
-    device = torch.device(f"cuda:{rank}")
-    torch.cuda.set_device(device)
+    device = torch.device(f"rtriton:{rank}")
+    torch.rtriton.set_device(device)
     distributed_init_method = f"tcp://localhost:{distributed_init_port}"
     dist.init_process_group(
         backend="nccl",
@@ -26,7 +26,7 @@ def _run_correctness_worker(world_size, rank, distributed_init_port, test_sizes)
     group = dist.group.WORLD
 
     try:
-        device = torch.device(f"cuda:{rank}")
+        device = torch.device(f"rtriton:{rank}")
         max_size = 8192 * 1024
         meta_ptrs = TestCustomAllReduce.create_shared_buffer(
             custom_ops.meta_size() + max_size, group=group
@@ -116,16 +116,16 @@ class TestCustomAllReduce(unittest.TestCase):
     def create_shared_buffer(
         size_in_bytes: int, group: Optional[ProcessGroup] = None
     ) -> List[int]:
-        lib = CudaRTLibrary()
-        pointer = lib.cudaMalloc(size_in_bytes)
-        handle = lib.cudaIpcGetMemHandle(pointer)
+        lib = RtritonRTLibrary()
+        pointer = lib.rtritonMalloc(size_in_bytes)
+        handle = lib.rtritonIpcGetMemHandle(pointer)
         if group is None:
             group = dist.group.WORLD
         world_size = dist.get_world_size(group=group)
         rank = dist.get_rank(group=group)
 
         handle_bytes = ctypes.string_at(ctypes.addressof(handle), ctypes.sizeof(handle))
-        input_tensor = torch.ByteTensor(list(handle_bytes)).to(f"cuda:{rank}")
+        input_tensor = torch.ByteTensor(list(handle_bytes)).to(f"rtriton:{rank}")
         gathered_tensors = [torch.empty_like(input_tensor) for _ in range(world_size)]
         dist.all_gather(gathered_tensors, input_tensor, group=group)
 
@@ -144,7 +144,7 @@ class TestCustomAllReduce(unittest.TestCase):
                 pointers.append(pointer.value)
             else:
                 try:
-                    opened_ptr = lib.cudaIpcOpenMemHandle(h)
+                    opened_ptr = lib.rtritonIpcOpenMemHandle(h)
                     pointers.append(opened_ptr.value)
                 except Exception as e:
                     print(f"Rank {rank}: Failed to open IPC handle from rank {i}: {e}")
@@ -160,14 +160,14 @@ class TestCustomAllReduce(unittest.TestCase):
         if group is None:
             group = dist.group.WORLD
         rank = dist.get_rank(group=group)
-        lib = CudaRTLibrary()
+        lib = RtritonRTLibrary()
         if pointers and len(pointers) > rank and pointers[rank] is not None:
-            lib.cudaFree(ctypes.c_void_p(pointers[rank]))
+            lib.rtritonFree(ctypes.c_void_p(pointers[rank]))
         dist.barrier(group=group)
 
     def test_correctness(self):
         for world_size in self.world_sizes:
-            available_gpus = torch.cuda.device_count()
+            available_gpus = torch.rtriton.device_count()
             if world_size > available_gpus:
                 print(
                     f"Skipping world_size={world_size}, requires {world_size} GPUs, found {available_gpus}"

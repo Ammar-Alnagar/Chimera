@@ -10,7 +10,7 @@ from sglang.test.ci.ci_utils import run_unittest_files
 
 HW_MAPPING = {
     "cpu": HWBackend.CPU,
-    "cuda": HWBackend.CUDA,
+    "rtriton": HWBackend.RTRITON,
     "amd": HWBackend.AMD,
     "npu": HWBackend.NPU,
 }
@@ -19,7 +19,7 @@ HW_MAPPING = {
 PER_COMMIT_SUITES = {
     HWBackend.CPU: ["default"],
     HWBackend.AMD: ["stage-a-test-1"],
-    HWBackend.CUDA: [
+    HWBackend.RTRITON: [
         "stage-a-test-1",
         "stage-b-test-small-1-gpu",
         "stage-b-test-large-1-gpu",
@@ -33,7 +33,7 @@ PER_COMMIT_SUITES = {
 
 # Nightly test suites (run nightly, organized by GPU configuration)
 NIGHTLY_SUITES = {
-    HWBackend.CUDA: [
+    HWBackend.RTRITON: [
         "nightly-1-gpu",
         "nightly-2-gpu",
         "nightly-4-gpu",

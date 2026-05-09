@@ -878,7 +878,7 @@ class MllamaForConditionalGeneration(nn.Module):
                 dtype=torch.float32,
             )
             batched_ar_ids = torch.ones(
-                bs, max_num_images, dtype=torch.int64, device="cuda"
+                bs, max_num_images, dtype=torch.int64, device="rtriton"
             )
             batched_ar_mask = torch.zeros(
                 bs, max_num_images, max_num_tiles, dtype=torch.int64
@@ -963,7 +963,7 @@ class MllamaForConditionalGeneration(nn.Module):
         positions: torch.Tensor,
         forward_batch: ForwardBatch,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
-        from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
+        from sglang.srt.model_executor.rtriton_graph_runner import get_is_capture_mode
 
         batched_images, batched_ar_ids, batched_ar_mask, encoder_lens_need = (
             self._batch_image_inputs(forward_batch)
@@ -974,8 +974,8 @@ class MllamaForConditionalGeneration(nn.Module):
         cross_attention_states = None
 
         if get_is_capture_mode():
-            # NOTE: when doing cuda graph capture, we do not want to skip cross attention
-            # Make is a constant value to avoid cuda graph capture issue
+            # NOTE: when doing rtriton graph capture, we do not want to skip cross attention
+            # Make is a constant value to avoid rtriton graph capture issue
             skip_cross_attention = False
         else:
             # NOTE: we do not need image_inputs when prefill

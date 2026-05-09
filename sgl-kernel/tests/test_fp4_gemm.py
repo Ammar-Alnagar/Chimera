@@ -2,7 +2,7 @@ import pytest
 import torch
 from sgl_kernel import tilelang_scaled_fp4_mm, scaled_fp4_quant
 
-skip_condition = torch.cuda.get_device_capability() < (10, 0)
+skip_condition = torch.rtriton.get_device_capability() < (10, 0)
 
 DTYPES = [torch.float16, torch.bfloat16]
 # m, n, k
@@ -117,8 +117,8 @@ def test_nvfp4_gemm(
     m, n, packed_k = shape
     k = packed_k * 2
     block_size = 16
-    a_dtype = torch.randn((m, k), dtype=dtype, device="cuda")
-    b_dtype = torch.randn((n, k), dtype=dtype, device="cuda")
+    a_dtype = torch.randn((m, k), dtype=dtype, device="rtriton")
+    b_dtype = torch.randn((n, k), dtype=dtype, device="rtriton")
 
     a_global_scale = (
         (FLOAT8_E4M3_MAX * FLOAT4_E2M1_MAX) / torch.amax(a_dtype.flatten(), dim=-1)
@@ -141,7 +141,7 @@ def test_nvfp4_gemm(
         n,
         dtype,
         block_size,
-        "cuda",
+        "rtriton",
     )
     out = tilelang_scaled_fp4_mm(
         a_fp4, b_fp4, a_scale_interleaved, b_scale_interleaved, alpha, dtype

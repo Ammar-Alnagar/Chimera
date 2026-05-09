@@ -5,7 +5,7 @@
 Achieving a large batch size is the most important thing for attaining high throughput in offline batch inference.
 When the server is running at full load in a steady state, look for the following in the log:
 
-```Decode batch. #running-req: 233, #token: 370959, token usage: 0.82, cuda graph: True, gen throughput (token/s): 4594.01, #queue-req: 317```
+```Decode batch. #running-req: 233, #token: 370959, token usage: 0.82, rtriton graph: True, gen throughput (token/s): 4594.01, #queue-req: 317```
 
 ### Adjust the request submission speed to control `#queue-req`
 
@@ -28,13 +28,13 @@ If you see `KV cache pool is full. Retract requests.` occasionally but not frequ
 ### Tune `--mem-fraction-static` to increase KV cache pool capacity
 SGLang allocates memory as follows:
 
-Total memory usage = model weights + KV cache pool + CUDA graph buffers + activations
+Total memory usage = model weights + KV cache pool + RTRITON graph buffers + activations
 
 The `--mem-fraction-static` parameter determines how much memory is allocated to the first two components:
 
 mem_fraction_static = (model weights + KV cache pool) / GPU memory capacity
 
-To support higher concurrency, you should maximize the KV cache pool capacity by setting `--mem-fraction-static` as high as possible while still reserving enough memory for activations and CUDA graph buffers.
+To support higher concurrency, you should maximize the KV cache pool capacity by setting `--mem-fraction-static` as high as possible while still reserving enough memory for activations and RTRITON graph buffers.
 
 SGLang uses simple heuristics to set the default value of `--mem-fraction-static`, but you can optimize it for your use cases.
 As a rule of thumb, reserving 5–8 GB of memory for activations is typically sufficient. You can check this by inspecting the logs just before the server is ready.
@@ -59,11 +59,11 @@ If you encounter out-of-memory (OOM) errors, you can adjust the following parame
 - If OOM occurs during decoding, try lowering `--max-running-requests`.
 - You can also reduce `--mem-fraction-static` to a smaller value, such as 0.8 or 0.7. This decreases the memory usage of the KV cache memory pool and helps prevent OOM errors during both prefill and decoding. However, it limits maximum concurrency and reduces peak throughput.
 
-### Tune `--cuda-graph-max-bs`
-By default, CUDA graph is enabled only for small batch sizes (e.g., less than 160 or 256).
-However, for some models, especially at large tensor parallelism sizes, CUDA graph can be useful for batch sizes up to 512 or 768.
-Therefore, it may be beneficial to increase `--cuda-graph-max-bs` to a larger value.
-Note that CUDA graph consumes more memory, so you may need to reduce `--mem-fraction-static` at the same time.
+### Tune `--rtriton-graph-max-bs`
+By default, RTRITON graph is enabled only for small batch sizes (e.g., less than 160 or 256).
+However, for some models, especially at large tensor parallelism sizes, RTRITON graph can be useful for batch sizes up to 512 or 768.
+Therefore, it may be beneficial to increase `--rtriton-graph-max-bs` to a larger value.
+Note that RTRITON graph consumes more memory, so you may need to reduce `--mem-fraction-static` at the same time.
 
 ### Tune `--dp-size` and `--tp-size`
 

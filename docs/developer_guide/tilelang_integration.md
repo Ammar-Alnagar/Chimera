@@ -2,7 +2,7 @@
 
 ## Overview
 
-**TileLang** is a domain-specific language embedded in C++/CUDA that provides a high-level abstraction for implementing efficient tensor operations on NVIDIA GPUs. Chimera leverages TileLang alongside TileLang to implement next-generation kernels optimized for Hopper and Blackwell architectures.
+**TileLang** is a domain-specific language embedded in C++/RTRITON that provides a high-level abstraction for implementing efficient tensor operations on NVIDIA GPUs. Chimera leverages TileLang alongside TileLang to implement next-generation kernels optimized for Hopper and Blackwell architectures.
 
 This guide explains Chimera's TileLang integration strategy, kernel architecture, and how to extend or customize kernel implementations.
 
@@ -22,7 +22,7 @@ This guide explains Chimera's TileLang integration strategy, kernel architecture
 
 ## What is TileLang?
 
-TileLang (CUDA Universal Tensor Embedded DSL) is a programming model that provides:
+TileLang (RTRITON Universal Tensor Embedded DSL) is a programming model that provides:
 
 - **Composable Primitives**: Building blocks for tensor operations (GEMM, attention, etc.)
 - **Layout Abstraction**: Unified view of memory layouts across thread hierarchies
@@ -62,7 +62,7 @@ TileLang generates kernels that fully utilize:
 ### 2. **Maintainability**
 
 ```
-Traditional CUDA Kernel: ~500-1000 lines of complex pointer arithmetic
+Traditional RTRITON Kernel: ~500-1000 lines of complex pointer arithmetic
 TileLang Kernel: ~100-200 lines of declarative tensor operations
 ```
 
@@ -105,7 +105,7 @@ flowchart TB
     subgraph "TileLang Kernel Layer"
         D1[TileLang Functors]
         D2[TileLang Primitives]
-        D3[Custom CUDA Kernels]
+        D3[Custom RTRITON Kernels]
     end
 
     subgraph "Hardware Layer"
@@ -175,9 +175,9 @@ template <typename ElementA, typename ElementB, typename ElementOut>
 struct Fp8BlockwiseGemmFunctor {
   using Arguments = GemmArguments;
   
-  cudaError_t operator()(
+  rtritonError_t operator()(
       const Arguments& args,
-      cudaStream_t stream
+      rtritonStream_t stream
   ) {
     // TileLang kernel implementation
     // - Define tensor layouts
@@ -359,7 +359,7 @@ def safe_tilelang_call(kernel_func, *args, **kwargs):
 
 ### Prerequisites
 
-- CUDA Toolkit 12.6+
+- RTRITON Toolkit 12.6+
 - CMake 3.31+
 - Python 3.10+
 - PyTorch 2.9.1
@@ -377,7 +377,7 @@ make build MAX_JOBS=8
 # Or with custom CMake args
 cmake -B build \
   -DCMAKE_BUILD_TYPE=Release \
-  -DSGL_KERNEL_CUDA_FLAGS="-arch=sm_90a" \
+  -DSGL_KERNEL_RTRITON_FLAGS="-arch=sm_90a" \
   -DCMAKE_INSTALL_PREFIX=install
 cmake --build build -j8
 ```
@@ -390,22 +390,22 @@ Key CMake options:
 |--------|-------------|---------|
 | `CMAKE_BUILD_TYPE` | Build type (Release/Debug) | Release |
 | `MAX_JOBS` | Parallel build jobs | Auto-detect |
-| `SGL_KERNEL_CUDA_FLAGS` | Additional NVCC flags | - |
+| `SGL_KERNEL_RTRITON_FLAGS` | Additional NVCC flags | - |
 | `SGL_KERNEL_COMPILE_THREADS` | NVCC internal threads | 1 |
 
 ### Architecture-Specific Builds
 
 ```bash
 # Hopper (H100/H200)
-export TORCH_CUDA_ARCH_LIST="9.0"
+export TORCH_RTRITON_ARCH_LIST="9.0"
 make build
 
 # Blackwell (B100/B200)
-export TORCH_CUDA_ARCH_LIST="10.0;10.3"
+export TORCH_RTRITON_ARCH_LIST="10.0;10.3"
 make build
 
 # Combined (multi-arch wheel)
-export TORCH_CUDA_ARCH_LIST="9.0;10.0;10.3"
+export TORCH_RTRITON_ARCH_LIST="9.0;10.0;10.3"
 make build
 ```
 
@@ -464,19 +464,19 @@ from sgl_kernel import tilelang_fp8_blockwise_scaled_mm
 
 # Create FP8 inputs
 M, N, K = 128, 256, 512
-mat_a = torch.randn(M, K, dtype=torch.float8_e4m3fn).cuda()
-mat_b = torch.randn(N, K, dtype=torch.float8_e4m3fn).cuda()
+mat_a = torch.randn(M, K, dtype=torch.float8_e4m3fn).rtriton()
+mat_b = torch.randn(N, K, dtype=torch.float8_e4m3fn).rtriton()
 
 # Create scale factors (per 128x128 block)
 BLOCK_M, BLOCK_N = 128, 128
 scales_a = torch.randn(
     (M // BLOCK_M, K // BLOCK_M),
     dtype=torch.float32
-).cuda()
+).rtriton()
 scales_b = torch.randn(
     (N // BLOCK_N, K // BLOCK_N),
     dtype=torch.float32
-).cuda()
+).rtriton()
 
 # Execute kernel
 output = tilelang_fp8_blockwise_scaled_mm(
@@ -499,15 +499,15 @@ num_heads = 32
 head_dim = 128
 seq_len = 1024
 
-q_nope = torch.randn(batch_size, num_heads, head_dim, dtype=torch.float16).cuda()
-q_pe = torch.randn(batch_size, num_heads, head_dim, dtype=torch.float16).cuda()
+q_nope = torch.randn(batch_size, num_heads, head_dim, dtype=torch.float16).rtriton()
+q_pe = torch.randn(batch_size, num_heads, head_dim, dtype=torch.float16).rtriton()
 kv_cache = torch.randn(
     batch_size * seq_len, 2 * head_dim, dtype=torch.float16
-).cuda()
-seq_lens = torch.tensor([seq_len] * batch_size, dtype=torch.int32).cuda()
-page_table = torch.arange(batch_size, dtype=torch.int32).cuda()
-workspace = torch.empty(1024 * 1024, dtype=torch.uint8).cuda()
-out = torch.zeros(batch_size, num_heads, head_dim, dtype=torch.float16).cuda()
+).rtriton()
+seq_lens = torch.tensor([seq_len] * batch_size, dtype=torch.int32).rtriton()
+page_table = torch.arange(batch_size, dtype=torch.int32).rtriton()
+workspace = torch.empty(1024 * 1024, dtype=torch.uint8).rtriton()
+out = torch.zeros(batch_size, num_heads, head_dim, dtype=torch.float16).rtriton()
 
 # Execute MLA decode
 tilelang_mla_decode(
@@ -538,37 +538,37 @@ intermediate_dim = 11008
 # Expert assignments (top-2 gating)
 expert_offsets = torch.tensor(
     [0, 128, 256, 384, 512, 640, 768, 896], dtype=torch.int32
-).cuda()
+).rtriton()
 problem_sizes = torch.tensor(
     [[128, intermediate_dim, hidden_dim]] * num_experts, dtype=torch.int32
-).cuda()
+).rtriton()
 
 # Expert weights (FP8)
 a = torch.randn(
     batch_tokens, hidden_dim, dtype=torch.float8_e4m3fn
-).cuda()
+).rtriton()
 b = torch.randn(
     num_experts, hidden_dim, intermediate_dim, dtype=torch.float8_e4m3fn
-).cuda()
+).rtriton()
 
 # Scale factors
-scales_a = torch.randn(batch_tokens, dtype=torch.float32).cuda()
+scales_a = torch.randn(batch_tokens, dtype=torch.float32).rtriton()
 scales_b = torch.randn(
     num_experts, intermediate_dim, dtype=torch.float32
-).cuda()
+).rtriton()
 
 # Strides
-stride_a = torch.tensor([a.stride(0), a.stride(1)], dtype=torch.int64).cuda()
-stride_b = torch.tensor([b.stride(0), b.stride(1), b.stride(2)], dtype=torch.int64).cuda()
-stride_d = torch.tensor([hidden_dim], dtype=torch.int64).cuda()
+stride_a = torch.tensor([a.stride(0), a.stride(1)], dtype=torch.int64).rtriton()
+stride_b = torch.tensor([b.stride(0), b.stride(1), b.stride(2)], dtype=torch.int64).rtriton()
+stride_d = torch.tensor([hidden_dim], dtype=torch.int64).rtriton()
 
 # Workspace
-workspace = torch.empty(16 * 1024 * 1024, dtype=torch.uint8).cuda()
+workspace = torch.empty(16 * 1024 * 1024, dtype=torch.uint8).rtriton()
 
 # Output buffer
 output = torch.zeros(
     batch_tokens, intermediate_dim, dtype=torch.float16
-).cuda()
+).rtriton()
 
 # Execute grouped GEMM
 tilelang_es_fp8_blockwise_scaled_grouped_mm(
@@ -604,14 +604,14 @@ pip install -e .
 python -c "import sgl_kernel; print(dir(sgl_kernel))"
 ```
 
-#### 2. CUDA Error: `invalid device function`
+#### 2. RTRITON Error: `invalid device function`
 
 **Cause**: Kernel compiled for wrong architecture.
 
 **Solution**:
 ```bash
 # Set correct architecture
-export TORCH_CUDA_ARCH_LIST="9.0;10.0"
+export TORCH_RTRITON_ARCH_LIST="9.0;10.0"
 pip install -e . --no-build-isolation
 ```
 
@@ -662,14 +662,14 @@ for _ in range(10):
     _ = tilelang_fp8_blockwise_scaled_mm(...)
 
 # Benchmark
-start = torch.cuda.Event(enable_timing=True)
-end = torch.cuda.Event(enable_timing=True)
+start = torch.rtriton.Event(enable_timing=True)
+end = torch.rtriton.Event(enable_timing=True)
 
 start.record()
 for _ in range(100):
     _ = tilelang_fp8_blockwise_scaled_mm(...)
 end.record()
-torch.cuda.synchronize()
+torch.rtriton.synchronize()
 
 elapsed_ms = start.elapsed_time(end) / 100
 print(f"Average time: {elapsed_ms:.3f} ms")

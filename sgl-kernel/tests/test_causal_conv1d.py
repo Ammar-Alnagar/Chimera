@@ -238,7 +238,7 @@ def causal_conv1d_update_ref(
 def test_causal_conv1d(
     batch, dim, seqlen, width, has_bias, silu_activation, has_initial_state, itype
 ):
-    device = "cuda"
+    device = "rtriton"
     rtol, atol = (3e-4, 1e-3) if itype == torch.float32 else (3e-3, 5e-3)
     if itype == torch.bfloat16:
         rtol, atol = 1e-2, 5e-2
@@ -286,7 +286,7 @@ def test_causal_conv1d(
 @pytest.mark.parametrize("width", [4])
 @pytest.mark.parametrize("dim", [2048, 2048 + 16, 4096])
 def test_causal_conv1d_update(dim, width, seqlen, has_bias, silu_activation, itype):
-    device = "cuda"
+    device = "rtriton"
     rtol, atol = (3e-4, 1e-3) if itype == torch.float32 else (3e-3, 5e-3)
     if itype == torch.bfloat16:
         rtol, atol = 1e-2, 5e-2
@@ -320,7 +320,7 @@ def test_causal_conv1d_update(dim, width, seqlen, has_bias, silu_activation, ity
 def test_causal_conv1d_update_with_batch_gather(
     with_padding, dim, width, seqlen, has_bias, silu_activation, itype
 ):
-    device = "cuda"
+    device = "rtriton"
     rtol, atol = (3e-4, 1e-3) if itype == torch.float32 else (3e-3, 5e-3)
     if itype == torch.bfloat16:
         rtol, atol = 1e-2, 5e-2
@@ -385,8 +385,8 @@ def test_causal_conv1d_update_with_batch_gather(
 def test_causal_conv1d_varlen(
     with_padding, dim, seqlen, width, has_bias, silu_activation, itype
 ):
-    device = "cuda"
-    torch.cuda.empty_cache()
+    device = "rtriton"
+    torch.rtriton.empty_cache()
     rtol, atol = (3e-4, 1e-3) if itype == torch.float32 else (3e-3, 5e-3)
     if itype == torch.bfloat16:
         rtol, atol = 1e-2, 5e-2
@@ -442,7 +442,7 @@ def test_causal_conv1d_varlen(
         x.squeeze(0),
         weight,
         bias,
-        cumsum.cuda(),
+        cumsum.rtriton(),
         padded_state_indices,
         has_initial_states,
         final_states,

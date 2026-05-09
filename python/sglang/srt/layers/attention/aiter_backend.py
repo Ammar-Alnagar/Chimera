@@ -94,7 +94,7 @@ class AiterAttnBackend(AttentionBackend):
         kv_indptr_buf: Optional[torch.Tensor] = None,
     ):
         super().__init__()
-        # Lazy import to avoid the initialization of cuda context
+        # Lazy import to avoid the initialization of rtriton context
         from sglang.srt.layers.attention.triton_ops.extend_attention import (
             extend_attention_fwd,
         )
@@ -204,8 +204,8 @@ class AiterAttnBackend(AttentionBackend):
         dtype = self.kv_cache_dtype
 
         if self.enable_dp_attention:
-            gpu = torch.cuda.current_device()
-            device_properties = torch.cuda.get_device_properties(gpu)
+            gpu = torch.rtriton.current_device()
+            device_properties = torch.rtriton.get_device_properties(gpu)
             cu_num = device_properties.multi_processor_count
             self.max_split_per_batch = min(
                 (cu_num + batch_size - 1) // batch_size, self.fix_max_split_per_batch
@@ -233,24 +233,24 @@ class AiterAttnBackend(AttentionBackend):
         # aiter implementation
         # the tensor's meaning please refer aiter/ops/attention.py
         work_metadata = torch.empty(
-            work_meta_data_size, dtype=work_meta_data_type, device="cuda"
+            work_meta_data_size, dtype=work_meta_data_type, device="rtriton"
         )
         work_indptr = torch.empty(
-            work_indptr_size, dtype=work_indptr_type, device="cuda"
+            work_indptr_size, dtype=work_indptr_type, device="rtriton"
         )
         work_info_set = torch.empty(
             work_info_set_size,
             dtype=work_info_set_type,
-            device="cuda",
+            device="rtriton",
         )
         reduce_indptr = torch.empty(
-            reduce_indptr_size, dtype=reduce_indptr_type, device="cuda"
+            reduce_indptr_size, dtype=reduce_indptr_type, device="rtriton"
         )
         reduce_final_map = torch.empty(
-            reduce_final_map_size, dtype=reduce_final_map_type, device="cuda"
+            reduce_final_map_size, dtype=reduce_final_map_type, device="rtriton"
         )
         reduce_partial_map = torch.empty(
-            reduce_partial_map_size, dtype=reduce_partial_map_type, device="cuda"
+            reduce_partial_map_size, dtype=reduce_partial_map_type, device="rtriton"
         )
 
         return (
@@ -608,24 +608,24 @@ class AiterAttnBackend(AttentionBackend):
                     self.indices_updater_prefill.max_kv_len,
                 )
 
-    def init_cuda_graph_state(
+    def init_rtriton_graph_state(
         self,
         max_bs: int,
         max_num_tokens: int,
         kv_indices_buf: Optional[torch.Tensor] = None,
     ):
-        self.cuda_graph_kv_last_page_len = torch.ones(max_bs, dtype=torch.int)
+        self.rtriton_graph_kv_last_page_len = torch.ones(max_bs, dtype=torch.int)
         if kv_indices_buf is None:
-            self.cuda_graph_kv_indices = torch.zeros(
+            self.rtriton_graph_kv_indices = torch.zeros(
                 (max_bs * self.max_context_len),
                 dtype=torch.int32,
                 device=self.device,
             )
         else:
-            self.cuda_graph_kv_indices = kv_indices_buf
+            self.rtriton_graph_kv_indices = kv_indices_buf
 
         if not self.skip_prefill:
-            self.cuda_graph_custom_mask = torch.zeros(
+            self.rtriton_graph_custom_mask = torch.zeros(
                 (max_num_tokens * self.max_context_len),
                 dtype=torch.uint8,
                 device=self.device,
@@ -656,7 +656,7 @@ class AiterAttnBackend(AttentionBackend):
             self.reduce_final_map = None
             self.reduce_partial_map = None
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -687,7 +687,7 @@ class AiterAttnBackend(AttentionBackend):
                 kv_indptr = self.kv_indptr
                 kv_indptr[1 : bs + 1] = torch.cumsum(seq_lens, dim=0)
                 kv_indptr = kv_indptr[: bs + 1]
-                kv_indices = self.cuda_graph_kv_indices
+                kv_indices = self.rtriton_graph_kv_indices
                 create_flashinfer_kv_indices_triton[(bs,)](
                     self.req_to_token,
                     req_pool_indices,
@@ -703,9 +703,9 @@ class AiterAttnBackend(AttentionBackend):
             if self.use_mla:
                 qo_indptr = self.qo_indptr_[: bs + 1]
                 qo_indptr[1 : bs + 1] = torch.cumsum(
-                    self.cuda_graph_kv_last_page_len[:bs], dim=0
+                    self.rtriton_graph_kv_last_page_len[:bs], dim=0
                 )
-                kv_last_page_len = self.cuda_graph_kv_last_page_len[:bs]
+                kv_last_page_len = self.rtriton_graph_kv_last_page_len[:bs]
                 max_q_len = 1
 
                 if _use_mla_ps_kernel:
@@ -763,7 +763,7 @@ class AiterAttnBackend(AttentionBackend):
                 )
                 kv_indptr = self.kv_indptr[: bs + 1]
                 kv_indptr[1 : bs + 1] = torch.cumsum(seq_lens, dim=0)
-                kv_indices = self.cuda_graph_kv_indices
+                kv_indices = self.rtriton_graph_kv_indices
                 create_flashinfer_kv_indices_triton[(bs,)](
                     self.req_to_token,
                     req_pool_indices,
@@ -773,7 +773,7 @@ class AiterAttnBackend(AttentionBackend):
                     kv_indices,
                     self.req_to_token.stride(0),
                 )
-                kv_last_page_len = self.cuda_graph_kv_last_page_len[:bs]
+                kv_last_page_len = self.rtriton_graph_kv_last_page_len[:bs]
                 max_q_len = self.num_draft_tokens
 
                 # if self.kv_cache_dtype == fp8_dtype:
@@ -850,7 +850,7 @@ class AiterAttnBackend(AttentionBackend):
             )
             kv_indptr = self.kv_indptr[: bs + 1]
             kv_indptr[1 : bs + 1] = torch.cumsum(seq_lens, dim=0)
-            kv_indices = self.cuda_graph_kv_indices
+            kv_indices = self.rtriton_graph_kv_indices
             create_flashinfer_kv_indices_triton[(bs,)](
                 self.req_to_token,
                 req_pool_indices,
@@ -860,7 +860,7 @@ class AiterAttnBackend(AttentionBackend):
                 kv_indices,
                 self.req_to_token.stride(0),
             )
-            kv_last_page_len = self.cuda_graph_kv_last_page_len[:bs]
+            kv_last_page_len = self.rtriton_graph_kv_last_page_len[:bs]
             max_q_len = num_tokens_per_bs
 
             if _use_mla_ps_kernel:
@@ -909,7 +909,7 @@ class AiterAttnBackend(AttentionBackend):
         else:
             raise ValueError(f"Invalid mode: {forward_mode=}")
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -923,7 +923,7 @@ class AiterAttnBackend(AttentionBackend):
 
         if forward_mode.is_decode_or_idle():
             kv_indptr = self.kv_indptr
-            kv_indices = self.cuda_graph_kv_indices
+            kv_indices = self.rtriton_graph_kv_indices
             if spec_info is None:
                 kv_indptr[1 : bs + 1] = torch.cumsum(seq_lens[:bs], dim=0)
                 kv_indptr = kv_indptr[: bs + 1]
@@ -953,7 +953,7 @@ class AiterAttnBackend(AttentionBackend):
             kv_lens = seq_lens + self.num_draft_tokens
             kv_indptr = self.kv_indptr[: bs + 1]
             kv_indptr[1 : bs + 1] = torch.cumsum(kv_lens, dim=0)
-            kv_indices = self.cuda_graph_kv_indices
+            kv_indices = self.rtriton_graph_kv_indices
             create_flashinfer_kv_indices_triton[(bs,)](
                 self.req_to_token,
                 req_pool_indices,
@@ -971,7 +971,7 @@ class AiterAttnBackend(AttentionBackend):
             qo_indptr[1 : bs + 1] = torch.cumsum(accept_lens, dim=0)
             kv_indptr = self.kv_indptr[: bs + 1]
             kv_indptr[1 : bs + 1] = torch.cumsum(seq_lens, dim=0)
-            kv_indices = self.cuda_graph_kv_indices
+            kv_indices = self.rtriton_graph_kv_indices
             create_flashinfer_kv_indices_triton[(bs,)](
                 self.req_to_token,
                 req_pool_indices,
@@ -985,7 +985,7 @@ class AiterAttnBackend(AttentionBackend):
         else:
             raise ValueError("Invalid forward mode")
 
-    def get_cuda_graph_seq_len_fill_value(self):
+    def get_rtriton_graph_seq_len_fill_value(self):
         return 1
 
     def forward_extend(
@@ -1487,7 +1487,7 @@ class AiterIndicesUpdaterPrefill:
             # (TODO: Kk) WA - CI test_moe_eval_accuracy_large.py
             # mha_batch_prefill reads 128 data to do computatoin
             # if real data is not long enough then original padding value 0 is used
-            # but the 0 location will be made nan (noqa) in cuda graph capture mode
+            # but the 0 location will be made nan (noqa) in rtriton graph capture mode
             # this will cause the output tensor value becomes nan
             # WA is to assure that last index of pool not changed
             kv_indices = torch.empty(
@@ -1709,20 +1709,20 @@ class AiterMultiStepDraftBackend:
 
         self.common_template(forward_batch, kv_indices, call_fn)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
-        self.cuda_graph_kv_indices = torch.zeros(
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
+        self.rtriton_graph_kv_indices = torch.zeros(
             (self.speculative_num_steps, max_num_tokens * self.max_context_len),
             dtype=torch.int32,
             device=self.device,
         )
         for i in range(self.speculative_num_steps - 1):
-            self.attn_backends[i].init_cuda_graph_state(
-                max_bs, max_num_tokens, kv_indices_buf=self.cuda_graph_kv_indices[i]
+            self.attn_backends[i].init_rtriton_graph_state(
+                max_bs, max_num_tokens, kv_indices_buf=self.rtriton_graph_kv_indices[i]
             )
 
-    def init_forward_metadata_capture_cuda_graph(self, forward_batch: ForwardBatch):
+    def init_forward_metadata_capture_rtriton_graph(self, forward_batch: ForwardBatch):
         def call_fn(i, forward_batch):
-            self.attn_backends[i].init_forward_metadata_capture_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_capture_rtriton_graph(
                 forward_batch.batch_size,
                 forward_batch.batch_size * self.topk,
                 forward_batch.req_pool_indices,
@@ -1732,13 +1732,13 @@ class AiterMultiStepDraftBackend:
                 spec_info=forward_batch.spec_info,
             )
 
-        self.common_template(forward_batch, self.cuda_graph_kv_indices, call_fn)
+        self.common_template(forward_batch, self.rtriton_graph_kv_indices, call_fn)
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self, forward_batch: ForwardBatch, bs: int
     ):
         def call_fn(i, forward_batch):
-            self.attn_backends[i].init_forward_metadata_replay_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_replay_rtriton_graph(
                 bs,
                 forward_batch.req_pool_indices,
                 forward_batch.seq_lens,
@@ -1749,4 +1749,4 @@ class AiterMultiStepDraftBackend:
                 seq_lens_cpu=None,
             )
 
-        self.common_template(forward_batch, self.cuda_graph_kv_indices, call_fn)
+        self.common_template(forward_batch, self.rtriton_graph_kv_indices, call_fn)

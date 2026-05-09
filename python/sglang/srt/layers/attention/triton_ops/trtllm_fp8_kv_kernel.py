@@ -352,21 +352,21 @@ def fused_fp8_set_kv_buffer(
         device = k_3d.device
 
         def _to_tensor_scale(scale):
-            """Convert scale to 0-D CUDA tensor (accepts Python float or Tensor)."""
+            """Convert scale to 0-D RTRITON tensor (accepts Python float or Tensor)."""
             if isinstance(scale, torch.Tensor):
                 return scale.to(device=device, dtype=torch.float32)
             else:
                 # Python float / np scalar
                 return torch.tensor(float(scale), device=device, dtype=torch.float32)
 
-        # Compute inverse scales on GPU to avoid GPU→CPU sync in CUDA graph capture.
+        # Compute inverse scales on GPU to avoid GPU→CPU sync in RTRITON graph capture.
         # Previously we used float(k_scale) which triggers synchronization and fails
-        # during CUDA graph capture with cudaErrorStreamCaptureUnsupported.
+        # during RTRITON graph capture with rtritonErrorStreamCaptureUnsupported.
         if use_provided_scale:
             k_scale_tensor = _to_tensor_scale(k_scale)
             v_scale_tensor = _to_tensor_scale(v_scale)
 
-            # Pure GPU scalar operation, safe for CUDA graph
+            # Pure GPU scalar operation, safe for RTRITON graph
             inv_k_scale = (1.0 / k_scale_tensor).to(device=device, dtype=torch.float32)
             inv_v_scale = (1.0 / v_scale_tensor).to(device=device, dtype=torch.float32)
 
@@ -376,7 +376,7 @@ def fused_fp8_set_kv_buffer(
             # When use_provided_scale=False, kernel uses constant 1.0 for inv_scale.
             # Triton will optimize away the tl.load() calls via constant folding.
             # We pass dummy pointers (k_3d) which won't be accessed in the kernel.
-            # This avoids creating new GPU tensors during CUDA graph capture.
+            # This avoids creating new GPU tensors during RTRITON graph capture.
             inv_k_scale_ptr = k_3d
             inv_v_scale_ptr = k_3d
 

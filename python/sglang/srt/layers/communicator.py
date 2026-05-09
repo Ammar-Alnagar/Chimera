@@ -52,7 +52,7 @@ from sglang.srt.server_args import get_global_server_args
 from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
 from sglang.srt.utils import (
     get_bool_env_var,
-    is_cuda,
+    is_rtriton,
     is_flashinfer_available,
     is_gfx95_supported,
     is_hip,
@@ -61,10 +61,10 @@ from sglang.srt.utils import (
     is_sm100_supported,
 )
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_flashinfer_available = is_flashinfer_available()
-_is_sm90_supported = _is_cuda and is_sm90_supported()
-_is_sm100_supported = _is_cuda and is_sm100_supported()
+_is_sm90_supported = _is_rtriton and is_sm90_supported()
+_is_sm100_supported = _is_rtriton and is_sm100_supported()
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and is_hip()
 _is_gfx95_supported = is_gfx95_supported()
 _is_npu = is_npu()
@@ -151,14 +151,14 @@ class AttnTpContext:
     def init_context(self, q_lora_rank, is_nsa):
         self.allow_input_scattered = (
             get_global_server_args().enable_attn_tp_input_scattered
-            and _is_cuda
+            and _is_rtriton
             and q_lora_rank is not None
             and not is_nsa
             and get_tensor_model_parallel_world_size() > 1
             and not is_dp_attention_enabled()
             and get_moe_a2a_backend().is_none()
             and not enable_moe_dense_fully_dp()
-            and not get_global_server_args().enable_piecewise_cuda_graph
+            and not get_global_server_args().enable_piecewise_rtriton_graph
             and get_global_server_args().speculative_algorithm != "EAGLE3"
         )
         if get_global_server_args().enable_attn_tp_input_scattered:

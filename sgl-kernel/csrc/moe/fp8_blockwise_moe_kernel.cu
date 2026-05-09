@@ -1,5 +1,5 @@
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 #include <tilelang/arch/arch.h>
 #include <torch/all.h>
 
@@ -124,8 +124,8 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
       reinterpret_cast<typename ScheduleConfig::LayoutSFB*>(layout_sfb.data_ptr())};
 
   tilelang::KernelHardwareInfo hw_info;
-  hw_info.device_id = c10::cuda::current_device();
-  hw_info.sm_count = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+  hw_info.device_id = c10::rtriton::current_device();
+  hw_info.sm_count = at::rtriton::getCurrentDeviceProperties()->multiProcessorCount;
 
   typename GemmKernel::EpilogueArguments epilogue_args{
       {},
@@ -142,8 +142,8 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
       epilogue_args,
       hw_info};
 
-  at::cuda::CUDAGuard device_guard{(char)a_ptrs.get_device()};
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream(a_ptrs.get_device());
+  at::rtriton::RTRITONGuard device_guard{(char)a_ptrs.get_device()};
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream(a_ptrs.get_device());
 
   auto can_implement_status = gemm_op.can_implement(args);
   TORCH_CHECK(can_implement_status == tilelang::Status::kSuccess, "Failed to implement GEMM");
@@ -261,8 +261,8 @@ void launch_sm100_fp8_blockwise_scaled_group_mm(
       epilogue_args,
       hw_info};
 
-  at::cuda::CUDAGuard device_guard{(char)a_ptrs.get_device()};
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream(a_ptrs.get_device());
+  at::rtriton::RTRITONGuard device_guard{(char)a_ptrs.get_device()};
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream(a_ptrs.get_device());
 
   auto can_implement_status = gemm_op.can_implement(args);
   TORCH_CHECK(can_implement_status == tilelang::Status::kSuccess, "Failed to implement GEMM");
@@ -505,7 +505,7 @@ void sm90_fp8_blockwise_group_mm_dispatch_shape(
   torch::Tensor scales_b_t = scales_b.transpose(1, 2);
 
   const std::string H20_device_type_str("NVIDIA H20");
-  bool is_h20_device = std::string(at::cuda::getCurrentDeviceProperties()->name) == H20_device_type_str;
+  bool is_h20_device = std::string(at::rtriton::getCurrentDeviceProperties()->name) == H20_device_type_str;
 
   if (a.size(0) <= 2048) {
     run_get_group_gemm_starts<MmaConfigSmallM::LayoutSFA, MmaConfigSmallM::LayoutSFB, MmaConfigSmallM::ScaleConfig>(
@@ -707,9 +707,9 @@ void fp8_blockwise_scaled_grouped_mm(
   auto sm_version = getSMVersion();
 
 #if defined(TILELANG_ARCH_MMA_SM100A_SUPPORTED) || defined(TILELANG_ARCH_MMA_SM100_SUPPORTED)
-#if defined CUDA_VERSION && CUDA_VERSION >= 12080
+#if defined RTRITON_VERSION && RTRITON_VERSION >= 12080
   if (sm_version == 100
-#if CUDA_VERSION >= 12090
+#if RTRITON_VERSION >= 12090
       || sm_version == 103
 #endif
   ) {

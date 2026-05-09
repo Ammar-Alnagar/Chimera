@@ -127,7 +127,7 @@ class RoutedExpertsCapturer(ABC):
         self,
         forward_batch: ForwardBatch,
         can_run_graph: bool,
-        cuda_graph_batch: int,
+        rtriton_graph_batch: int,
     ):
         raise NotImplementedError
 
@@ -142,7 +142,7 @@ class RoutedExpertsCapturer(ABC):
     ):
         raise NotImplementedError
 
-    def on_forward_end(self, forward_batch, can_run_graph, cuda_graph_batch):
+    def on_forward_end(self, forward_batch, can_run_graph, rtriton_graph_batch):
         raise NotImplementedError
 
     def get_host_cache(self):
@@ -185,13 +185,13 @@ class _RoutedExpertsCapturerReal(RoutedExpertsCapturer):
         self,
         forward_batch: ForwardBatch,
         can_run_graph: bool,
-        cuda_graph_batch: int,
+        rtriton_graph_batch: int,
     ):
         if is_dp_attention_enabled():
             local_start_pos, local_num_tokens = get_dp_local_info(forward_batch)
-            # handle with cuda graph padding
+            # handle with rtriton graph padding
             if can_run_graph:
-                local_start_pos = get_attention_dp_rank() * cuda_graph_batch
+                local_start_pos = get_attention_dp_rank() * rtriton_graph_batch
                 local_end_pos = local_start_pos + local_num_tokens
             else:
                 local_end_pos = local_start_pos + local_num_tokens
@@ -219,11 +219,11 @@ class _RoutedExpertsCapturerReal(RoutedExpertsCapturer):
         )
         return self.get_host_cache().buffer[cache_pool_idx]
 
-    def on_forward_end(self, forward_batch, can_run_graph, cuda_graph_batch):
+    def on_forward_end(self, forward_batch, can_run_graph, rtriton_graph_batch):
         self._sync_fwd_experts_buffer_DtoH(
             forward_batch=forward_batch,
             can_run_graph=can_run_graph,
-            cuda_graph_batch=cuda_graph_batch,
+            rtriton_graph_batch=rtriton_graph_batch,
         )
 
     def get_host_cache(self):
@@ -241,7 +241,7 @@ class _RoutedExpertsCapturerNoop(RoutedExpertsCapturer):
         self,
         forward_batch: ForwardBatch,
         can_run_graph: bool,
-        cuda_graph_batch: int,
+        rtriton_graph_batch: int,
     ):
         pass
 
@@ -256,7 +256,7 @@ class _RoutedExpertsCapturerNoop(RoutedExpertsCapturer):
     ):
         pass
 
-    def on_forward_end(self, forward_batch, can_run_graph, cuda_graph_batch):
+    def on_forward_end(self, forward_batch, can_run_graph, rtriton_graph_batch):
         pass
 
     def get_host_cache(self):

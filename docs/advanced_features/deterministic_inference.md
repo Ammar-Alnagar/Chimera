@@ -16,7 +16,7 @@ The main source is **varying batch sizes**. Different batch sizes cause GPU kern
 
 ## SGLang's Solution
 
-Building on [Thinking Machines Lab's batch-invariant operators](https://github.com/thinking-machines-lab/batch_invariant_ops), SGLang achieves fully deterministic inference while maintaining compatibility with chunked prefill, CUDA graphs, radix cache, and non-greedy sampling. The development roadmap for deterministic inference features can be found in this [issue](https://github.com/sgl-project/sglang/issues/10278).
+Building on [Thinking Machines Lab's batch-invariant operators](https://github.com/thinking-machines-lab/batch_invariant_ops), SGLang achieves fully deterministic inference while maintaining compatibility with chunked prefill, RTRITON graphs, radix cache, and non-greedy sampling. The development roadmap for deterministic inference features can be found in this [issue](https://github.com/sgl-project/sglang/issues/10278).
 
 ### Supported Backends
 
@@ -24,7 +24,7 @@ Deterministic inference is only supported with the following three attention bac
 
 The following table shows feature compatibility for deterministic inference across different attention backends:
 
-| Attention Backend | CUDA Graph | Chunked Prefill | Radix Cache | Non-greedy Sampling (Temp > 0) |
+| Attention Backend | RTRITON Graph | Chunked Prefill | Radix Cache | Non-greedy Sampling (Temp > 0) |
 |-------------------|------------|-----------------|-------------|---------------------|
 | **FlashInfer** | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes |
 | **FlashAttention 3 (FA3)** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |

@@ -107,7 +107,7 @@ class ImageEncodingStage(PipelineStage):
 
         if batch.condition_image is None:
             return batch
-        cuda_device = get_local_torch_device()
+        rtriton_device = get_local_torch_device()
 
         self.load_model()
         image = batch.condition_image
@@ -118,7 +118,7 @@ class ImageEncodingStage(PipelineStage):
 
         image_inputs = self.image_processor(
             images=image, return_tensors="pt", **image_processor_kwargs
-        ).to(cuda_device)
+        ).to(rtriton_device)
         if self.image_encoder:
             # if an image encoder is provided
             with set_forward_context(current_timestep=0, attn_metadata=None):
@@ -140,7 +140,7 @@ class ImageEncodingStage(PipelineStage):
 
             neg_image_inputs = self.image_processor(
                 images=image, return_tensors="pt", **neg_image_processor_kwargs
-            ).to(cuda_device)
+            ).to(rtriton_device)
 
             with set_forward_context(current_timestep=0, attn_metadata=None):
                 outputs = self.text_encoder(

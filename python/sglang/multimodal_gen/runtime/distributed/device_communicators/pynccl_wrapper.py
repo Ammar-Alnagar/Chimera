@@ -4,14 +4,14 @@
 # Adapted from https://github.com/vllm-project/vllm/blob/v0.7.3/vllm/distributed/device_communicators/pynccl_wrapper.py
 
 # This file is a pure Python wrapper for the NCCL library.
-# The main purpose is to use NCCL combined with CUDA graph.
+# The main purpose is to use NCCL combined with RTRITON graph.
 # Before writing this script, we tried the following approach:
 # 1. We tried to use `cupy`, it calls NCCL correctly, but `cupy` itself
 #  often gets stuck when initializing the NCCL communicator.
 # 2. We tried to use `torch.distributed`, but `torch.distributed.all_reduce`
-#  contains many other potential cuda APIs, that are not allowed during
-#  capturing the CUDA graph. For further details, please check
-# https://discuss.pytorch.org/t/pytorch-cudagraph-with-nccl-operation-failed/ .
+#  contains many other potential rtriton APIs, that are not allowed during
+#  capturing the RTRITON graph. For further details, please check
+# https://discuss.pytorch.org/t/pytorch-rtritongraph-with-nccl-operation-failed/ .
 #
 # Another rejected idea is to write a C/C++ binding for NCCL. It is usually
 # doable, but we often encounter issues related with nccl versions, and need
@@ -51,7 +51,7 @@ class ncclUniqueId(ctypes.Structure):
     _fields_ = [("internal", ctypes.c_byte * 128)]
 
 
-cudaStream_t = ctypes.c_void_p
+rtritonStream_t = ctypes.c_void_p
 buffer_type = ctypes.c_void_p
 
 ncclDataType_t = ctypes.c_int
@@ -149,8 +149,8 @@ class NCCLLibrary:
         # ncclResult_t  ncclAllReduce(
         #   const void* sendbuff, void* recvbuff, size_t count,
         #   ncclDataType_t datatype, ncclRedOp_t op, ncclComm_t comm,
-        #   cudaStream_t stream);
-        # note that cudaStream_t is a pointer type, so the last argument
+        #   rtritonStream_t stream);
+        # note that rtritonStream_t is a pointer type, so the last argument
         # is a pointer
         Function(
             "ncclAllReduce",
@@ -162,14 +162,14 @@ class NCCLLibrary:
                 ncclDataType_t,
                 ncclRedOp_t,
                 ncclComm_t,
-                cudaStream_t,
+                rtritonStream_t,
             ],
         ),
         # ncclResult_t  ncclAllGather(
         #   const void* sendbuff, void* recvbuff, size_t count,
         #   ncclDataType_t datatype, ncclComm_t comm,
-        #   cudaStream_t stream);
-        # note that cudaStream_t is a pointer type, so the last argument
+        #   rtritonStream_t stream);
+        # note that rtritonStream_t is a pointer type, so the last argument
         # is a pointer
         Function(
             "ncclAllGather",
@@ -180,14 +180,14 @@ class NCCLLibrary:
                 ctypes.c_size_t,
                 ncclDataType_t,
                 ncclComm_t,
-                cudaStream_t,
+                rtritonStream_t,
             ],
         ),
         # ncclResult_t  ncclReduceScatter(
         #   const void* sendbuff, void* recvbuff, size_t count,
         #   ncclDataType_t datatype, ncclRedOp_t op, ncclComm_t comm,
-        #   cudaStream_t stream);
-        # note that cudaStream_t is a pointer type, so the last argument
+        #   rtritonStream_t stream);
+        # note that rtritonStream_t is a pointer type, so the last argument
         # is a pointer
         Function(
             "ncclReduceScatter",
@@ -199,12 +199,12 @@ class NCCLLibrary:
                 ncclDataType_t,
                 ncclRedOp_t,
                 ncclComm_t,
-                cudaStream_t,
+                rtritonStream_t,
             ],
         ),
         # ncclResult_t  ncclSend(
         #   const void* sendbuff, size_t count, ncclDataType_t datatype,
-        #   int dest, ncclComm_t comm, cudaStream_t stream);
+        #   int dest, ncclComm_t comm, rtritonStream_t stream);
         Function(
             "ncclSend",
             ncclResult_t,
@@ -214,12 +214,12 @@ class NCCLLibrary:
                 ncclDataType_t,
                 ctypes.c_int,
                 ncclComm_t,
-                cudaStream_t,
+                rtritonStream_t,
             ],
         ),
         # ncclResult_t  ncclRecv(
         #   void* recvbuff, size_t count, ncclDataType_t datatype,
-        #   int src, ncclComm_t comm, cudaStream_t stream);
+        #   int src, ncclComm_t comm, rtritonStream_t stream);
         Function(
             "ncclRecv",
             ncclResult_t,
@@ -229,13 +229,13 @@ class NCCLLibrary:
                 ncclDataType_t,
                 ctypes.c_int,
                 ncclComm_t,
-                cudaStream_t,
+                rtritonStream_t,
             ],
         ),
         # ncclResult_t ncclBroadcast(
         #   const void* sendbuff, void* recvbuff, size_t count,
         #   ncclDataType_t datatype, int root, ncclComm_t comm,
-        #   cudaStream_t stream);
+        #   rtritonStream_t stream);
         Function(
             "ncclBroadcast",
             ncclResult_t,
@@ -246,7 +246,7 @@ class NCCLLibrary:
                 ncclDataType_t,
                 ctypes.c_int,
                 ncclComm_t,
-                cudaStream_t,
+                rtritonStream_t,
             ],
         ),
         # be cautious! this is a collective call, it will block until all
@@ -340,7 +340,7 @@ class NCCLLibrary:
         datatype: int,
         op: int,
         comm: ncclComm_t,
-        stream: cudaStream_t,
+        stream: rtritonStream_t,
     ) -> None:
         # `datatype` actually should be `ncclDataType_t`
         # and `op` should be `ncclRedOp_t`
@@ -361,7 +361,7 @@ class NCCLLibrary:
         datatype: int,
         op: int,
         comm: ncclComm_t,
-        stream: cudaStream_t,
+        stream: rtritonStream_t,
     ) -> None:
         # `datatype` actually should be `ncclDataType_t`
         # and `op` should be `ncclRedOp_t`
@@ -381,7 +381,7 @@ class NCCLLibrary:
         count: int,
         datatype: int,
         comm: ncclComm_t,
-        stream: cudaStream_t,
+        stream: rtritonStream_t,
     ) -> None:
         # `datatype` actually should be `ncclDataType_t`
         # which is an aliases of `ctypes.c_int`
@@ -400,7 +400,7 @@ class NCCLLibrary:
         datatype: int,
         dest: int,
         comm: ncclComm_t,
-        stream: cudaStream_t,
+        stream: rtritonStream_t,
     ) -> None:
         self.NCCL_CHECK(
             self._funcs["ncclSend"](sendbuff, count, datatype, dest, comm, stream)
@@ -413,7 +413,7 @@ class NCCLLibrary:
         datatype: int,
         src: int,
         comm: ncclComm_t,
-        stream: cudaStream_t,
+        stream: rtritonStream_t,
     ) -> None:
         self.NCCL_CHECK(
             self._funcs["ncclRecv"](recvbuff, count, datatype, src, comm, stream)
@@ -427,7 +427,7 @@ class NCCLLibrary:
         datatype: int,
         root: int,
         comm: ncclComm_t,
-        stream: cudaStream_t,
+        stream: rtritonStream_t,
     ) -> None:
         self.NCCL_CHECK(
             self._funcs["ncclBroadcast"](
@@ -445,6 +445,6 @@ __all__ = [
     "ncclRedOpTypeEnum",
     "ncclUniqueId",
     "ncclComm_t",
-    "cudaStream_t",
+    "rtritonStream_t",
     "buffer_type",
 ]

@@ -11,7 +11,7 @@ class TestGptOss4Gpu(BaseTestGptOss):
             expected_score_of_reasoning_effort={
                 "low": 0.60,
             },
-            other_args=["--tp", "4", "--cuda-graph-max-bs", "200"],
+            other_args=["--tp", "4", "--rtriton-graph-max-bs", "200"],
         )
 
     def test_mxfp4_120b(self):
@@ -24,7 +24,7 @@ class TestGptOss4Gpu(BaseTestGptOss):
             other_args=[
                 "--tp",
                 "4",
-                "--cuda-graph-max-bs",
+                "--rtriton-graph-max-bs",
                 "200",
                 "--mem-fraction-static",
                 "0.93",

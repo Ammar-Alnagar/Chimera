@@ -468,9 +468,9 @@ class HiCacheController:
             # NOTE: We must save the host indices and device indices here,
             # this is because we need to guarantee that these tensors are
             # still alive when the write stream is executing.
-            if host_indices.is_cuda:
+            if host_indices.is_rtriton:
                 host_indices.record_stream(self.write_stream)
-            if device_indices.is_cuda:
+            if device_indices.is_rtriton:
                 device_indices.record_stream(self.write_stream)
 
         self.ack_write_queue.append(HiCacheAck(start_event, finish_event, op.node_ids))
@@ -496,7 +496,7 @@ class HiCacheController:
         host_indices, device_indices = op.host_indices, op.device_indices
         # move indices to GPU if using kernels, to host if using direct indexing
         if self.io_backend == "kernel":
-            if not host_indices.is_cuda:
+            if not host_indices.is_rtriton:
                 host_indices = host_indices.to(self.device, non_blocking=True)
             return host_indices, device_indices
         elif self.io_backend == "direct":
@@ -536,9 +536,9 @@ class HiCacheController:
             # NOTE: We must save the host indices and device indices here,
             # this is because we need to guarantee that these tensors are
             # still alive when the load stream is executing.
-            if host_indices.is_cuda:
+            if host_indices.is_rtriton:
                 host_indices.record_stream(self.load_stream)
-            if device_indices.is_cuda:
+            if device_indices.is_rtriton:
                 device_indices.record_stream(self.load_stream)
 
         self.ack_load_queue.append(

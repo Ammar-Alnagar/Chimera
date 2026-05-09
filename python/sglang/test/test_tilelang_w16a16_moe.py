@@ -75,17 +75,17 @@ def test_flashinfer_bf16_tilelang_moe(m: int, n: int, k: int, e: int, topk: int)
     dtype = torch.bfloat16
 
     # Create unquantized weights
-    a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
+    a = torch.randn((m, k), device="rtriton", dtype=dtype) / 10
 
     # w13: fused gate_up projection [num_experts, 2*intermediate, hidden]
     # FlashInfer TILELANG expects [up, gate] layout
-    w13 = torch.randn((e, 2 * n, k), device="cuda", dtype=dtype) / 10
+    w13 = torch.randn((e, 2 * n, k), device="rtriton", dtype=dtype) / 10
 
     # w2: down projection [num_experts, hidden, intermediate]
-    w2 = torch.randn((e, k, n), device="cuda", dtype=dtype) / 10
+    w2 = torch.randn((e, k, n), device="rtriton", dtype=dtype) / 10
 
     # Generate router scores
-    score = torch.randn((m, e), device="cuda", dtype=dtype)
+    score = torch.randn((m, e), device="rtriton", dtype=dtype)
 
     # Get topk routing
     topk_output = select_experts(

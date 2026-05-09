@@ -18,16 +18,16 @@ from sglang.srt.managers.schedule_batch import (
     MultimodalInputFormat,
 )
 from sglang.srt.utils import envs, is_npu, load_audio, load_image, load_video, logger
-from sglang.srt.utils.cuda_ipc_transport_utils import (
+from sglang.srt.utils.rtriton_ipc_transport_utils import (
     MM_FEATURE_CACHE_SIZE,
     MM_ITEM_MEMORY_POOL_RECYCLE_INTERVAL,
-    CudaIpcTensorTransportProxy,
+    RtritonIpcTensorTransportProxy,
     MmItemMemoryPool,
 )
 
 _is_npu = is_npu()
 
-SGL_USE_CUDA_IPC = envs.SGLANG_USE_CUDA_IPC_TRANSPORT.get()
+SGL_USE_RTRITON_IPC = envs.SGLANG_USE_RTRITON_IPC_TRANSPORT.get()
 
 
 @dataclasses.dataclass
@@ -222,8 +222,8 @@ class BaseMultimodalProcessor(ABC):
             "input_features",
         ]
 
-        if SGL_USE_CUDA_IPC:
-            self.cudaipc_mmfeature_pool = MmItemMemoryPool(
+        if SGL_USE_RTRITON_IPC:
+            self.rtritonipc_mmfeature_pool = MmItemMemoryPool(
                 MM_FEATURE_CACHE_SIZE,
                 MM_ITEM_MEMORY_POOL_RECYCLE_INTERVAL,
             )
@@ -317,7 +317,7 @@ class BaseMultimodalProcessor(ABC):
             and not self.server_args.disable_fast_image_processor
         ):
             if not _is_npu:
-                kwargs["device"] = "cuda"
+                kwargs["device"] = "rtriton"
             elif processor.__class__.__name__ not in {
                 "Qwen2_5_VLProcessor",
                 "Qwen3VLProcessor",
@@ -333,7 +333,7 @@ class BaseMultimodalProcessor(ABC):
         if not self.server_args.keep_mm_feature_on_device:
             # move feature tensors to cpu
             for feature_name in self.FEATURE_NAMES:
-                if SGL_USE_CUDA_IPC:
+                if SGL_USE_RTRITON_IPC:
                     pass
                 else:
                     if feature_name in result and isinstance(
@@ -852,19 +852,19 @@ class BaseMultimodalProcessor(ABC):
             )
 
         """
-        solution for cuda-ipc memory-leak:
+        solution for rtriton-ipc memory-leak:
         1. memory-pool:  each time get a slice from memory-pool and use it as transport-data (with async lock guard)
         2. if can not get a slice , transport normal tensor
         3. copy tensor in scheduler and release it (use position mark)
         4. copy
         """
 
-        if SGL_USE_CUDA_IPC:
+        if SGL_USE_RTRITON_IPC:
             # post-process
             for item in all_collected_items:
-                if isinstance(item.feature, torch.Tensor) and item.feature.is_cuda:
+                if isinstance(item.feature, torch.Tensor) and item.feature.is_rtriton:
                     sync_flag, available_slice = (
-                        self.cudaipc_mmfeature_pool.return_a_slice_tensor_with_flag(
+                        self.rtritonipc_mmfeature_pool.return_a_slice_tensor_with_flag(
                             item.feature
                         )
                     )
@@ -872,18 +872,18 @@ class BaseMultimodalProcessor(ABC):
                         available_slice.copy_(
                             item.feature.view(torch.int8).view(-1), non_blocking=True
                         )
-                        item.feature = CudaIpcTensorTransportProxy(
+                        item.feature = RtritonIpcTensorTransportProxy(
                             data=available_slice,
                             info_data=item.feature,
                             sync_buffer_meta=sync_flag,
                         )
                 elif (
                     isinstance(item.precomputed_embeddings, torch.Tensor)
-                    and item.precomputed_embeddings.is_cuda
+                    and item.precomputed_embeddings.is_rtriton
                 ):
 
                     sync_flag, available_slice = (
-                        self.cudaipc_mmfeature_pool.return_a_slice_tensor_with_flag(
+                        self.rtritonipc_mmfeature_pool.return_a_slice_tensor_with_flag(
                             item.precomputed_embeddings
                         )
                     )
@@ -892,7 +892,7 @@ class BaseMultimodalProcessor(ABC):
                             item.precomputed_embeddings.view(torch.int8).view(-1),
                             non_blocking=True,
                         )
-                        item.precomputed_embeddings = CudaIpcTensorTransportProxy(
+                        item.precomputed_embeddings = RtritonIpcTensorTransportProxy(
                             data=available_slice,
                             info_data=item.precomputed_embeddings,
                             sync_buffer_meta=sync_flag,

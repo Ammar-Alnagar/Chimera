@@ -43,7 +43,7 @@ class InternVLProcessor(BaseMultimodalProcessor):
 
     @staticmethod
     @lru_cache(maxsize=1)
-    def _get_normalize_tensors(device="cuda", dtype=torch.float32):
+    def _get_normalize_tensors(device="rtriton", dtype=torch.float32):
         mean = torch.tensor(
             InternVLProcessor.IMAGENET_MEAN, device=device, dtype=dtype
         ).view(-1, 1, 1)
@@ -297,7 +297,7 @@ class InternVLProcessor(BaseMultimodalProcessor):
             len(base_output.videos),
         )
 
-        mean, std = self._get_normalize_tensors(device="cuda")
+        mean, std = self._get_normalize_tensors(device="rtriton")
 
         # ----- Images -> tiles -----
         num_patches_list: List[int] = []
@@ -307,10 +307,10 @@ class InternVLProcessor(BaseMultimodalProcessor):
             if isinstance(image, Image.Image):
                 img_np = np.array(image.convert("RGB"))
                 tensor = (
-                    torch.from_numpy(img_np).permute(2, 0, 1).cuda().float() / 255.0
+                    torch.from_numpy(img_np).permute(2, 0, 1).rtriton().float() / 255.0
                 )
             else:
-                tensor = image.cuda()
+                tensor = image.rtriton()
 
             tensor = (tensor - mean) / std
             tiles = self.dynamic_preprocess(
@@ -367,7 +367,7 @@ class InternVLProcessor(BaseMultimodalProcessor):
                         else np.array(frame)
                     )
                     frame_t = (
-                        torch.from_numpy(img_np).permute(2, 0, 1).cuda().float() / 255.0
+                        torch.from_numpy(img_np).permute(2, 0, 1).rtriton().float() / 255.0
                     )
                     frame_t = (frame_t - mean) / std
 
@@ -438,14 +438,14 @@ class InternVLProcessor(BaseMultimodalProcessor):
         image_offsets = []
         if image_tensor is not None:
             image_offsets = self.get_mm_items_offset(
-                input_ids=input_ids_tensor.to("cuda"),
+                input_ids=input_ids_tensor.to("rtriton"),
                 mm_token_id=self.img_context_token_id,
             )
 
         video_offsets = []
         if video_tensor is not None and self.video_token_id is not None:
             video_offsets = self.get_mm_items_offset(
-                input_ids=input_ids_tensor.to("cuda"),
+                input_ids=input_ids_tensor.to("rtriton"),
                 mm_token_id=self.video_token_id,
             )
 
@@ -503,7 +503,7 @@ class InternVLProcessor(BaseMultimodalProcessor):
             discard_alpha_channel=True,
         )
 
-        mean, std = self._get_normalize_tensors(device="cuda")
+        mean, std = self._get_normalize_tensors(device="rtriton")
 
         num_patches_list: List[int] = []
         pixel_values_list: List[torch.Tensor] = []
@@ -512,10 +512,10 @@ class InternVLProcessor(BaseMultimodalProcessor):
             if isinstance(image, Image.Image):
                 img_np = np.array(image.convert("RGB"))
                 tensor = (
-                    torch.from_numpy(img_np).permute(2, 0, 1).cuda().float() / 255.0
+                    torch.from_numpy(img_np).permute(2, 0, 1).rtriton().float() / 255.0
                 )
             else:
-                tensor = image.cuda()
+                tensor = image.rtriton()
 
             tensor = (tensor - mean) / std
             tiles = self.dynamic_preprocess(
@@ -558,7 +558,7 @@ class InternVLProcessor(BaseMultimodalProcessor):
         image_offsets = []
         if pixel_values is not None:
             image_offsets = self.get_mm_items_offset(
-                input_ids=input_ids_tensor.to("cuda"),
+                input_ids=input_ids_tensor.to("rtriton"),
                 mm_token_id=self.img_context_token_id,
             )
 

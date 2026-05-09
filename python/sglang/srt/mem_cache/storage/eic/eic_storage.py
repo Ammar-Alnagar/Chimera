@@ -33,26 +33,26 @@ G_EnableGPUNicAffinity = False
 
 # default H20 gpu nic affinity
 GPUNicAffinity = {
-    "cuda:0": "eth1",
-    "cuda:1": "eth1",
-    "cuda:2": "eth2",
-    "cuda:3": "eth2",
-    "cuda:4": "eth3",
-    "cuda:5": "eth3",
-    "cuda:6": "eth4",
-    "cuda:7": "eth4",
+    "rtriton:0": "eth1",
+    "rtriton:1": "eth1",
+    "rtriton:2": "eth2",
+    "rtriton:3": "eth2",
+    "rtriton:4": "eth3",
+    "rtriton:5": "eth3",
+    "rtriton:6": "eth4",
+    "rtriton:7": "eth4",
 }
 
 # default H20 cpu nic affinity
 CPUNicAffinity = {
-    "cuda:0": "cpu",
-    "cuda:1": "cpu",
-    "cuda:2": "cpu",
-    "cuda:3": "cpu",
-    "cuda:4": "cpu",
-    "cuda:5": "cpu",
-    "cuda:6": "cpu",
-    "cuda:7": "cpu",
+    "rtriton:0": "cpu",
+    "rtriton:1": "cpu",
+    "rtriton:2": "cpu",
+    "rtriton:3": "cpu",
+    "rtriton:4": "cpu",
+    "rtriton:5": "cpu",
+    "rtriton:6": "cpu",
+    "rtriton:7": "cpu",
 }
 
 
@@ -71,8 +71,8 @@ class FlexibleKVCacheMemoryPool:
         self.connection = conn
 
         if device.startswith("cpu") and G_EnableGPUNicAffinity:
-            gpu_id = torch.cuda.current_device()
-            self.device = CPUNicAffinity["cuda:" + str(gpu_id)]
+            gpu_id = torch.rtriton.current_device()
+            self.device = CPUNicAffinity["rtriton:" + str(gpu_id)]
             # current memory pool size is 5 times of CPU TensorPoolSize
             mempool_size = TensorPoolSize * 5
         else:
@@ -106,8 +106,8 @@ class FlexibleKVCacheMemoryPool:
             self.data_ptr_to_index[self.kvcache_mempool[i].data_ptr()] = i
 
         meminfo = eic.MemoryInfo()
-        meminfo.type = eic.MemoryType.MEMORY_CUDA
-        meminfo.cuda_id = 0
+        meminfo.type = eic.MemoryType.MEMORY_RTRITON
+        meminfo.rtriton_id = 0
         vals = eic.IOBuffers()
         vals.append(
             self.kvcache_mempool.data_ptr(),
@@ -196,12 +196,12 @@ class EICStorage(HiCacheStorage):
 
         # GDR now is not used
         G_EnableKVSetGPUDirect = (
-            config.get("enable_kvset_gpu_direct", False) and torch.cuda.is_available()
+            config.get("enable_kvset_gpu_direct", False) and torch.rtriton.is_available()
         )
         logger.debug(f"eic enable_kvset_gpu_direct: {G_EnableKVSetGPUDirect}")
 
         G_EnableKVGetGPUDirect = (
-            config.get("enable_kvget_gpu_direct", False) and torch.cuda.is_available()
+            config.get("enable_kvget_gpu_direct", False) and torch.rtriton.is_available()
         )
         logger.debug(f"eic enable_kvget_gpu_direct: {G_EnableKVGetGPUDirect}")
 
@@ -244,9 +244,9 @@ class EICStorage(HiCacheStorage):
         init_option.flag_file = eic_flag_file
 
         if G_EnableGPUNicAffinity:
-            gpu_id = torch.cuda.current_device()
+            gpu_id = torch.rtriton.current_device()
             init_option.multi_net_local_interface_names = GPUNicAffinity[
-                "cuda:" + str(gpu_id)
+                "rtriton:" + str(gpu_id)
             ]
             logger.info(
                 f"gpu {gpu_id} set gpu nic affinity to {init_option.multi_net_local_interface_names}"
@@ -298,10 +298,10 @@ class EICStorage(HiCacheStorage):
         )
 
     def register_mem_pool_host(self, memory_pool_host: HostKVCache) -> None:
-        # no need judge meminfo type, cuda_id, etc.
+        # no need judge meminfo type, rtriton_id, etc.
         meminfo = eic.MemoryInfo()
-        meminfo.type = eic.MemoryType.MEMORY_CUDA
-        meminfo.cuda_id = 0
+        meminfo.type = eic.MemoryType.MEMORY_RTRITON
+        meminfo.rtriton_id = 0
         vals = eic.IOBuffers()
         buffer = memory_pool_host.kv_buffer
         vals.append(

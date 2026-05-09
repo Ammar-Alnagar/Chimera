@@ -34,7 +34,7 @@ from transformers import AutoModelForCausalLM
 
 import sglang as sgl
 from sglang.srt.constants import (
-    GPU_MEMORY_TYPE_CUDA_GRAPH,
+    GPU_MEMORY_TYPE_RTRITON_GRAPH,
     GPU_MEMORY_TYPE_KV_CACHE,
     GPU_MEMORY_TYPE_WEIGHTS,
 )
@@ -51,7 +51,7 @@ _DEBUG_EXTRA = False
 
 
 def get_gpu_memory_gb():
-    return torch.cuda.device_memory_used() / 1024**3
+    return torch.rtriton.device_memory_used() / 1024**3
 
 
 class TestReleaseMemoryOccupation(CustomTestCase):
@@ -65,7 +65,7 @@ class TestReleaseMemoryOccupation(CustomTestCase):
     ):
         """Common setup for engine and HF model."""
 
-        os.environ["SGLANG_MEMORY_SAVER_CUDA_GRAPH"] = "1"
+        os.environ["SGLANG_MEMORY_SAVER_RTRITON_GRAPH"] = "1"
         engine = sgl.Engine(
             model_path=model_name,
             random_seed=42,
@@ -74,7 +74,7 @@ class TestReleaseMemoryOccupation(CustomTestCase):
             tp_size=tp_size,
             ep_size=ep_size,
             enable_weights_cpu_backup=enable_weights_cpu_backup,
-            # disable_cuda_graph=True,  # for debugging only
+            # disable_rtriton_graph=True,  # for debugging only
         )
 
         return engine
@@ -107,7 +107,7 @@ class TestReleaseMemoryOccupation(CustomTestCase):
         # Without multi-stage release and resume, we need to carefully control the memory fraction to avoid OOM
         model_name = DEFAULT_SMALL_MODEL_NAME_FOR_TEST
         assert (
-            torch.cuda.device_count() >= 2
+            torch.rtriton.device_count() >= 2
         ), "Need at least 2 GPUs for tensor parallel tests"
 
         for tp_size in [1, 2]:
@@ -151,13 +151,13 @@ class TestReleaseMemoryOccupation(CustomTestCase):
             hf_model_new = AutoModelForCausalLM.from_pretrained(
                 DEFAULT_SMALL_MODEL_NAME_FOR_TEST_BASE,
                 torch_dtype="bfloat16",
-                device_map="cuda",
+                device_map="rtriton",
             )
             engine.update_weights_from_tensor(list(hf_model_new.named_parameters()))
 
             # destroy the hf model
             del hf_model_new
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
             print("generate (#2)")
             outputs = engine.generate(params["prompt"], params["sampling_params"])[
@@ -218,11 +218,11 @@ class TestReleaseMemoryOccupation(CustomTestCase):
         model_name = DEFAULT_SMALL_MODEL_NAME_FOR_TEST
 
         for tp_size in [1, 2]:
-            if tp_size == 2 and torch.cuda.device_count() < 2:
+            if tp_size == 2 and torch.rtriton.device_count() < 2:
                 continue
 
             print(f"Testing tp_size={tp_size} for test_multi_stage_release_and_resume")
-            os.environ["SGLANG_MEMORY_SAVER_CUDA_GRAPH"] = "1"
+            os.environ["SGLANG_MEMORY_SAVER_RTRITON_GRAPH"] = "1"
             engine = sgl.Engine(
                 model_path=model_name,
                 random_seed=42,
@@ -258,17 +258,17 @@ class TestReleaseMemoryOccupation(CustomTestCase):
                 gpu_memory_usage_after_release_kv_cache,
             )
 
-            engine.release_memory_occupation(tags=[GPU_MEMORY_TYPE_CUDA_GRAPH])
-            gpu_memory_usage_after_release_cuda_graph = get_gpu_memory_gb()
+            engine.release_memory_occupation(tags=[GPU_MEMORY_TYPE_RTRITON_GRAPH])
+            gpu_memory_usage_after_release_rtriton_graph = get_gpu_memory_gb()
 
             self.assertLess(
-                gpu_memory_usage_after_release_cuda_graph,
+                gpu_memory_usage_after_release_rtriton_graph,
                 gpu_memory_usage_after_release_weights,
             )
 
             print(f"Release took {time.perf_counter() - t:.2f}s")
             print(
-                f"Memory: {gpu_memory_usage_before_release:.1f} → {gpu_memory_usage_after_release_kv_cache:.1f} → {gpu_memory_usage_after_release_weights:.1f} → {gpu_memory_usage_after_release_cuda_graph:.1f} GB"
+                f"Memory: {gpu_memory_usage_before_release:.1f} → {gpu_memory_usage_after_release_kv_cache:.1f} → {gpu_memory_usage_after_release_weights:.1f} → {gpu_memory_usage_after_release_rtriton_graph:.1f} GB"
             )
 
             if _DEBUG_EXTRA:
@@ -286,11 +286,11 @@ class TestReleaseMemoryOccupation(CustomTestCase):
             )
             print(f"Resume weights took {time.perf_counter() - t:.2f}s")
 
-            engine.resume_memory_occupation(tags=[GPU_MEMORY_TYPE_CUDA_GRAPH])
-            gpu_memory_usage_after_resume_cuda_graph = get_gpu_memory_gb()
+            engine.resume_memory_occupation(tags=[GPU_MEMORY_TYPE_RTRITON_GRAPH])
+            gpu_memory_usage_after_resume_rtriton_graph = get_gpu_memory_gb()
 
             self.assertGreater(
-                gpu_memory_usage_after_resume_cuda_graph,
+                gpu_memory_usage_after_resume_rtriton_graph,
                 gpu_memory_usage_before_resume,
             )
 
@@ -299,21 +299,21 @@ class TestReleaseMemoryOccupation(CustomTestCase):
 
             self.assertGreater(
                 gpu_memory_usage_after_resume_weights,
-                gpu_memory_usage_after_resume_cuda_graph,
+                gpu_memory_usage_after_resume_rtriton_graph,
             )
 
             # Update weights from a trained model to serving engine, and then destroy the trained model
             hf_model_new = AutoModelForCausalLM.from_pretrained(
                 DEFAULT_SMALL_MODEL_NAME_FOR_TEST_BASE,
                 torch_dtype="bfloat16",
-                device_map="cuda",
+                device_map="rtriton",
             )
             gpu_memory_usage_after_loaded_hf_model = get_gpu_memory_gb()
             engine.update_weights_from_tensor(list(hf_model_new.named_parameters()))
 
             # destroy the hf model
             del hf_model_new
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
             engine.resume_memory_occupation(tags=[GPU_MEMORY_TYPE_KV_CACHE])
 
             gpu_memory_usage_after_resume_kv_cache = get_gpu_memory_gb()
@@ -324,7 +324,7 @@ class TestReleaseMemoryOccupation(CustomTestCase):
 
             print(f"Resume + update took {time.perf_counter() - t:.2f}s")
             print(
-                f"Memory: {gpu_memory_usage_before_resume:.1f} → {gpu_memory_usage_after_resume_cuda_graph:.1f} → {gpu_memory_usage_after_resume_weights:.1f} → {gpu_memory_usage_after_loaded_hf_model:.1f} → {gpu_memory_usage_after_resume_kv_cache:.1f} GB"
+                f"Memory: {gpu_memory_usage_before_resume:.1f} → {gpu_memory_usage_after_resume_rtriton_graph:.1f} → {gpu_memory_usage_after_resume_weights:.1f} → {gpu_memory_usage_after_loaded_hf_model:.1f} → {gpu_memory_usage_after_resume_kv_cache:.1f} GB"
             )
 
             print("generate (#2)")
@@ -385,13 +385,13 @@ class TestReleaseMemoryOccupation(CustomTestCase):
         hf_model_new = AutoModelForCausalLM.from_pretrained(
             DEFAULT_SMALL_MOE_MODEL_NAME_FOR_TEST_BASE,
             torch_dtype="bfloat16",
-            device_map="cuda",
+            device_map="rtriton",
         )
         engine.update_weights_from_tensor(list(hf_model_new.named_parameters()))
 
         # destroy the hf model
         del hf_model_new
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
         print("generate (#2)")
         outputs = engine.generate(params["prompt_moe"], params["sampling_params_moe"])[

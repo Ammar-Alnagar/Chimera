@@ -10,7 +10,7 @@ Each configuration file is generated based on the following parameters:
 - **N** (intermediate size): The intermediate/hidden dimension size
   - For Tensor Parallelism (TP): `N = original_intermediate_size / tp_size`
   - Example: Mixtral has N = 14336. For TP=2, N = 7168; for TP=4, N = 3584
-- **device_name**: GPU device name from `torch.cuda.get_device_name()`
+- **device_name**: GPU device name from `torch.rtriton.get_device_name()`
   - Examples: `NVIDIA_H100_80GB_HBM3`, `NVIDIA_A100-SXM4-80GB`, `NVIDIA_GeForce_RTX_4090`
 - **dtype**: Data type for computation
   - Supported types: `fp8_w8a8`, `int8_w8a8`, `int8_w8a16`, `int4_w4a16`, etc.

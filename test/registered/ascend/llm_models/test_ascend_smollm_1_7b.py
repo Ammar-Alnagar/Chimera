@@ -16,7 +16,7 @@ class TestMistral7B(GSM8KAscendMixin, CustomTestCase):
         "0.8",
         "--attention-backend",
         "ascend",
-        "--disable-cuda-graph",
+        "--disable-rtriton-graph",
         "--dtype",
         "bfloat16",
     ]

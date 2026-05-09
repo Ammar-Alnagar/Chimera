@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <cuda.h>
-#include <cuda_fp8.h>
+#include <rtriton.h>
+#include <rtriton_fp8.h>
 #include <tilelang/arch/config.h>
 
 // Get type2 from type or vice versa (applied to half and bfloat16)
@@ -52,7 +52,7 @@ constexpr int CVT_FP4_SF_VEC_SIZE = 16;
 inline __device__ uint32_t fp32_vec_to_e2m1(float (&array)[8]) {
   // PTX instructions used here requires >= sm100f.
 #if TILELANG_ARCH_MMA_SM100A_ENABLED || TILELANG_ARCH_MMA_SM103A_ENABLED || TILELANG_ARCH_MMA_SM120A_ENABLED || \
-    (defined(__CUDA_ARCH_FAMILY_SPECIFIC__) && (__CUDA_ARCH_FAMILY_SPECIFIC__ > 1000))
+    (defined(__RTRITON_ARCH_FAMILY_SPECIFIC__) && (__RTRITON_ARCH_FAMILY_SPECIFIC__ > 1000))
   uint32_t val;
   asm volatile(
       "{\n"
@@ -87,7 +87,7 @@ inline __device__ uint32_t fp32_vec_to_e2m1(float (&array)[8]) {
 inline __device__ uint32_t fp32_vec_to_e2m1(float2 (&array)[4]) {
   // PTX instructions used here requires >= sm100f.
 #if TILELANG_ARCH_MMA_SM100A_ENABLED || TILELANG_ARCH_MMA_SM103A_ENABLED || TILELANG_ARCH_MMA_SM120A_ENABLED || \
-    (defined(__CUDA_ARCH_FAMILY_SPECIFIC__) && (__CUDA_ARCH_FAMILY_SPECIFIC__ > 1000))
+    (defined(__RTRITON_ARCH_FAMILY_SPECIFIC__) && (__RTRITON_ARCH_FAMILY_SPECIFIC__ > 1000))
   uint32_t val;
   asm volatile(
       "{\n"
@@ -127,7 +127,7 @@ inline __device__ float reciprocal_approximate_ftz(float a) {
 
 template <class SFType, int CVT_FP4_NUM_THREADS_PER_SF>
 __device__ uint8_t* cvt_quant_to_fp4_get_sf_out_offset(int rowIdx, int colIdx, int numCols, SFType* SFout) {
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
   static_assert(CVT_FP4_NUM_THREADS_PER_SF == 1 || CVT_FP4_NUM_THREADS_PER_SF == 2);
 
   // One pair of threads write one SF to global memory.

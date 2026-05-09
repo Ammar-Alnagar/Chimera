@@ -734,7 +734,7 @@ def fastsafetensors_weights_iterator(
     except Exception:
         rank = 0
 
-    device = torch.device(f"cuda:{rank}")
+    device = torch.device(f"rtriton:{rank}")
 
     weight_files_sub_lists = [
         hf_weights_files[i : i + pg.size()]

@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_eval_few_shot_gsm8k
 from sglang.test.test_utils import (
     DEFAULT_URL_FOR_TEST,
@@ -11,7 +11,7 @@ from sglang.test.test_utils import (
     try_cached_model,
 )
 
-register_cuda_ci(est_time=3600, suite="nightly-8-gpu-b200", nightly=True)
+register_rtriton_ci(est_time=3600, suite="nightly-8-gpu-b200", nightly=True)
 
 FULL_DEEPSEEK_V3_MODEL_PATH = "deepseek-ai/DeepSeek-V3-0324"
 SERVER_LAUNCH_TIMEOUT = 1000
@@ -31,7 +31,7 @@ class TestDeepseekR1Fp8Flashinfer(CustomTestCase):
             "8192",
             "--mem-fraction-static",
             "0.9",
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             "128",
             "--max-prefill-tokens",
             "8192",

@@ -96,7 +96,7 @@ class TestChunkedSGMV(unittest.TestCase):
         torch.manual_seed(42)
         random.seed(42)
 
-        self.device = torch.device("cuda")
+        self.device = torch.device("rtriton")
         self.dtype = torch.float16
         self.input_dim = 2560  # Hidden dimension
         self.max_seq_len = 1024
@@ -240,7 +240,7 @@ class TestChunkedSGMV(unittest.TestCase):
         )
 
         return LoRABatchInfo(
-            use_cuda_graph=False,
+            use_rtriton_graph=False,
             bs=len(seq_lengths),
             num_segments=len(weight_indices_list),  # Number of segments, not sequences!
             seg_indptr=seg_indptr_tensor,

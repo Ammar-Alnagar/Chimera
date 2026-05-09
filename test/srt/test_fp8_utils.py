@@ -17,7 +17,7 @@ class TestInverseTransformScaleUe8m0(CustomTestCase):
                 # DeepSeek V3 kv_b_proj
                 (32768, 512),
                 dtype=torch.bfloat16,
-                device="cuda",
+                device="rtriton",
             )
 
             weight_block_size = [128, 128]

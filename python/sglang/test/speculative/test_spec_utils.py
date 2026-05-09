@@ -13,7 +13,7 @@ BYTES_PER_TILE = 128
 class TestSpecUtils(unittest.TestCase):
 
     def setUp(self):
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "rtriton" if torch.rtriton.is_available() else "cpu"
         self.data_ptrs = torch.zeros(2, 1, dtype=torch.uint64, device=self.device)
         self.k_cache = [
             torch.zeros((100, 1, 1), dtype=torch.float32, device=self.device)

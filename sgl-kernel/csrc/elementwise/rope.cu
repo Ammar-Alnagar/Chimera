@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include <ATen/cuda/Exceptions.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <c10/cuda/CUDAStream.h>
+#include <ATen/rtriton/Exceptions.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <c10/rtriton/RTRITONStream.h>
 #include <torch/all.h>
 
 #include "pos_enc.cuh"
@@ -92,12 +92,12 @@ void apply_rope_pos_ids_cos_sin_cache(
   size_t k_rope_stride_n = k_rope.stride(0);
   size_t k_rope_stride_h = k_rope.stride(1);
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   DISPATCH_PYTORCH_DTYPE_TO_CTYPE_FLOAT_FP16(q.scalar_type(), c_type, [&] {
     // TODO temporarily only use `BatchQKApplyRotaryPosIdsCosSinCacheEnhanced` when save_kv_cache
     // to avoid changing original code path; but this branch is feature-complete and should switch to this later
     if (save_kv_cache) {
-      cudaError_t status = BatchQKApplyRotaryPosIdsCosSinCacheEnhanced(
+      rtritonError_t status = BatchQKApplyRotaryPosIdsCosSinCacheEnhanced(
           static_cast<c_type*>(q.data_ptr()),
           static_cast<c_type*>(k.data_ptr()),
           save_kv_cache ? static_cast<c_type*>(v->data_ptr()) : nullptr,
@@ -132,12 +132,12 @@ void apply_rope_pos_ids_cos_sin_cache(
           enable_pdl,
           stream);
       TORCH_CHECK(
-          status == cudaSuccess,
+          status == rtritonSuccess,
           "BatchQKApplyRotaryPosIdsCosSinCacheEnhanced failed with error code " +
-              std::string(cudaGetErrorString(status)));
+              std::string(rtritonGetErrorString(status)));
     } else {
       TORCH_CHECK(!enable_pdl);
-      cudaError_t status = BatchQKApplyRotaryPosIdsCosSinCache(
+      rtritonError_t status = BatchQKApplyRotaryPosIdsCosSinCache(
           static_cast<c_type*>(q.data_ptr()),
           static_cast<c_type*>(k.data_ptr()),
           static_cast<c_type*>(q_rope.data_ptr()),
@@ -160,8 +160,8 @@ void apply_rope_pos_ids_cos_sin_cache(
           interleave,
           stream);
       TORCH_CHECK(
-          status == cudaSuccess,
-          "BatchQKApplyRotaryPosIdsCosSinCache failed with error code " + std::string(cudaGetErrorString(status)));
+          status == rtritonSuccess,
+          "BatchQKApplyRotaryPosIdsCosSinCache failed with error code " + std::string(rtritonGetErrorString(status)));
     }
     return true;
   });

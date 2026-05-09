@@ -65,7 +65,7 @@ class AscendAttnMaskBuilder:
         Initialize the AscendAttnMaskBuilder class.
 
         :param model_runner: ModelRunner instance for model execution.
-        :param device: Device to run the model on (e.g., 'cuda', 'npu').
+        :param device: Device to run the model on (e.g., 'rtriton', 'npu').
         :param use_fia: Boolean flag to indicate if environment variable ASCEND_USE_FIA is set to 1.
         """
         self.use_fia = use_fia
@@ -243,7 +243,7 @@ class AscendAttnBackend(AttentionBackend):
         return [None, None]
 
     def update_verify_buffers_to_fill_after_draft(
-        self, spec_info: SpecInput, cuda_graph_bs: Optional[int]
+        self, spec_info: SpecInput, rtriton_graph_bs: Optional[int]
     ):
         pass
 
@@ -305,7 +305,7 @@ class AscendAttnBackend(AttentionBackend):
 
         self.graph_mode = False
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
         self.graph_metadata = {
             "block_tables": torch.empty(
                 (max_bs, (self.max_context_len + self.page_size - 1) // self.page_size),
@@ -314,7 +314,7 @@ class AscendAttnBackend(AttentionBackend):
             ),
         }
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -354,7 +354,7 @@ class AscendAttnBackend(AttentionBackend):
 
         self.graph_mode = True
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -385,7 +385,7 @@ class AscendAttnBackend(AttentionBackend):
 
         self.graph_mode = True
 
-    def get_cuda_graph_seq_len_fill_value(self):
+    def get_rtriton_graph_seq_len_fill_value(self):
         return 0
 
     def do_cp_balance_attn(
@@ -1475,13 +1475,13 @@ class AscendAttnMultiStepDraftBackend:
 
         self.common_template(forward_batch, call_fn)
 
-    def init_cuda_graph_state(self, max_bs, max_num_tokens):
+    def init_rtriton_graph_state(self, max_bs, max_num_tokens):
         for i in range(self.speculative_num_steps):
-            self.attn_backends[i].init_cuda_graph_state(max_bs, max_num_tokens)
+            self.attn_backends[i].init_rtriton_graph_state(max_bs, max_num_tokens)
 
-    def init_forward_metadata_capture_cuda_graph(self, forward_batch: ForwardBatch):
+    def init_forward_metadata_capture_rtriton_graph(self, forward_batch: ForwardBatch):
         def call_fn(i, forward_batch):
-            self.attn_backends[i].init_forward_metadata_capture_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_capture_rtriton_graph(
                 forward_batch.batch_size,
                 forward_batch.batch_size * self.topk,
                 forward_batch.req_pool_indices,
@@ -1493,11 +1493,11 @@ class AscendAttnMultiStepDraftBackend:
 
         self.common_template(forward_batch, call_fn)
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self, forward_batch: ForwardBatch, bs: int
     ):
         def call_fn(i, forward_batch):
-            self.attn_backends[i].init_forward_metadata_replay_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_replay_rtriton_graph(
                 bs,
                 forward_batch.req_pool_indices,
                 forward_batch.seq_lens,

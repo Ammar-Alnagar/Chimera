@@ -16,8 +16,8 @@ class MscclContextSelection(IntEnum):
 
 
 def _run_correctness_worker(world_size, rank, distributed_init_port, test_sizes):
-    device = torch.device(f"cuda:{rank % torch.cuda.device_count()}")
-    torch.cuda.set_device(device)
+    device = torch.device(f"rtriton:{rank % torch.rtriton.device_count()}")
+    torch.rtriton.set_device(device)
     distributed_init_method = f"tcp://localhost:{distributed_init_port}"
     dist.init_process_group(
         backend="nccl",
@@ -41,13 +41,13 @@ def _run_correctness_worker(world_size, rank, distributed_init_port, test_sizes)
         rank_to_ib[r] = rank % 8
     MAX_BYTES = 2**20
     scratch = torch.empty(
-        MAX_BYTES * 8, dtype=torch.bfloat16, device=torch.cuda.current_device()
+        MAX_BYTES * 8, dtype=torch.bfloat16, device=torch.rtriton.current_device()
     )
     put_buffer = torch.empty(
-        MAX_BYTES, dtype=torch.bfloat16, device=torch.cuda.current_device()
+        MAX_BYTES, dtype=torch.bfloat16, device=torch.rtriton.current_device()
     )
     print(f"[{rank}] start mscclpp_context init")
-    nranks_per_node = torch.cuda.device_count()
+    nranks_per_node = torch.rtriton.device_count()
     selection = int(MscclContextSelection.MSCCL1SHOT1NODELL)
     mscclpp_context = custom_ops.mscclpp_init_context(
         unique_id,
@@ -128,7 +128,7 @@ class TestMSCCLAllReduce(unittest.TestCase):
 
     def test_correctness(self):
         for world_size in self.world_sizes:
-            available_gpus = torch.cuda.device_count()
+            available_gpus = torch.rtriton.device_count()
             if world_size > available_gpus:
                 print(
                     f"Skipping world_size={world_size}, found {available_gpus} and now ray is not supported here"

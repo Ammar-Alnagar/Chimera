@@ -253,7 +253,7 @@ spec:
             value: "3"
           - name: NVSHMEM_ENABLE_NIC_PE_MAPPING
             value: "1"
-          - name: CUDA_LAUNCH_BLOCKING
+          - name: RTRITON_LAUNCH_BLOCKING
             value: "0"
           - name: SGLANG_MOONCAKE_TRANS_THREAD
             value: "8"
@@ -381,7 +381,7 @@ spec:
           - "32768"
           - --disaggregation-ib-device
           - "mlx5_bond_0,mlx5_bond_1,mlx5_bond_2,mlx5_bond_3"
-          - --cuda-graph-max-bs
+          - --rtriton-graph-max-bs
           - "64"
           - --max-running-requests
           - "2048"
@@ -399,7 +399,7 @@ spec:
           - --moe-dense-tp-size
           - "1"
           env:
-          - name: CUDA_LAUNCH_BLOCKING
+          - name: RTRITON_LAUNCH_BLOCKING
             value: "0"
           - name: NVSHMEM_IB_GID_INDEX
             value: "3"
@@ -516,7 +516,7 @@ spec:
           - --disaggregation-ib-device
           # should modify according your rdma env
           - "mlx5_bond_0,mlx5_bond_1,mlx5_bond_2,mlx5_bond_3"
-          - --cuda-graph-max-bs
+          - --rtriton-graph-max-bs
           - "64"
           - --max-running-requests
           - "2048"

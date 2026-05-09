@@ -153,43 +153,43 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
         else:
             super().init_forward_metadata(forward_batch)
 
-    def init_cuda_graph_state(
+    def init_rtriton_graph_state(
         self,
         max_bs: int,
         max_num_tokens: int,
         block_kv_indices: Optional[torch.Tensor] = None,
     ):
         if block_kv_indices is None:
-            cuda_graph_kv_indices = torch.full(
+            rtriton_graph_kv_indices = torch.full(
                 (max_bs, (self.max_context_len + PAGE_SIZE) // PAGE_SIZE),
                 1,
                 dtype=torch.int32,
-                device="cuda",
+                device="rtriton",
             )
         else:
-            cuda_graph_kv_indices = block_kv_indices
+            rtriton_graph_kv_indices = block_kv_indices
 
         if self.num_draft_tokens:
-            self.cuda_graph_mla_metadata, self.cuda_graph_num_splits = get_mla_metadata(
+            self.rtriton_graph_mla_metadata, self.rtriton_graph_num_splits = get_mla_metadata(
                 torch.ones(
-                    max_bs, dtype=torch.int32, device=cuda_graph_kv_indices.device
+                    max_bs, dtype=torch.int32, device=rtriton_graph_kv_indices.device
                 ),
                 self.num_draft_tokens * self.num_q_heads,
                 1,
                 is_fp8_kvcache=self.is_fp8_kvcache,
             )
         else:
-            self.cuda_graph_mla_metadata, self.cuda_graph_num_splits = get_mla_metadata(
+            self.rtriton_graph_mla_metadata, self.rtriton_graph_num_splits = get_mla_metadata(
                 torch.ones(
-                    max_bs, dtype=torch.int32, device=cuda_graph_kv_indices.device
+                    max_bs, dtype=torch.int32, device=rtriton_graph_kv_indices.device
                 ),
                 self.num_q_heads,
                 1,
                 is_fp8_kvcache=self.is_fp8_kvcache,
             )
-        self.cuda_graph_kv_indices = cuda_graph_kv_indices
+        self.rtriton_graph_kv_indices = rtriton_graph_kv_indices
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -207,9 +207,9 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
                 req_pool_indices,
                 seq_lens,
                 None,
-                self.cuda_graph_kv_indices,
+                self.rtriton_graph_kv_indices,
                 self.req_to_token.stride(0),
-                self.cuda_graph_kv_indices.stride(0),
+                self.rtriton_graph_kv_indices.stride(0),
             )
             num_q_heads = self.num_q_heads * (self.num_draft_tokens or 1)
             mla_metadata, num_splits = get_mla_metadata(
@@ -218,12 +218,12 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
                 1,
                 is_fp8_kvcache=self.is_fp8_kvcache,
             )
-            self.cuda_graph_mla_metadata.copy_(mla_metadata)
-            self.cuda_graph_num_splits[: bs + 1].copy_(num_splits)
+            self.rtriton_graph_mla_metadata.copy_(mla_metadata)
+            self.rtriton_graph_num_splits[: bs + 1].copy_(num_splits)
             self.forward_metadata = FlashMLADecodeMetadata(
-                self.cuda_graph_mla_metadata,
-                self.cuda_graph_num_splits[: bs + 1],
-                self.cuda_graph_kv_indices[:bs, :max_seqlen_pad],
+                self.rtriton_graph_mla_metadata,
+                self.rtriton_graph_num_splits[: bs + 1],
+                self.rtriton_graph_kv_indices[:bs, :max_seqlen_pad],
             )
         elif forward_mode.is_target_verify():
             seq_lens = seq_lens + self.num_draft_tokens
@@ -234,9 +234,9 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
                 req_pool_indices,
                 seq_lens,
                 None,
-                self.cuda_graph_kv_indices,
+                self.rtriton_graph_kv_indices,
                 self.req_to_token.stride(0),
-                self.cuda_graph_kv_indices.stride(0),
+                self.rtriton_graph_kv_indices.stride(0),
             )
             mla_metadata, num_splits = get_mla_metadata(
                 seq_lens.to(torch.int32),
@@ -244,15 +244,15 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
                 1,
                 is_fp8_kvcache=self.is_fp8_kvcache,
             )
-            self.cuda_graph_mla_metadata.copy_(mla_metadata)
-            self.cuda_graph_num_splits[: bs + 1].copy_(num_splits)
+            self.rtriton_graph_mla_metadata.copy_(mla_metadata)
+            self.rtriton_graph_num_splits[: bs + 1].copy_(num_splits)
             self.forward_metadata = FlashMLADecodeMetadata(
-                self.cuda_graph_mla_metadata,
-                self.cuda_graph_num_splits[: bs + 1],
-                self.cuda_graph_kv_indices[:bs, :max_seqlen_pad],
+                self.rtriton_graph_mla_metadata,
+                self.rtriton_graph_num_splits[: bs + 1],
+                self.rtriton_graph_kv_indices[:bs, :max_seqlen_pad],
             )
         else:
-            super().init_forward_metadata_capture_cuda_graph(
+            super().init_forward_metadata_capture_rtriton_graph(
                 bs,
                 num_tokens,
                 req_pool_indices,
@@ -262,7 +262,7 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
                 spec_info,
             )
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -284,9 +284,9 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
                 req_pool_indices[:bs],
                 seq_lens,
                 None,
-                self.cuda_graph_kv_indices,
+                self.rtriton_graph_kv_indices,
                 self.req_to_token.stride(0),
-                self.cuda_graph_kv_indices.stride(0),
+                self.rtriton_graph_kv_indices.stride(0),
             )
             num_q_heads = self.num_q_heads * (self.num_draft_tokens or 1)
             mla_metadata, num_splits = get_mla_metadata(
@@ -295,11 +295,11 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
                 1,
                 is_fp8_kvcache=self.is_fp8_kvcache,
             )
-            self.cuda_graph_mla_metadata.copy_(mla_metadata)
-            self.cuda_graph_num_splits[: bs + 1].copy_(num_splits)
-            self.forward_metadata.mla_metadata = self.cuda_graph_mla_metadata
-            self.forward_metadata.num_splits = self.cuda_graph_num_splits[: bs + 1]
-            self.forward_metadata.block_kv_indices = self.cuda_graph_kv_indices[
+            self.rtriton_graph_mla_metadata.copy_(mla_metadata)
+            self.rtriton_graph_num_splits[: bs + 1].copy_(num_splits)
+            self.forward_metadata.mla_metadata = self.rtriton_graph_mla_metadata
+            self.forward_metadata.num_splits = self.rtriton_graph_num_splits[: bs + 1]
+            self.forward_metadata.block_kv_indices = self.rtriton_graph_kv_indices[
                 :bs, :max_seqlen_pad
             ]
         elif forward_mode.is_target_verify():
@@ -311,9 +311,9 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
                 req_pool_indices[:bs],
                 seq_lens,
                 None,
-                self.cuda_graph_kv_indices,
+                self.rtriton_graph_kv_indices,
                 self.req_to_token.stride(0),
-                self.cuda_graph_kv_indices.stride(0),
+                self.rtriton_graph_kv_indices.stride(0),
             )
             mla_metadata, num_splits = get_mla_metadata(
                 seq_lens.to(torch.int32),
@@ -321,15 +321,15 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
                 1,
                 is_fp8_kvcache=self.is_fp8_kvcache,
             )
-            self.cuda_graph_mla_metadata.copy_(mla_metadata)
-            self.cuda_graph_num_splits[: bs + 1].copy_(num_splits)
-            self.forward_metadata.mla_metadata = self.cuda_graph_mla_metadata
-            self.forward_metadata.num_splits = self.cuda_graph_num_splits[: bs + 1]
-            self.forward_metadata.block_kv_indices = self.cuda_graph_kv_indices[
+            self.rtriton_graph_mla_metadata.copy_(mla_metadata)
+            self.rtriton_graph_num_splits[: bs + 1].copy_(num_splits)
+            self.forward_metadata.mla_metadata = self.rtriton_graph_mla_metadata
+            self.forward_metadata.num_splits = self.rtriton_graph_num_splits[: bs + 1]
+            self.forward_metadata.block_kv_indices = self.rtriton_graph_kv_indices[
                 :bs, :max_seqlen_pad
             ]
         else:
-            super().init_forward_metadata_replay_cuda_graph(
+            super().init_forward_metadata_replay_rtriton_graph(
                 bs,
                 req_pool_indices,
                 seq_lens,
@@ -340,7 +340,7 @@ class FlashMLABackend(FlashInferMLAAttnBackend):
                 seq_lens_cpu,
             )
 
-    def get_cuda_graph_seq_len_fill_value(self):
+    def get_rtriton_graph_seq_len_fill_value(self):
         return 1
 
     def forward_decode(
@@ -558,15 +558,15 @@ class FlashMLAMultiStepDraftBackend:
 
         self.common_template(forward_batch, call_fn)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
         for i in range(self.speculative_num_steps - 1):
-            self.attn_backends[i].init_cuda_graph_state(
+            self.attn_backends[i].init_rtriton_graph_state(
                 max_bs, max_num_tokens, block_kv_indices=None
             )
 
-    def init_forward_metadata_capture_cuda_graph(self, forward_batch: ForwardBatch):
+    def init_forward_metadata_capture_rtriton_graph(self, forward_batch: ForwardBatch):
         def call_fn(i, forward_batch):
-            self.attn_backends[i].init_forward_metadata_capture_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_capture_rtriton_graph(
                 forward_batch.batch_size,
                 forward_batch.batch_size * self.topk,
                 forward_batch.req_pool_indices,
@@ -578,11 +578,11 @@ class FlashMLAMultiStepDraftBackend:
 
         self.common_template(forward_batch, call_fn)
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self, forward_batch: ForwardBatch, bs: int
     ):
         def call_fn(i, forward_batch):
-            self.attn_backends[i].init_forward_metadata_replay_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_replay_rtriton_graph(
                 bs,
                 forward_batch.req_pool_indices,
                 forward_batch.seq_lens,

@@ -5,13 +5,13 @@ from torch import nn
 from sglang.srt.utils import (
     cpu_has_amx_support,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
     is_npu,
     is_xpu,
 )
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 _is_cpu = is_cpu()
 _is_cpu_amx_available = cpu_has_amx_support()
@@ -71,14 +71,14 @@ class MultiPlatformOp(nn.Module):
     def forward_native(self, *args, **kwargs):
         raise NotImplementedError
 
-    def forward_cuda(self, *args, **kwargs):
+    def forward_rtriton(self, *args, **kwargs):
         raise NotImplementedError
 
     def forward_npu(self, *args, **kwargs):
         raise NotImplementedError
 
     def forward_hip(self, *args, **kwargs):
-        return self.forward_cuda(*args, **kwargs)
+        return self.forward_rtriton(*args, **kwargs)
 
     def forward_xpu(self, *args, **kwargs):
         return self.forward_native(*args, **kwargs)
@@ -90,8 +90,8 @@ class MultiPlatformOp(nn.Module):
         return self.forward_native(*args, **kwargs)
 
     def dispatch_forward(self):
-        if _is_cuda:
-            return self.forward_cuda
+        if _is_rtriton:
+            return self.forward_rtriton
         elif _is_hip:
             return self.forward_hip
         elif _is_cpu and _is_cpu_amx_available:

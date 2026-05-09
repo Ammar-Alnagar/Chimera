@@ -32,13 +32,13 @@ class TboAttnBackend(AttentionBackend):
                 if forward_batch_child.batch_size > 0:
                     child.init_forward_metadata(forward_batch=forward_batch_child)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
-        self.primary.init_cuda_graph_state(max_bs=max_bs, max_num_tokens=max_num_tokens)
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
+        self.primary.init_rtriton_graph_state(max_bs=max_bs, max_num_tokens=max_num_tokens)
         for item in self.children:
             # TODO for children, maybe can provide *smaller* max_bs to optimize
-            item.init_cuda_graph_state(max_bs=max_bs, max_num_tokens=max_num_tokens)
+            item.init_rtriton_graph_state(max_bs=max_bs, max_num_tokens=max_num_tokens)
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -48,7 +48,7 @@ class TboAttnBackend(AttentionBackend):
         forward_mode: "ForwardMode",
         spec_info: Optional[SpecInput],
     ):
-        self.primary.init_forward_metadata_capture_cuda_graph(
+        self.primary.init_forward_metadata_capture_rtriton_graph(
             bs=bs,
             num_tokens=num_tokens,
             req_pool_indices=req_pool_indices,
@@ -58,8 +58,8 @@ class TboAttnBackend(AttentionBackend):
             spec_info=spec_info,
         )
 
-        self._init_forward_metadata_cuda_graph_children(
-            fn_name="init_forward_metadata_capture_cuda_graph",
+        self._init_forward_metadata_rtriton_graph_children(
+            fn_name="init_forward_metadata_capture_rtriton_graph",
             bs=bs,
             req_pool_indices=req_pool_indices,
             seq_lens=seq_lens,
@@ -69,7 +69,7 @@ class TboAttnBackend(AttentionBackend):
             capture_num_tokens=num_tokens,
         )
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -80,7 +80,7 @@ class TboAttnBackend(AttentionBackend):
         spec_info: Optional[SpecInput],
         seq_lens_cpu: Optional[torch.Tensor],
     ):
-        self.primary.init_forward_metadata_replay_cuda_graph(
+        self.primary.init_forward_metadata_replay_rtriton_graph(
             bs=bs,
             req_pool_indices=req_pool_indices,
             seq_lens=seq_lens,
@@ -91,8 +91,8 @@ class TboAttnBackend(AttentionBackend):
             seq_lens_cpu=seq_lens_cpu,
         )
 
-        self._init_forward_metadata_cuda_graph_children(
-            fn_name="init_forward_metadata_replay_cuda_graph",
+        self._init_forward_metadata_rtriton_graph_children(
+            fn_name="init_forward_metadata_replay_rtriton_graph",
             bs=bs,
             req_pool_indices=req_pool_indices,
             seq_lens=seq_lens,
@@ -103,7 +103,7 @@ class TboAttnBackend(AttentionBackend):
             replay_seq_lens_cpu=seq_lens_cpu,
         )
 
-    def _init_forward_metadata_cuda_graph_children(
+    def _init_forward_metadata_rtriton_graph_children(
         self,
         fn_name: str,
         # common args
@@ -122,16 +122,16 @@ class TboAttnBackend(AttentionBackend):
         token_num_per_seq = two_batch_overlap.get_token_num_per_seq(
             forward_mode=forward_mode, spec_info=spec_info
         )
-        if fn_name == "init_forward_metadata_capture_cuda_graph":
+        if fn_name == "init_forward_metadata_capture_rtriton_graph":
             assert (
                 capture_num_tokens == bs * token_num_per_seq
             ), "For target-verify or decode mode, num_tokens should be equal to token_num_per_seq * bs"
         num_tokens = bs * token_num_per_seq
 
         tbo_split_seq_index, tbo_split_token_index = (
-            two_batch_overlap.compute_split_indices_for_cuda_graph_replay(
+            two_batch_overlap.compute_split_indices_for_rtriton_graph_replay(
                 forward_mode=forward_mode,
-                cuda_graph_num_tokens=num_tokens,
+                rtriton_graph_num_tokens=num_tokens,
                 spec_info=spec_info,
             )
         )
@@ -158,12 +158,12 @@ class TboAttnBackend(AttentionBackend):
             replay_seq_lens_cpu=replay_seq_lens_cpu,
         )
 
-        args_left = _init_forward_metadata_cuda_graph_split(
+        args_left = _init_forward_metadata_rtriton_graph_split(
             output_bs=bs_child_left,
             seq_slice=slice(None, tbo_split_seq_index),
             **common_pre_split_args,
         )
-        args_right = _init_forward_metadata_cuda_graph_split(
+        args_right = _init_forward_metadata_rtriton_graph_split(
             output_bs=bs_child_right,
             seq_slice=slice(tbo_split_seq_index, None),
             **common_pre_split_args,
@@ -173,10 +173,10 @@ class TboAttnBackend(AttentionBackend):
         getattr(child_left, fn_name)(**args_left)
         getattr(child_right, fn_name)(**args_right)
 
-    def get_cuda_graph_seq_len_fill_value(self):
-        ans = self.primary.get_cuda_graph_seq_len_fill_value()
+    def get_rtriton_graph_seq_len_fill_value(self):
+        ans = self.primary.get_rtriton_graph_seq_len_fill_value()
         for child in self.children:
-            assert ans == child.get_cuda_graph_seq_len_fill_value()
+            assert ans == child.get_rtriton_graph_seq_len_fill_value()
         return ans
 
     def forward_extend(self, *args, **kwargs):
@@ -189,7 +189,7 @@ class TboAttnBackend(AttentionBackend):
         return self.primary.get_indexer_metadata(layer_id, forward_batch)
 
 
-def _init_forward_metadata_cuda_graph_split(
+def _init_forward_metadata_rtriton_graph_split(
     fn_name: str,
     seq_slice: slice,
     output_bs: int,
@@ -240,7 +240,7 @@ def _init_forward_metadata_cuda_graph_split(
         spec_info=output_spec_info,
     )
 
-    if fn_name == "init_forward_metadata_capture_cuda_graph":
+    if fn_name == "init_forward_metadata_capture_rtriton_graph":
         assert (
             capture_num_tokens == bs * token_num_per_seq
         ), "Only support num_tokens==bs * token_num_per_seq for target-verify or decode mode"
@@ -249,7 +249,7 @@ def _init_forward_metadata_cuda_graph_split(
                 num_tokens=output_bs * token_num_per_seq,
             )
         )
-    elif fn_name == "init_forward_metadata_replay_cuda_graph":
+    elif fn_name == "init_forward_metadata_replay_rtriton_graph":
         output_seq_lens_cpu = replay_seq_lens_cpu[seq_slice]
         ans.update(
             dict(

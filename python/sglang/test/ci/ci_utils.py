@@ -43,7 +43,7 @@ NON_RETRIABLE_PATTERNS = [
     r"TypeError",
     r"AttributeError",
     r"RuntimeError",
-    r"CUDA out of memory",
+    r"RTRITON out of memory",
     r"OOM",
     r"Segmentation fault",
     r"core dumped",

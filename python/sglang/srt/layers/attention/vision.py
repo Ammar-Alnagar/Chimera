@@ -19,7 +19,7 @@ from sglang.srt.utils import (
     get_bool_env_var,
     get_device_capability,
     is_blackwell,
-    is_cuda,
+    is_rtriton,
     is_hip,
     is_npu,
     print_info_once,
@@ -29,11 +29,11 @@ from sglang.srt.utils.multi_stream_utils import (
     with_multi_stream,
 )
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_npu = is_npu()
 _is_hip = is_hip()
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel.flash_attn import flash_attn_varlen_func
 
 if _is_npu:
@@ -301,12 +301,12 @@ class VisionTritonAttention(nn.Module):
         Returns:
              [b * s, h, head_size]
         """
-        if envs.SGLANG_VIT_ENABLE_CUDA_GRAPH.get():
+        if envs.SGLANG_VIT_ENABLE_RTRITON_GRAPH.get():
             if "output_ws" not in kwargs:
-                raise RuntimeError("output_ws should be prepared for cuda-graph mode")
+                raise RuntimeError("output_ws should be prepared for rtriton-graph mode")
 
             if not isinstance(cu_seqlens, list):
-                raise RuntimeError("cuda-graph mode cu_seqlens should be a list")
+                raise RuntimeError("rtriton-graph mode cu_seqlens should be a list")
 
             output = kwargs["output_ws"]
             context_attention_fwd(
@@ -332,8 +332,8 @@ class VisionTritonAttention(nn.Module):
                 k,
                 v,
                 output,
-                cu_seqlens.cuda(),
-                seq_lens.cuda(),
+                cu_seqlens.rtriton(),
+                seq_lens.rtriton(),
                 max_seqlen,
                 is_causal=False,
             )
@@ -346,8 +346,8 @@ class VisionFlash3Attention(nn.Module):
         self,
         **kwargs,
     ):
-        if not _is_cuda:
-            raise Exception("VisionFlash3Attention is only available for cuda")
+        if not _is_rtriton:
+            raise Exception("VisionFlash3Attention is only available for rtriton")
         super().__init__()
         use_data_parallel = (
             kwargs["use_data_parallel"] if "use_data_parallel" in kwargs else False
@@ -370,7 +370,7 @@ class VisionFlash3Attention(nn.Module):
         Returns:
              [b * s, h, head_size]
         """
-        if envs.SGLANG_VIT_ENABLE_CUDA_GRAPH.get():
+        if envs.SGLANG_VIT_ENABLE_RTRITON_GRAPH.get():
             max_seqlen = cu_seqlens[1]
             output = flash_attn_varlen_func(
                 q,
@@ -538,7 +538,7 @@ class VisionAttention(nn.Module):
             [torch.Tensor, torch.Tensor, Any, Any], Tuple[torch.Tensor, torch.Tensor]
         ] = None,
         use_data_parallel: bool = False,
-        aux_stream: Optional[torch.cuda.Stream] = None,
+        aux_stream: Optional[torch.rtriton.Stream] = None,
         **kwargs,
     ):
         super().__init__()
@@ -628,7 +628,7 @@ class VisionAttention(nn.Module):
             prefix=add_prefix("proj", prefix),
         )
         self.aux_stream = aux_stream
-        self.ln_events = [torch.cuda.Event(), torch.cuda.Event()] if aux_stream else []
+        self.ln_events = [torch.rtriton.Event(), torch.rtriton.Event()] if aux_stream else []
 
     def _determine_attention_backend(self, passed_backend: Optional[str]) -> str:
         """Decide the multimodal attention backend string.
@@ -636,15 +636,15 @@ class VisionAttention(nn.Module):
         Priority: server args override > constructor arg > platform default.
 
         Platform defaults:
-        - CUDA: "triton_attn"
-        - Non-CUDA: "sdpa"
+        - RTRITON: "triton_attn"
+        - Non-RTRITON: "sdpa"
         """
         override_backend = get_global_server_args().mm_attention_backend
         if override_backend is not None:
             backend = override_backend
         elif passed_backend is not None:
             backend = passed_backend
-        elif is_cuda():
+        elif is_rtriton():
             major, minor = get_device_capability()
             if major == 9:
                 backend = "fa3"

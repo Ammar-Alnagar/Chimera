@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Optional
 
 import torch
 import torch.distributed as dist
-from torch.cuda.streams import ExternalStream
+from torch.rtriton.streams import ExternalStream
 
 from sglang.srt.distributed.parallel_state import set_pdmux_status
 from sglang.srt.model_executor.forward_batch_info import ForwardMode
@@ -103,17 +103,17 @@ class SchedulerMultiplexMixin:
         stream_group = self.stream_groups[stream_idx]
         prefill_stream = stream_group[0]
         decode_stream = stream_group[1]
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
         logger.debug("Starting event loop for pd multiplexing...")
 
         while True:
-            with torch.cuda.stream(decode_stream):
+            with torch.rtriton.stream(decode_stream):
                 set_pdmux_status(False)
                 recv_reqs = self.recv_requests()
                 self.process_input_requests(recv_reqs)
 
-            with torch.cuda.stream(prefill_stream):
+            with torch.rtriton.stream(prefill_stream):
                 set_pdmux_status(True)
                 sm_count = self.sm_counts[stream_idx][0]
                 if not wait_prefill_kernel_done:
@@ -121,7 +121,7 @@ class SchedulerMultiplexMixin:
                         self.update_split_prefill_batch(sm_count) or adjust_stream_group
                     )
 
-            with torch.cuda.stream(decode_stream):
+            with torch.rtriton.stream(decode_stream):
                 set_pdmux_status(False)
                 self.running_batch = self.update_running_batch(self.running_batch)
                 adjust_stream_group = adjust_stream_group or (
@@ -144,7 +144,7 @@ class SchedulerMultiplexMixin:
                     f"Adjusting stream groups: {stream_idx}, prefill sm: {self.sm_counts[stream_idx][0]}, decode sm: {self.sm_counts[stream_idx][1]}"
                 )
 
-            with torch.cuda.stream(decode_stream):
+            with torch.rtriton.stream(decode_stream):
                 set_pdmux_status(False)
                 # process decode batch
                 if self.running_batch and not self.running_batch.is_empty():
@@ -152,7 +152,7 @@ class SchedulerMultiplexMixin:
                     decode_done = True
                 else:
                     decode_done = False
-            with torch.cuda.stream(prefill_stream):
+            with torch.rtriton.stream(prefill_stream):
                 set_pdmux_status(True)
                 if (
                     self.split_prefill_batch
@@ -189,13 +189,13 @@ class SchedulerMultiplexMixin:
                 else:
                     prefill_done = False
 
-            with torch.cuda.stream(decode_stream):
+            with torch.rtriton.stream(decode_stream):
                 set_pdmux_status(False)
                 decode_stream.synchronize()
                 if decode_done:
                     self.process_batch_result(self.running_batch, decode_result)
 
-            with torch.cuda.stream(prefill_stream):
+            with torch.rtriton.stream(prefill_stream):
                 set_pdmux_status(True)
                 if prefill_done and self.split_prefill_batch.split_prefill_finished:
                     wait_prefill_kernel_done = True

@@ -8,14 +8,14 @@ from csrc.attn.vmoba_attn.vmoba import moba_attn_varlen
 
 
 def generate_test_data(
-    batch_size, total_seqlen, num_heads, head_dim, dtype, device="cuda"
+    batch_size, total_seqlen, num_heads, head_dim, dtype, device="rtriton"
 ):
     """
     Generates random data for testing the variable-length attention function.
     """
     torch.manual_seed(42)
     random.seed(42)
-    torch.cuda.manual_seed_all(42)
+    torch.rtriton.manual_seed_all(42)
 
     # Generate sequence lengths for each item in the batch
     if batch_size > 1:

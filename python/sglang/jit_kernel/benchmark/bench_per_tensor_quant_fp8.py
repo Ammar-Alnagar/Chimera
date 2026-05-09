@@ -56,7 +56,7 @@ def sglang_scaled_fp8_quant(
 
 
 def calculate_diff(batch_size: int, seq_len: int):
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
     x = torch.rand((batch_size, seq_len), dtype=torch.float16, device=device)
 
     if not VLLM_AVAILABLE:
@@ -112,7 +112,7 @@ else:
 )
 def benchmark(batch_size, seq_len, provider):
     dtype = torch.float16
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
 
     x = torch.randn(batch_size * seq_len, 4096, device=device, dtype=dtype)
 
@@ -125,7 +125,7 @@ def benchmark(batch_size, seq_len, provider):
     else:
         raise ValueError(f"Unknown provider: {provider}")
 
-    ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(fn, quantiles=quantiles)
+    ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(fn, quantiles=quantiles)
 
     return 1000 * ms, 1000 * max_ms, 1000 * min_ms
 

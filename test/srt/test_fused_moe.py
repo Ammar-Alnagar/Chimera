@@ -21,8 +21,8 @@ class TestFusedMOE(CustomTestCase):
     TOP_KS = [2, 6]
 
     @staticmethod
-    def create_random_cuda_tensor(shape, dtype, mean=0, std=0.01):
-        """Create a random CUDA tensor
+    def create_random_rtriton_tensor(shape, dtype, mean=0, std=0.01):
+        """Create a random RTRITON tensor
 
         Args:
             shape: Tensor shape
@@ -31,9 +31,9 @@ class TestFusedMOE(CustomTestCase):
             std: Standard deviation
 
         Returns:
-            torch.Tensor: Randomly initialized CUDA tensor
+            torch.Tensor: Randomly initialized RTRITON tensor
         """
-        return torch.empty(shape, dtype=dtype, device="cuda").normal_(mean, std)
+        return torch.empty(shape, dtype=dtype, device="rtriton").normal_(mean, std)
 
     def get_tolerance(self, dtype):
         """Get tolerance values for different data types
@@ -104,21 +104,21 @@ class TestFusedMOE(CustomTestCase):
         rtol, atol = self.get_tolerance(dtype)
 
         if use_fp8_w8a8:
-            # AssertionError: fp8e4nv data type is not supported on CUDA arch < 89
-            capability = torch.cuda.get_device_capability()
+            # AssertionError: fp8e4nv data type is not supported on RTRITON arch < 89
+            capability = torch.rtriton.get_device_capability()
             if not _is_hip and not (capability[0] >= 9 or capability == (8, 9)):
                 return
 
-            a = self.create_random_cuda_tensor((m, k), dtype)
-            w1 = self.create_random_cuda_tensor((e, 2 * n, k), dtype)
-            w2 = self.create_random_cuda_tensor((e, k, n), dtype)
+            a = self.create_random_rtriton_tensor((m, k), dtype)
+            w1 = self.create_random_rtriton_tensor((e, 2 * n, k), dtype)
+            w2 = self.create_random_rtriton_tensor((e, k, n), dtype)
             w1 = w1.to(torch.float8_e4m3fn)
             w2 = w2.to(torch.float8_e4m3fn)
-            score = self.create_random_cuda_tensor((m, e), dtype)
-            w1_scale = self.create_random_cuda_tensor(e, torch.float32)
-            w2_scale = self.create_random_cuda_tensor(e, torch.float32)
-            a1_scale = self.create_random_cuda_tensor(1, torch.float32)
-            a2_scale = self.create_random_cuda_tensor(1, torch.float32)
+            score = self.create_random_rtriton_tensor((m, e), dtype)
+            w1_scale = self.create_random_rtriton_tensor(e, torch.float32)
+            w2_scale = self.create_random_rtriton_tensor(e, torch.float32)
+            a1_scale = self.create_random_rtriton_tensor(1, torch.float32)
+            a2_scale = self.create_random_rtriton_tensor(1, torch.float32)
 
             # Handle HIP case: normalize float8 weights so fused kernel doesn't break
             # on ROCm.
@@ -168,10 +168,10 @@ class TestFusedMOE(CustomTestCase):
                 sglang_output, torch_output, rtol=rtol, atol=atol
             )
         else:
-            a = self.create_random_cuda_tensor((m, k), dtype)
-            w1 = self.create_random_cuda_tensor((e, 2 * n, k), dtype)
-            w2 = self.create_random_cuda_tensor((e, k, n), dtype)
-            score = self.create_random_cuda_tensor((m, e), dtype)
+            a = self.create_random_rtriton_tensor((m, k), dtype)
+            w1 = self.create_random_rtriton_tensor((e, 2 * n, k), dtype)
+            w2 = self.create_random_rtriton_tensor((e, k, n), dtype)
+            score = self.create_random_rtriton_tensor((m, e), dtype)
 
             topk_output = select_experts(
                 hidden_states=a,
@@ -232,7 +232,7 @@ class TestFusedMOE(CustomTestCase):
                                                 dtype,
                                                 use_fp8_w8a8=use_fp8_w8a8,
                                             )
-                                            torch.cuda.empty_cache()
+                                            torch.rtriton.empty_cache()
                                         pbar.update(1)
 
 

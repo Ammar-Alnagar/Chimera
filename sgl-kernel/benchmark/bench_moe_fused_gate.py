@@ -59,7 +59,7 @@ configs = [(sq,) for sq in seq_length_range]
 )
 def benchmark(seq_length, provider):
     dtype = torch.float32
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
     num_experts, num_expert_group, topk_group, topk = 256, 8, 4, 8
 
     scores = torch.randn((seq_length, num_experts), device=device, dtype=dtype)
@@ -68,14 +68,14 @@ def benchmark(seq_length, provider):
     quantiles = [0.5, 0.2, 0.8]
 
     if provider == "original":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: biased_grouped_topk_org(
                 scores.clone(), bias.clone(), num_expert_group, topk_group, topk
             ),
             quantiles=quantiles,
         )
     elif provider == "kernel":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: biased_grouped_topk_org_fuse_kernel(
                 scores.clone(), bias.clone(), num_expert_group, topk_group, topk
             ),

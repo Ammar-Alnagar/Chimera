@@ -95,9 +95,9 @@ docker exec -it sglang_zhyncs /bin/zsh
 ## Profile
 
 ```bash
-# Change batch size, input, output and add `disable-cuda-graph` (for easier analysis)
+# Change batch size, input, output and add `disable-rtriton-graph` (for easier analysis)
 # e.g. DeepSeek V3
-nsys profile -o deepseek_v3 python3 -m sglang.bench_one_batch --batch-size 1 --input 128 --output 256 --model deepseek-ai/DeepSeek-V3 --trust-remote-code --tp 8 --disable-cuda-graph
+nsys profile -o deepseek_v3 python3 -m sglang.bench_one_batch --batch-size 1 --input 128 --output 256 --model deepseek-ai/DeepSeek-V3 --trust-remote-code --tp 8 --disable-rtriton-graph
 ```
 
 ## Evaluation

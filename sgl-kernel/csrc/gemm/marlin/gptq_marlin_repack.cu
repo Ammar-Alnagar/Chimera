@@ -1,7 +1,7 @@
 #include "marlin.cuh"
 
 namespace marlin {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 800
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ < 800
 template <int const num_threads, int const num_bits, bool const has_perm>
 __global__ void gptq_marlin_repack_kernel(
     uint32_t const* __restrict__ b_q_weight_ptr,
@@ -244,9 +244,9 @@ __global__ void gptq_marlin_repack_kernel(
 
 #define CALL_IF(NUM_BITS, HAS_PERM)                                                    \
   else if (num_bits == NUM_BITS && has_perm == HAS_PERM) {                             \
-    cudaFuncSetAttribute(                                                              \
+    rtritonFuncSetAttribute(                                                              \
         marlin::gptq_marlin_repack_kernel<marlin::repack_threads, NUM_BITS, HAS_PERM>, \
-        cudaFuncAttributeMaxDynamicSharedMemorySize,                                   \
+        rtritonFuncAttributeMaxDynamicSharedMemorySize,                                   \
         max_shared_mem);                                                               \
     marlin::gptq_marlin_repack_kernel<marlin::repack_threads, NUM_BITS, HAS_PERM>      \
         <<<blocks, marlin::repack_threads, max_shared_mem, stream>>>(                  \
@@ -284,16 +284,16 @@ gptq_marlin_repack(torch::Tensor& b_q_weight, torch::Tensor& perm, int64_t size_
   TORCH_CHECK(b_q_weight.size(1) == size_n, "b_q_weight.size(1) = ", b_q_weight.size(1), " is not size_n = ", size_n);
 
   // Verify device and strides
-  TORCH_CHECK(b_q_weight.device().is_cuda(), "b_q_weight is not on GPU");
+  TORCH_CHECK(b_q_weight.device().is_rtriton(), "b_q_weight is not on GPU");
   TORCH_CHECK(b_q_weight.is_contiguous(), "b_q_weight is not contiguous");
   TORCH_CHECK(b_q_weight.dtype() == at::kInt, "b_q_weight type is not kInt");
 
-  TORCH_CHECK(perm.device().is_cuda(), "perm is not on GPU");
+  TORCH_CHECK(perm.device().is_rtriton(), "perm is not on GPU");
   TORCH_CHECK(perm.is_contiguous(), "perm is not contiguous");
   TORCH_CHECK(perm.dtype() == at::kInt, "perm type is not at::kInt");
 
   // Alloc buffers
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(b_q_weight));
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(b_q_weight));
   auto options = torch::TensorOptions().dtype(b_q_weight.dtype()).device(b_q_weight.device());
   torch::Tensor out = torch::empty({size_k / marlin::tile_size, size_n * marlin::tile_size / pack_factor}, options);
 
@@ -307,12 +307,12 @@ gptq_marlin_repack(torch::Tensor& b_q_weight, torch::Tensor& perm, int64_t size_
 
   // Get dev info
   int dev = b_q_weight.get_device();
-  cudaStream_t stream = at::cuda::getCurrentCUDAStream(dev);
+  rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream(dev);
   int blocks;
-  cudaDeviceGetAttribute(&blocks, cudaDevAttrMultiProcessorCount, dev);
+  rtritonDeviceGetAttribute(&blocks, rtritonDevAttrMultiProcessorCount, dev);
 
   int max_shared_mem = 0;
-  cudaDeviceGetAttribute(&max_shared_mem, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
+  rtritonDeviceGetAttribute(&max_shared_mem, rtritonDevAttrMaxSharedMemoryPerBlockOptin, dev);
   TORCH_CHECK(max_shared_mem > 0);
 
   if (false) {

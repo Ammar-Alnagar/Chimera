@@ -11,7 +11,7 @@ _is_hip = is_hip()
 
 
 @triton.jit
-def fused_moe_router_cudacore_kernel(
+def fused_moe_router_rtritoncore_kernel(
     input_ptr,  # input (bs, hidden_dim)
     moe_router_weight_ptr,  # input (num_experts, hidden_dim)
     topk_weights_ptr,  # output (bs, topk)
@@ -114,7 +114,7 @@ def fused_moe_router_cudacore_kernel(
     # assert not moe_renormalize, "moe weight renormalization not implemented"
 
 
-def fused_moe_router_cudacore(
+def fused_moe_router_rtritoncore(
     x: torch.Tensor,
     router_weight: torch.Tensor,
     topk: int,
@@ -138,7 +138,7 @@ def fused_moe_router_cudacore(
         ),
     }
 
-    fused_moe_router_cudacore_kernel[(bs,)](
+    fused_moe_router_rtritoncore_kernel[(bs,)](
         x,
         router_weight,
         topk_weights,
@@ -380,7 +380,7 @@ def fused_moe_router_shim(
         )
     else:
         # if smaller, use kernel that does not use tensorcore in matmul
-        return fused_moe_router_cudacore(
+        return fused_moe_router_rtritoncore(
             x=hidden_states,
             router_weight=gating_output,
             topk=topk,
@@ -401,12 +401,12 @@ class FusedMoeRouter:
     def forward(
         self, x: torch.Tensor, residual: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        if x.is_cuda:
-            return self.forward_cuda(x, residual)
+        if x.is_rtriton:
+            return self.forward_rtriton(x, residual)
         else:
             return self.forward_vllm(x, residual)
 
-    def forward_cuda(
+    def forward_rtriton(
         self, x: torch.Tensor, autotune=False
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         return fused_moe_router_shim(

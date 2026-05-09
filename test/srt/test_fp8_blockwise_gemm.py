@@ -64,7 +64,7 @@ class TestFP8BlockwiseGemmDeepGemm(FP8BlockwiseGemmBase, unittest.TestCase):
     backend = "deep_gemm"
 
 
-@unittest.skipIf(get_device_sm() < 100, "Test requires CUDA SM 100 or higher")
+@unittest.skipIf(get_device_sm() < 100, "Test requires RTRITON SM 100 or higher")
 class TestFP8BlockwiseGemmFlashinferTrtllm(FP8BlockwiseGemmBase, unittest.TestCase):
     backend = "flashinfer_trtllm"
 

@@ -43,7 +43,7 @@ class NGRAMWorker:
         )
 
         self.max_batch_size = target_worker.max_running_requests
-        self.device = f"cuda:{gpu_id}" if gpu_id >= 0 else "cuda"
+        self.device = f"rtriton:{gpu_id}" if gpu_id >= 0 else "rtriton"
 
         self._init_preallocated_tensors()
 
@@ -176,9 +176,9 @@ class NGRAMWorker:
             )
             for i, req in enumerate(batch.reqs):
                 seq_len = len(req.origin_input_ids) + len(req.output_ids)
-                req_mask = torch.ones((self.draft_token_num, seq_len - 1)).cuda()
+                req_mask = torch.ones((self.draft_token_num, seq_len - 1)).rtriton()
                 req_mask = torch.cat(
-                    (req_mask, torch.from_numpy(mask[i]).cuda()), dim=1
+                    (req_mask, torch.from_numpy(mask[i]).rtriton()), dim=1
                 ).to(torch.bool)
                 tree_mask.append(req_mask.flatten())
             tree_mask = torch.cat(tree_mask, dim=0)
@@ -220,9 +220,9 @@ class NGRAMWorker:
             batch_result = self.target_worker.forward_batch_generation(
                 model_worker_batch, is_verify=True
             )
-            logits_output, can_run_cuda_graph = (
+            logits_output, can_run_rtriton_graph = (
                 batch_result.logits_output,
-                batch_result.can_run_cuda_graph,
+                batch_result.can_run_rtriton_graph,
             )
             verify_input: NgramVerifyInput = model_worker_batch.spec_info
             logits_output, next_token_ids, num_accepted_tokens = verify_input.verify(
@@ -239,16 +239,16 @@ class NGRAMWorker:
             batch_result = self.target_worker.forward_batch_generation(
                 model_worker_batch
             )
-            logits_output, next_token_ids, can_run_cuda_graph = (
+            logits_output, next_token_ids, can_run_rtriton_graph = (
                 batch_result.logits_output,
                 batch_result.next_token_ids,
-                batch_result.can_run_cuda_graph,
+                batch_result.can_run_rtriton_graph,
             )
 
         return GenerationBatchResult(
             logits_output=logits_output,
             next_token_ids=next_token_ids,
             num_accepted_tokens=num_accepted_tokens,
-            can_run_cuda_graph=can_run_cuda_graph,
+            can_run_rtriton_graph=can_run_rtriton_graph,
             accept_lens=accept_lens,
         )

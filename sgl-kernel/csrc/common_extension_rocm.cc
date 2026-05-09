@@ -23,29 +23,29 @@ TORCH_LIBRARY_EXPAND(sgl_kernel, m) {
    * From csrc/elementwise
    */
   m.def("silu_and_mul(Tensor! out, Tensor input) -> ()");
-  m.impl("silu_and_mul", torch::kCUDA, &silu_and_mul);
+  m.impl("silu_and_mul", torch::kRTRITON, &silu_and_mul);
 
   m.def("gelu_tanh_and_mul(Tensor! out, Tensor input) -> ()");
-  m.impl("gelu_tanh_and_mul", torch::kCUDA, &gelu_tanh_and_mul);
+  m.impl("gelu_tanh_and_mul", torch::kRTRITON, &gelu_tanh_and_mul);
 
   m.def("gelu_and_mul(Tensor! out, Tensor input) -> ()");
-  m.impl("gelu_and_mul", torch::kCUDA, &gelu_and_mul);
+  m.impl("gelu_and_mul", torch::kRTRITON, &gelu_and_mul);
 
   m.def("gelu_quick(Tensor! out, Tensor input) -> ()");
-  m.impl("gelu_quick", torch::kCUDA, &gelu_quick);
+  m.impl("gelu_quick", torch::kRTRITON, &gelu_quick);
 
   m.def("fast_topk(Tensor score, Tensor indices, Tensor lengths, Tensor? row_starts) -> ()");
-  m.impl("fast_topk", torch::kCUDA, &fast_topk_interface);
+  m.impl("fast_topk", torch::kRTRITON, &fast_topk_interface);
 
   m.def(
       "fast_topk_transform_fused(Tensor score, Tensor lengths, Tensor dst_page_table, Tensor src_page_table, Tensor "
       "cu_seqlens_q, Tensor? row_starts) -> ()");
-  m.impl("fast_topk_transform_fused", torch::kCUDA, &fast_topk_transform_interface);
+  m.impl("fast_topk_transform_fused", torch::kRTRITON, &fast_topk_transform_interface);
 
   m.def(
       "fast_topk_transform_ragged_fused(Tensor score, Tensor lengths, Tensor topk_indices_ragged, Tensor "
       "topk_indices_offset, Tensor ? row_starts) -> ()");
-  m.impl("fast_topk_transform_ragged_fused", torch::kCUDA, &fast_topk_transform_ragged_interface);
+  m.impl("fast_topk_transform_ragged_fused", torch::kRTRITON, &fast_topk_transform_ragged_interface);
 
   /*
    * From csrc/allreduce
@@ -54,15 +54,15 @@ TORCH_LIBRARY_EXPAND(sgl_kernel, m) {
       "init_custom_ar(Tensor meta, Tensor rank_data, "
       "str[] handles, int[] offsets, int rank, "
       "bool full_nvlink) -> int");
-  m.impl("init_custom_ar", torch::kCUDA, &init_custom_ar);
+  m.impl("init_custom_ar", torch::kRTRITON, &init_custom_ar);
 
   m.def("all_reduce_reg(int fa, Tensor inp, Tensor! out) -> ()");
-  m.impl("all_reduce_reg", torch::kCUDA, &all_reduce_reg);
+  m.impl("all_reduce_reg", torch::kRTRITON, &all_reduce_reg);
 
   m.def(
       "all_reduce_unreg(int fa, Tensor inp, Tensor reg_buffer, Tensor! out) -> "
       "()");
-  m.impl("all_reduce_unreg", torch::kCUDA, &all_reduce_unreg);
+  m.impl("all_reduce_unreg", torch::kRTRITON, &all_reduce_unreg);
 
   // Deterministic all-reduce for ROCm
   extern void deterministic_all_reduce_reg(int64_t _fa, torch::Tensor & inp, torch::Tensor & out);
@@ -70,10 +70,10 @@ TORCH_LIBRARY_EXPAND(sgl_kernel, m) {
       int64_t _fa, torch::Tensor & inp, torch::Tensor & reg_buffer, torch::Tensor & out);
 
   m.def("deterministic_all_reduce_reg(int fa, Tensor inp, Tensor! out) -> ()");
-  m.impl("deterministic_all_reduce_reg", torch::kCUDA, &deterministic_all_reduce_reg);
+  m.impl("deterministic_all_reduce_reg", torch::kRTRITON, &deterministic_all_reduce_reg);
 
   m.def("deterministic_all_reduce_unreg(int fa, Tensor inp, Tensor reg_buffer, Tensor! out) -> ()");
-  m.impl("deterministic_all_reduce_unreg", torch::kCUDA, &deterministic_all_reduce_unreg);
+  m.impl("deterministic_all_reduce_unreg", torch::kRTRITON, &deterministic_all_reduce_unreg);
 
   m.def("dispose", &dispose);
 
@@ -82,13 +82,13 @@ TORCH_LIBRARY_EXPAND(sgl_kernel, m) {
   m.def(
       "register_buffer(int fa, Tensor t, str[] handles, "
       "int[] offsets) -> ()");
-  m.impl("register_buffer", torch::kCUDA, &register_buffer);
+  m.impl("register_buffer", torch::kRTRITON, &register_buffer);
 
   m.def("get_graph_buffer_ipc_meta", &get_graph_buffer_ipc_meta);
   m.def("register_graph_buffers", &register_graph_buffers);
 
   m.def("allocate_meta_buffer", &allocate_meta_buffer);
-  m.impl("allocate_meta_buffer", torch::kCUDA, &allocate_meta_buffer);
+  m.impl("allocate_meta_buffer", torch::kRTRITON, &allocate_meta_buffer);
 
   m.def("get_meta_buffer_ipc_handle", &get_meta_buffer_ipc_handle);
   m.impl("get_meta_buffer_ipc_handle", torch::kCPU, &get_meta_buffer_ipc_handle);
@@ -97,7 +97,7 @@ TORCH_LIBRARY_EXPAND(sgl_kernel, m) {
   m.def(
       "qr_all_reduce(int fa, Tensor inp, Tensor out, int quant_level, bool "
       "cast_bf2half) -> ()");
-  m.impl("qr_all_reduce", torch::kCUDA, &qr_all_reduce);
+  m.impl("qr_all_reduce", torch::kRTRITON, &qr_all_reduce);
 
   m.def("init_custom_qr", &init_custom_qr);
   m.def("qr_destroy", &qr_destroy);
@@ -117,17 +117,17 @@ TORCH_LIBRARY_EXPAND(sgl_kernel, m) {
       "moe_align_block_size(Tensor topk_ids, int num_experts, int block_size, Tensor! sorted_token_ids, Tensor! "
       "experts_ids, Tensor! num_tokens_post_pad, Tensor! cumsum_buffer, bool "
       "pad_sorted_token_ids) -> ()");
-  m.impl("moe_align_block_size", torch::kCUDA, &moe_align_block_size);
+  m.impl("moe_align_block_size", torch::kRTRITON, &moe_align_block_size);
 
   m.def(
       "topk_softmax(Tensor! topk_weights, Tensor! topk_indices, Tensor gating_output, bool renormalize, float "
       "moe_softcapping, Tensor? correction_bias) -> ()");
-  m.impl("topk_softmax", torch::kCUDA, &topk_softmax);
+  m.impl("topk_softmax", torch::kRTRITON, &topk_softmax);
 
   m.def(
       "topk_sigmoid(Tensor! topk_weights, Tensor! topk_indices, Tensor gating_output, bool renormalize, Tensor? "
       "correction_bias) -> ()");
-  m.impl("topk_sigmoid", torch::kCUDA, &topk_sigmoid);
+  m.impl("topk_sigmoid", torch::kRTRITON, &topk_sigmoid);
 
   /*
    * From csrc/speculative
@@ -136,14 +136,14 @@ TORCH_LIBRARY_EXPAND(sgl_kernel, m) {
       "verify_tree_greedy(Tensor! predicts, Tensor! accept_index, Tensor! accept_token_num, "
       "Tensor candidates, Tensor retrive_index, Tensor retrive_next_token, Tensor retrive_next_sibling, "
       "Tensor target_predict) -> ()");
-  m.impl("verify_tree_greedy", torch::kCUDA, &verify_tree_greedy);
+  m.impl("verify_tree_greedy", torch::kRTRITON, &verify_tree_greedy);
 
   m.def(
       "build_tree_kernel_efficient(Tensor parent_list, Tensor selected_index, Tensor verified_seq_len, "
       "Tensor! tree_mask, Tensor! positions, Tensor! retrive_index, Tensor! retrive_next_token, "
       "Tensor! retrive_next_sibling, int topk, int depth, int draft_token_num, int tree_mask_mode) -> "
       "()");
-  m.impl("build_tree_kernel_efficient", torch::kCUDA, &build_tree_kernel_efficient);
+  m.impl("build_tree_kernel_efficient", torch::kRTRITON, &build_tree_kernel_efficient);
 
   /*
    * From csrc/kvcacheio
@@ -151,65 +151,65 @@ TORCH_LIBRARY_EXPAND(sgl_kernel, m) {
   m.def(
       "transfer_kv_per_layer(Tensor src_k, Tensor dst_k, Tensor src_v, Tensor dst_v, Tensor src_indices, Tensor "
       "dst_indices, int item_size, int block_quota, int num_warps_per_block) -> ()");
-  m.impl("transfer_kv_per_layer", torch::kCUDA, &transfer_kv_per_layer);
+  m.impl("transfer_kv_per_layer", torch::kRTRITON, &transfer_kv_per_layer);
   m.def(
       "transfer_kv_per_layer_pf_lf(Tensor src_k, Tensor dst_k, Tensor src_v, Tensor dst_v, Tensor src_indices, Tensor "
       "dst_indices, int layer_id, int item_size, int src_layout_dim, int block_quota, int num_warps_per_block) -> ()");
-  m.impl("transfer_kv_per_layer_pf_lf", torch::kCUDA, &transfer_kv_per_layer_pf_lf);
+  m.impl("transfer_kv_per_layer_pf_lf", torch::kRTRITON, &transfer_kv_per_layer_pf_lf);
   m.def(
       "transfer_kv_all_layer(Tensor src_k_layers, Tensor dst_k_layers, Tensor src_v_layers, Tensor dst_v_layers, "
       "Tensor src_indices, Tensor dst_indices, int item_size, int num_layers, int block_quota, int "
       "num_warps_per_block) -> ()");
-  m.impl("transfer_kv_all_layer", torch::kCUDA, &transfer_kv_all_layer);
+  m.impl("transfer_kv_all_layer", torch::kRTRITON, &transfer_kv_all_layer);
   m.def(
       "transfer_kv_all_layer_lf_pf(Tensor src_k_layers, Tensor dst_k, Tensor src_v_layers, Tensor dst_v, "
       "Tensor src_indices, Tensor dst_indices, int item_size, int dst_layout_dim, int num_layers, int block_quota, int "
       "num_warps_per_block) -> ()");
-  m.impl("transfer_kv_all_layer_lf_pf", torch::kCUDA, &transfer_kv_all_layer_lf_pf);
+  m.impl("transfer_kv_all_layer_lf_pf", torch::kRTRITON, &transfer_kv_all_layer_lf_pf);
   m.def(
       "transfer_kv_per_layer_mla(Tensor src, Tensor dst, Tensor src_indices, Tensor dst_indices, int item_size, int "
       "block_quota, int num_warps_per_block) -> ()");
-  m.impl("transfer_kv_per_layer_mla", torch::kCUDA, &transfer_kv_per_layer_mla);
+  m.impl("transfer_kv_per_layer_mla", torch::kRTRITON, &transfer_kv_per_layer_mla);
   m.def(
       "transfer_kv_per_layer_mla_pf_lf(Tensor src, Tensor dst, Tensor src_indices, Tensor dst_indices, int layer_id, "
       "int item_size, int src_layout_dim, int block_quota, int num_warps_per_block) -> ()");
-  m.impl("transfer_kv_per_layer_mla_pf_lf", torch::kCUDA, &transfer_kv_per_layer_mla_pf_lf);
+  m.impl("transfer_kv_per_layer_mla_pf_lf", torch::kRTRITON, &transfer_kv_per_layer_mla_pf_lf);
   m.def(
       "transfer_kv_all_layer_mla(Tensor src_layers, Tensor dst_layers, Tensor src_indices, Tensor dst_indices, int "
       "item_size, int num_layers, int block_quota, int num_warps_per_block) -> ()");
-  m.impl("transfer_kv_all_layer_mla", torch::kCUDA, &transfer_kv_all_layer_mla);
+  m.impl("transfer_kv_all_layer_mla", torch::kRTRITON, &transfer_kv_all_layer_mla);
   m.def(
       "transfer_kv_all_layer_mla_lf_pf(Tensor src_layers, Tensor dst, Tensor src_indices, Tensor dst_indices, "
       "int item_size, int dst_layout_dim, int num_layers, int block_quota, int num_warps_per_block) -> ()");
-  m.impl("transfer_kv_all_layer_mla_lf_pf", torch::kCUDA, &transfer_kv_all_layer_mla_lf_pf);
+  m.impl("transfer_kv_all_layer_mla_lf_pf", torch::kRTRITON, &transfer_kv_all_layer_mla_lf_pf);
   m.def(
       "transfer_kv_direct(Tensor[] src_layers, Tensor[] dst_layers, Tensor src_indices, Tensor dst_indices, int "
       "page_size) -> ()");
-  m.impl("transfer_kv_direct", torch::kCUDA, &transfer_kv_direct);
+  m.impl("transfer_kv_direct", torch::kRTRITON, &transfer_kv_direct);
   m.def(
       "transfer_kv_per_layer_direct_pf_lf(Tensor[] src_ptrs, Tensor[] dst_ptrs, Tensor src_indices, "
       "Tensor dst_indices, int layer_id, int page_size)->() ");
-  m.impl("transfer_kv_per_layer_direct_pf_lf", torch::kCUDA, &transfer_kv_per_layer_direct_pf_lf);
+  m.impl("transfer_kv_per_layer_direct_pf_lf", torch::kRTRITON, &transfer_kv_per_layer_direct_pf_lf);
   m.def(
       "transfer_kv_all_layer_direct_lf_pf(Tensor[] src_ptrs, Tensor[] dst_ptrs, Tensor src_indices, "
       "Tensor dst_indices, int page_size) ->() ");
-  m.impl("transfer_kv_all_layer_direct_lf_pf", torch::kCUDA, &transfer_kv_all_layer_direct_lf_pf);
+  m.impl("transfer_kv_all_layer_direct_lf_pf", torch::kRTRITON, &transfer_kv_all_layer_direct_lf_pf);
   m.def(
       "transfer_kv_all_layer_lf_ph(Tensor src_k_layers, Tensor dst_k, Tensor src_v_layers, Tensor dst_v, "
       "Tensor src_indices, Tensor dst_indices, int item_size, int dst_layout_dim, int num_layers, int page_size, int "
       "head_num, int block_quota, int num_warps_per_block) -> ()");
-  m.impl("transfer_kv_all_layer_lf_ph", torch::kCUDA, &transfer_kv_all_layer_lf_ph);
+  m.impl("transfer_kv_all_layer_lf_ph", torch::kRTRITON, &transfer_kv_all_layer_lf_ph);
   m.def(
       "transfer_kv_per_layer_ph_lf(Tensor src_k, Tensor dst_k, Tensor src_v, Tensor dst_v, Tensor src_indices, Tensor "
       "dst_indices, int layer_id, int item_size, int src_layout_dim, int page_size, int head_num, int block_quota, int "
       "num_warps_per_block) -> ()");
-  m.impl("transfer_kv_per_layer_ph_lf", torch::kCUDA, &transfer_kv_per_layer_ph_lf);
+  m.impl("transfer_kv_per_layer_ph_lf", torch::kRTRITON, &transfer_kv_per_layer_ph_lf);
 
   /*
    * From csrc/grammar
    */
-  m.def("apply_token_bitmask_inplace_cuda(Tensor logits, Tensor bitmask, Tensor? indices=None) -> ()");
-  m.impl("apply_token_bitmask_inplace_cuda", &ApplyTokenBitmaskInplace);
+  m.def("apply_token_bitmask_inplace_rtriton(Tensor logits, Tensor bitmask, Tensor? indices=None) -> ()");
+  m.impl("apply_token_bitmask_inplace_rtriton", &ApplyTokenBitmaskInplace);
 
   /*
    * From csrc/elementwise
@@ -218,7 +218,7 @@ TORCH_LIBRARY_EXPAND(sgl_kernel, m) {
       "rotary_embedding(Tensor positions, Tensor! query,"
       "                 Tensor!? key, int head_size,"
       "                 Tensor cos_sin_cache, bool is_neox) -> ()");
-  m.impl("rotary_embedding", torch::kCUDA, &rotary_embedding);
+  m.impl("rotary_embedding", torch::kRTRITON, &rotary_embedding);
 }
 
 REGISTER_EXTENSION(common_ops)

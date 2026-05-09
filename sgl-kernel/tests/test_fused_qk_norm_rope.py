@@ -12,20 +12,20 @@ from sglang.srt.server_args import (
 from sglang.srt.utils import (
     cpu_has_amx_support,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
     is_npu,
     is_xpu,
 )
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 _is_cpu = is_cpu()
 _is_cpu_amx_available = cpu_has_amx_support()
 _is_npu = is_npu()
 _is_xpu = is_xpu()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("rtriton" if torch.rtriton.is_available() else "cpu")
 
 
 @torch.inference_mode()
@@ -138,7 +138,7 @@ dtypes = [torch.bfloat16]
 partial_rotary_factor_list = [1.0, 0.5]
 
 
-@pytest.mark.skipif(not _is_cuda, reason="Skipping CUDA/ROCm only tests.")
+@pytest.mark.skipif(not _is_rtriton, reason="Skipping RTRITON/ROCm only tests.")
 @pytest.mark.parametrize("head_dim", head_dims)
 @pytest.mark.parametrize("num_heads_group", num_heads_groups)
 @pytest.mark.parametrize("num_tokens", num_tokens_list)
@@ -163,7 +163,7 @@ def test_fused_qk_norm_rope(
         dtype: Data type (float16 or bfloat16)
     """
     set_global_server_args_for_scheduler(ServerArgs(model_path="dummy"))
-    device = "cuda"
+    device = "rtriton"
     torch_dtype = dtype
 
     # Unpack head counts

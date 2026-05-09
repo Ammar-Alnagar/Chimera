@@ -94,8 +94,8 @@ def benchmark(batch_size, provider, N, K, dtype, correctness, csv_file):
     M = batch_size
     packed_k = K
     K = 2 * packed_k
-    a_dtype = torch.randn((M, K), dtype=dtype, device="cuda")
-    b_dtype = torch.randn((N, K), dtype=dtype, device="cuda")
+    a_dtype = torch.randn((M, K), dtype=dtype, device="rtriton")
+    b_dtype = torch.randn((N, K), dtype=dtype, device="rtriton")
     a_global_scale = (
         (FLOAT8_E4M3_MAX * FLOAT4_E2M1_MAX) / torch.amax(a_dtype.flatten(), dim=-1)
     ).to(torch.float32)
@@ -107,18 +107,18 @@ def benchmark(batch_size, provider, N, K, dtype, correctness, csv_file):
     a_fp4, a_scale_interleaved = scaled_fp4_quant(a_dtype, a_global_scale)
     # print("a_fp4", a_fp4)
     b_fp4, b_scale_interleaved = scaled_fp4_quant(b_dtype, b_global_scale)
-    res_fi = torch.empty((M, N), dtype=dtype, device="cuda")
+    res_fi = torch.empty((M, N), dtype=dtype, device="rtriton")
 
     quantiles = [0.5, 0.2, 0.8]
     if provider == "sglang_tilelang":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: tilelang_scaled_fp4_mm(
                 a_fp4, b_fp4, a_scale_interleaved, b_scale_interleaved, alpha, dtype
             ),
             quantiles=quantiles,
         )
     if provider == "tilelang":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: mm_fp4(
                 a_fp4,
                 b_fp4.T,
@@ -132,7 +132,7 @@ def benchmark(batch_size, provider, N, K, dtype, correctness, csv_file):
             quantiles=quantiles,
         )
     if provider == "cudnn":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: mm_fp4(
                 a_fp4,
                 b_fp4.T,
@@ -148,7 +148,7 @@ def benchmark(batch_size, provider, N, K, dtype, correctness, csv_file):
     if provider == "trtllm":
         a_scale_interleaved = a_scale_interleaved.to(torch.uint8)
         b_scale_interleaved = b_scale_interleaved.to(torch.uint8)
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: mm_fp4(
                 a_fp4,
                 b_fp4.T,
@@ -162,7 +162,7 @@ def benchmark(batch_size, provider, N, K, dtype, correctness, csv_file):
             quantiles=quantiles,
         )
     if provider == "auto":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: mm_fp4(
                 a_fp4,
                 b_fp4.T,

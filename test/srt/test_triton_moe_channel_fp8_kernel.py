@@ -100,9 +100,9 @@ class TestW8A8FP8FusedMoE(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _w8a8_fp8_fused_moe(self, M, N, K, E, topk, block_size, dtype, seed):
         torch.manual_seed(seed)

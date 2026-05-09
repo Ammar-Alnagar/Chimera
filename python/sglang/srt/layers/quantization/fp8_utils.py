@@ -37,10 +37,10 @@ from sglang.srt.utils import (
     ceil_align,
     ceil_div,
     get_bool_env_var,
-    get_cuda_version,
+    get_rtriton_version,
     get_device_capability,
     is_blackwell_supported,
-    is_cuda,
+    is_rtriton,
     is_flashinfer_available,
     is_hip,
     is_sm90_supported,
@@ -51,7 +51,7 @@ from sglang.srt.utils.patch_torch import register_fake_if_exists
 logger = logging.getLogger(__name__)
 
 _is_hip = is_hip()
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_fp8_fnuz = is_fp8_fnuz()
 
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
@@ -65,7 +65,7 @@ if _use_aiter:
 
     aiter_per1x128_quant = get_hip_quant(aiter.QuantType.per_1x128)
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import fp8_blockwise_scaled_mm, fp8_scaled_mm
 
     @register_fake_if_exists("sgl_kernel::fp8_scaled_mm")
@@ -103,14 +103,14 @@ USE_ROWWISE_TORCH_SCALED_MM = use_rowwise_torch_scaled_mm()
 
 
 def tilelang_fp8_supported():
-    if not _is_cuda:
+    if not _is_rtriton:
         return False
     major, minor = get_device_capability()
-    cuda_version = get_cuda_version()
+    rtriton_version = get_rtriton_version()
     if major >= 9:
-        return cuda_version >= (12, 0)
+        return rtriton_version >= (12, 0)
     elif major == 8 and minor == 9:
-        return cuda_version >= (12, 4)
+        return rtriton_version >= (12, 4)
     return False
 
 
@@ -171,7 +171,7 @@ FP8_GEMM_RUNNER_BACKEND: Fp8GemmRunnerBackend | None = None
 
 
 def _check_tilelang_block_fp8_hardware_support() -> bool:
-    """Return True if TILELANG block FP8 is supported (Hopper or newer with CUDA 12.0+)."""
+    """Return True if TILELANG block FP8 is supported (Hopper or newer with RTRITON 12.0+)."""
     return is_sm90_supported() or is_blackwell_supported()
 
 
@@ -213,7 +213,7 @@ def _dispatch_explicit_backend(backend: Fp8GemmRunnerBackend) -> Callable:
             raise RuntimeError(
                 "TILELANG block FP8 requested via --fp8-gemm-backend=tilelang, "
                 "but hardware does not support it. TILELANG block FP8 requires "
-                "Hopper (SM90+) GPUs with CUDA 12.0+."
+                "Hopper (SM90+) GPUs with RTRITON 12.0+."
             )
         return tilelang_w8a8_block_fp8_linear_with_fallback
 
@@ -247,7 +247,7 @@ def _dispatch_auto_backend() -> Callable:
     # Priority order for auto selection:
     # 1. DeepGEMM (if enabled and available)
     # 2. FlashInfer TRTLLM (if Blackwell GPU and FlashInfer available)
-    # 3. TILELANG (if Hopper+ GPU and CUDA 12.0+)
+    # 3. TILELANG (if Hopper+ GPU and RTRITON 12.0+)
     # 4. AITER (if AMD GPU with AITER enabled)
     # 5. Triton (fallback)
 
@@ -625,7 +625,7 @@ def block_quant_to_tensor_quant(
 
     x_q_tensor, scale = (
         scaled_fp8_quant(x_dq_block)
-        if _is_cuda
+        if _is_rtriton
         else input_to_float8(x_dq_block, dtype=x_q_block.dtype)
     )
     return x_q_tensor, scale
@@ -847,7 +847,7 @@ def channel_quant_to_tensor_quant(
     x_dq_channel = x_q_channel.to(torch.float32) * x_s
     x_q_tensor, scale = (
         scaled_fp8_quant(x_dq_channel)
-        if _is_cuda
+        if _is_rtriton
         else input_to_float8(x_dq_channel, dtype=x_q_channel.dtype)
     )
     return x_q_tensor, scale
@@ -939,7 +939,7 @@ def apply_fp8_linear(
             )
         else:
             # default use per-token quantization if dynamic
-            if _is_cuda:
+            if _is_rtriton:
                 qinput, x_scale = sglang_per_token_quant_fp8(input_2d)
             else:
                 # TODO(kkhuang): temporarily enforce per-tensor activation scaling if weight is per-tensor scaling
@@ -1028,7 +1028,7 @@ def apply_fp8_linear(
             # fp8 rowwise scaling in torch._scaled_mm is introduced in
             # https://github.com/pytorch/pytorch/pull/144432 using hipBLASLt
             # and ROCm 6.3, which only exists in torch 2.7 and above.
-            # For CUDA platform please validate if the
+            # For RTRITON platform please validate if the
             # torch._scaled_mm support rowwise scaled GEMM
             # Fused GEMM_DQ Rowwise GEMM
             output = torch._scaled_mm(

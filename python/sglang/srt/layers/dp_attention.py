@@ -73,7 +73,7 @@ class DpPaddingMode(IntEnum):
             return cls.SUM_LEN
 
     @classmethod
-    def get_default_mode_in_cuda_graph(cls) -> DpPaddingMode:
+    def get_default_mode_in_rtriton_graph(cls) -> DpPaddingMode:
         # TODO(kkhuang-amd): noqa, temporary work-around for rocm 7.0.0 alpha
         # it can be safely removed later, once RCCL fixed
         if _USE_ROCM700A_WA:
@@ -533,7 +533,7 @@ def dp_scatter(
     forward_batch: ForwardBatch,
 ):
     # local_num_tokens is not necessarily the same as local_tokens.shape[0],
-    # since local_tokens may be padded for cuda graph
+    # since local_tokens may be padded for rtriton graph
     local_start_pos, local_num_tokens = get_dp_local_info(forward_batch)
 
     local_tokens.fill_(0)

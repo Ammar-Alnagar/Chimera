@@ -8,11 +8,11 @@ from einops import rearrange
 
 from sglang.srt.layers.layernorm import LayerNorm
 from sglang.srt.layers.utils import MultiPlatformOp
-from sglang.srt.utils import add_prefix, ceil_align, is_cuda, is_hip, is_npu
+from sglang.srt.utils import add_prefix, ceil_align, is_rtriton, is_hip, is_npu
 
 global _use_multi_stream
 
-if is_cuda():
+if is_rtriton():
     try:
         import deep_gemm
     except ImportError as e:
@@ -33,14 +33,14 @@ from sglang.srt.layers.dp_attention import get_attention_tp_rank, get_attention_
 from sglang.srt.layers.linear import ReplicatedLinear
 from sglang.srt.layers.quantization.base_config import QuantizationConfig
 from sglang.srt.layers.rotary_embedding import get_rope_wrapper
-from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
+from sglang.srt.model_executor.rtriton_graph_runner import get_is_capture_mode
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
 from sglang.srt.server_args import get_global_server_args
 
 if TYPE_CHECKING:
     from sglang.srt.mem_cache.memory_pool import NSATokenToKVPool
 
-DUAL_STREAM_TOKEN_THRESHOLD = 1024 if is_cuda() else 0
+DUAL_STREAM_TOKEN_THRESHOLD = 1024 if is_rtriton() else 0
 
 
 class BaseIndexerMetadata(ABC):
@@ -110,7 +110,7 @@ class Indexer(MultiPlatformOp):
         rope_scaling: Optional[Dict[str, Any]] = None,
         prefix: str = "",
         quant_config: Optional[QuantizationConfig] = None,
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ):
         super().__init__()
         self.hidden_size = hidden_size
@@ -128,7 +128,7 @@ class Indexer(MultiPlatformOp):
         else:
             self.cp_size = None
             self.cp_rank = None
-        if is_cuda():
+        if is_rtriton():
             self.sm_count = deep_gemm.get_num_sms()
             self.half_device_sm_count = ceil_align(self.sm_count // 2, 8)
 
@@ -185,7 +185,7 @@ class Indexer(MultiPlatformOp):
         forward_batch: ForwardBatch,
     ):
         if enable_dual_stream:
-            current_stream = torch.cuda.current_stream()
+            current_stream = torch.rtriton.current_stream()
             self.alt_stream.wait_stream(current_stream)
 
             with deep_gemm_wrapper.configure_deep_gemm_num_sms(
@@ -198,7 +198,7 @@ class Indexer(MultiPlatformOp):
                     [self.rope_head_dim, self.head_dim - self.rope_head_dim],
                     dim=-1,
                 )
-            with torch.cuda.stream(self.alt_stream):
+            with torch.rtriton.stream(self.alt_stream):
                 # TODO we should also put DeepGEMM half SM here?
                 key, _ = self.wk(x)
                 key = self.k_norm(key)
@@ -233,15 +233,15 @@ class Indexer(MultiPlatformOp):
                 key.contiguous(),
                 self.cp_size,
                 forward_batch,
-                torch.cuda.current_stream(),
+                torch.rtriton.current_stream(),
             )
 
         if enable_dual_stream:
-            current_stream = torch.cuda.current_stream()
+            current_stream = torch.rtriton.current_stream()
             self.alt_stream.wait_stream(current_stream)
             query = rotate_activation(query)
 
-            with torch.cuda.stream(self.alt_stream):
+            with torch.rtriton.stream(self.alt_stream):
                 key = rotate_activation(key)
             current_stream.wait_stream(self.alt_stream)
         else:
@@ -346,7 +346,7 @@ class Indexer(MultiPlatformOp):
         if num_q * num_k < 8_000_000:  # 8M elements ≈ 32MB logits
             return False, 0
 
-        free_mem, total_mem = torch.cuda.mem_get_info(device)
+        free_mem, total_mem = torch.rtriton.mem_get_info(device)
         bytes_per_elem = 4  # float32
         logits_bytes = num_q * num_k * bytes_per_elem
 
@@ -400,7 +400,7 @@ class Indexer(MultiPlatformOp):
             )
             extend_seq_len = forward_batch.extend_seq_lens_cpu[i]
             ks = torch.full(
-                (extend_seq_len,), k_offset, dtype=torch.int32, device="cuda"
+                (extend_seq_len,), k_offset, dtype=torch.int32, device="rtriton"
             )
             ke = ks + seq_lens_expanded[q_offset : q_offset + extend_seq_len]
             k_fp8_list.append(k_fp8)
@@ -532,7 +532,7 @@ class Indexer(MultiPlatformOp):
 
         return topk_result
 
-    def _forward_cuda_k_only(
+    def _forward_rtriton_k_only(
         self,
         x: torch.Tensor,
         positions: torch.Tensor,
@@ -563,7 +563,7 @@ class Indexer(MultiPlatformOp):
             return None
 
         # MLA: use dummy logits with topk kernel's fast path to generate indices
-        # When length <= 2048, naive_topk_cuda directly generates [0,1,...,length-1,-1,...]
+        # When length <= 2048, naive_topk_rtriton directly generates [0,1,...,length-1,-1,...]
         seq_lens_expanded = metadata.get_seqlens_expanded()
         dummy_logits = torch.zeros(
             seq_lens_expanded.shape[0],
@@ -629,7 +629,7 @@ class Indexer(MultiPlatformOp):
 
                 extend_seq_len = end_seq_position - start_seq_position
                 ks = torch.full(
-                    (extend_seq_len,), offset, dtype=torch.int32, device="cuda"
+                    (extend_seq_len,), offset, dtype=torch.int32, device="rtriton"
                 )
                 k_fp8_list.append(k_fp8)
                 k_scale_list.append(k_scale)
@@ -638,11 +638,11 @@ class Indexer(MultiPlatformOp):
                     start_seq_position + 1,
                     end_seq_position + 1,
                     dtype=torch.int32,
-                    device="cuda",
+                    device="rtriton",
                 )
                 ke_offset_list.append(ke_offset)
                 actual_seq_q = torch.tensor(
-                    [extend_seq_len], dtype=torch.int32, device="cuda"
+                    [extend_seq_len], dtype=torch.int32, device="rtriton"
                 )
                 actual_seq_q_list.append(actual_seq_q)
                 batch_idx_list.append(batch_idx)
@@ -690,12 +690,12 @@ class Indexer(MultiPlatformOp):
             k_fp8 = k_fp8.view(torch.float8_e4m3fn)
             k_scale = k_scale.view(torch.float32).squeeze(-1)
             kv_fp8 = (k_fp8, k_scale)
-            ks = torch.full((actual_seq_q,), offset, dtype=torch.int32, device="cuda")
+            ks = torch.full((actual_seq_q,), offset, dtype=torch.int32, device="rtriton")
             ke_offset = torch.arange(
                 (kv_len - actual_seq_q) + 1,
                 kv_len + 1,
                 dtype=torch.int32,
-                device="cuda",
+                device="rtriton",
             )
             ke = ks + ke_offset
 
@@ -708,7 +708,7 @@ class Indexer(MultiPlatformOp):
                 clean_logits=False,
             )
             actual_seq_q = torch.tensor([actual_seq_q], dtype=torch.int32).to(
-                device="cuda", non_blocking=True
+                device="rtriton", non_blocking=True
             )
             topk_result = metadata.topk_transform(
                 logits,
@@ -747,7 +747,7 @@ class Indexer(MultiPlatformOp):
             forward_batch.req_pool_indices, :
         ]
         strided_indices = torch.arange(
-            0, block_tables.shape[-1], page_size, device="cuda"
+            0, block_tables.shape[-1], page_size, device="rtriton"
         )
         block_tables = block_tables[:, strided_indices] // page_size
 
@@ -803,7 +803,7 @@ class Indexer(MultiPlatformOp):
         topk_indices = torch.cat(topk_indices_list, dim=0)
         return topk_indices
 
-    def forward_cuda(
+    def forward_rtriton(
         self,
         x: torch.Tensor,
         q_lora: torch.Tensor,
@@ -837,7 +837,7 @@ class Indexer(MultiPlatformOp):
             return None
 
         # Determine if should skip topk based on sequence length
-        # We can only skip the logits computation if cuda graph is not involved
+        # We can only skip the logits computation if rtriton graph is not involved
         skip_logits_computation = False
         if forward_batch.forward_mode.is_extend_without_speculative():
             if forward_batch.seq_lens_cpu is not None:
@@ -846,7 +846,7 @@ class Indexer(MultiPlatformOp):
 
         # Optimization: fast path when skipping topk computation
         if skip_logits_computation and (not self.nsa_enable_prefill_cp):
-            return self._forward_cuda_k_only(
+            return self._forward_rtriton_k_only(
                 x,
                 positions,
                 forward_batch,
@@ -862,11 +862,11 @@ class Indexer(MultiPlatformOp):
         )
 
         if enable_dual_stream:
-            current_stream = torch.cuda.current_stream()
+            current_stream = torch.rtriton.current_stream()
             self.alt_stream.wait_stream(current_stream)
 
             q_fp8, q_scale = act_quant(query, self.block_size, self.scale_fmt)
-            with torch.cuda.stream(self.alt_stream):
+            with torch.rtriton.stream(self.alt_stream):
                 k_fp8, k_scale = act_quant(key, self.block_size, self.scale_fmt)
             current_stream.wait_stream(self.alt_stream)
         else:
@@ -888,7 +888,7 @@ class Indexer(MultiPlatformOp):
 
         weights = self._get_logits_head_gate(x, q_scale)
 
-        if is_cuda():
+        if is_rtriton():
             assert forward_batch.seq_lens_cpu is not None
             if len(forward_batch.seq_lens_cpu) == 0:
                 # this seems b/c max-pad, no worries?
@@ -897,7 +897,7 @@ class Indexer(MultiPlatformOp):
                 #         "HACK: seq_lens empty but x not empty, hackily return all-invalid topk_result"
                 #     )
                 return torch.full(
-                    (x.shape[0], self.index_topk), -1, dtype=torch.int, device="cuda"
+                    (x.shape[0], self.index_topk), -1, dtype=torch.int, device="rtriton"
                 )
 
             if (

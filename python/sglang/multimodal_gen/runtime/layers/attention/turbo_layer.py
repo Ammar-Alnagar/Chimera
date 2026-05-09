@@ -64,7 +64,7 @@ def async_a2a_communicate(
     a2a_inputs: Union[torch.Tensor, List[torch.Tensor]],
     cp_size: int,
     cp_group: ProcessGroup,
-    cp_stream: torch.cuda.Stream,
+    cp_stream: torch.rtriton.Stream,
     local_seq_2_local_head: bool,
 ) -> Union[torch.Tensor, List[torch.Tensor]]:
     """
@@ -83,7 +83,7 @@ def async_a2a_communicate(
                 )
                 a2a_post_fns[i - 1] = post_all2all(local_seq_2_local_head, cp_size)
             if i > 1:
-                with torch.cuda.stream(cp_stream):
+                with torch.rtriton.stream(cp_stream):
                     a2a_reqs[i - 2].wait()
                     a2a_outputs[i - 2] = a2a_post_fns[i - 2](a2a_outputs[i - 2])
             if i < len(a2a_inputs):
@@ -103,10 +103,10 @@ def async_a2a_communicate(
                     a2a_inputs[i], "bs (w s) h d -> w bs s h d", w=cp_size
                 ).contiguous()
             if i > 1:
-                with torch.cuda.stream(cp_stream):
+                with torch.rtriton.stream(cp_stream):
                     a2a_reqs[i - 2].wait()
                     a2a_outputs[i - 2] = a2a_post_fns[i - 2](a2a_outputs[i - 2])
-    torch.cuda.current_stream().wait_stream(cp_stream)
+    torch.rtriton.current_stream().wait_stream(cp_stream)
     return a2a_outputs[0] if len(a2a_inputs) == 1 else a2a_outputs
 
 
@@ -260,7 +260,7 @@ class _SeqAllToAllQKV(torch.autograd.Function):
         k: Tensor,
         v: Tensor,
         cp_size: int,
-        cp_stream: torch.cuda.Stream,
+        cp_stream: torch.rtriton.Stream,
         local_seq_2_local_head: bool,
     ) -> Tuple[Tensor, Tensor, Tensor]:
         ctx.group = group
@@ -444,7 +444,7 @@ class SparseLinearAttention(nn.Module):
 
         o_l = calc_linear(q, k, v)
 
-        with torch.amp.autocast("cuda", dtype=self.dtype):
+        with torch.amp.autocast("rtriton", dtype=self.dtype):
             o_l = self.proj_l(o_l)
         o = (o_s + o_l).to(dtype).transpose(1, 2)
 

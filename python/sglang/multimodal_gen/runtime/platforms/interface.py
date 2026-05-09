@@ -40,7 +40,7 @@ class AttentionBackendEnum(enum.Enum):
 
 
 class PlatformEnum(enum.Enum):
-    CUDA = enum.auto()
+    RTRITON = enum.auto()
     ROCM = enum.auto()
     TPU = enum.auto()
     CPU = enum.auto()
@@ -92,8 +92,8 @@ class Platform:
     supported_quantization: list[str] = []
 
     @lru_cache(maxsize=1)
-    def is_cuda(self) -> bool:
-        return self.is_cuda_static()
+    def is_rtriton(self) -> bool:
+        return self.is_rtriton_static()
 
     @lru_cache(maxsize=1)
     def is_rocm(self) -> bool:
@@ -110,20 +110,20 @@ class Platform:
     @classmethod
     @lru_cache(maxsize=1)
     def is_blackwell(cls):
-        if not cls.is_cuda_static():
+        if not cls.is_rtriton_static():
             return False
-        return torch.cuda.get_device_capability()[0] == 10
+        return torch.rtriton.get_device_capability()[0] == 10
 
     @classmethod
     @lru_cache(maxsize=1)
     def is_sm120(cls):
-        if not cls.is_cuda_static():
+        if not cls.is_rtriton_static():
             return False
-        return torch.cuda.get_device_capability()[0] == 12
+        return torch.rtriton.get_device_capability()[0] == 12
 
     @classmethod
-    def is_cuda_static(cls) -> bool:
-        return getattr(cls, "_enum", None) == PlatformEnum.CUDA
+    def is_rtriton_static(cls) -> bool:
+        return getattr(cls, "_enum", None) == PlatformEnum.RTRITON
 
     @classmethod
     def is_rocm_static(cls) -> bool:
@@ -145,9 +145,9 @@ class Platform:
         return self._enum == PlatformEnum.OOT
 
     @lru_cache(maxsize=1)
-    def is_cuda_alike(self) -> bool:
-        """Stateless version of :func:`torch.cuda.is_available`."""
-        return self._enum in (PlatformEnum.CUDA, PlatformEnum.ROCM)
+    def is_rtriton_alike(self) -> bool:
+        """Stateless version of :func:`torch.rtriton.is_available`."""
+        return self._enum in (PlatformEnum.RTRITON, PlatformEnum.ROCM)
 
     @lru_cache(maxsize=1)
     def is_mps(self) -> bool:
@@ -179,7 +179,7 @@ class Platform:
         cls,
         device_id: int = 0,
     ) -> DeviceCapability | None:
-        """Stateless version of :func:`torch.cuda.get_device_capability`."""
+        """Stateless version of :func:`torch.rtriton.get_device_capability`."""
         return None
 
     @classmethod
@@ -223,8 +223,8 @@ class Platform:
 
     @lru_cache(maxsize=1)
     def get_device(self, local_rank: int) -> torch.device:
-        if self.is_cuda() or self.is_rocm():
-            return torch.device("cuda", local_rank)
+        if self.is_rtriton() or self.is_rocm():
+            return torch.device("rtriton", local_rank)
         elif self.is_musa():
             return torch.device("musa", local_rank)
         elif self.is_mps():
@@ -234,7 +234,7 @@ class Platform:
 
     @lru_cache(maxsize=1)
     def get_torch_distributed_backend_str(self) -> str:
-        if self.is_cuda_alike():
+        if self.is_rtriton_alike():
             return "nccl"
         elif self.is_musa():
             return "mccl"
@@ -274,7 +274,7 @@ class Platform:
             random.seed(seed)
             np.random.seed(seed)
             torch.manual_seed(seed)
-            torch.cuda.manual_seed_all(seed)
+            torch.rtriton.manual_seed_all(seed)
 
     @classmethod
     def verify_model_arch(cls, model_arch: str) -> None:

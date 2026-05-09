@@ -62,7 +62,7 @@ def torch_impl_qknorm(
 def main():
     N_K = 2
     N_Q = 16
-    DEVICE = "cuda"
+    DEVICE = "rtriton"
     DTYPE = torch.bfloat16
     BS_LIST = [2**n for n in range(0, 15)]
     BS_LIST += [x + 1 + i for i, x in enumerate(BS_LIST)]

@@ -201,7 +201,7 @@ class RotaryEmbedding(CustomOp):
         cache = torch.cat((cos, sin), dim=-1)
         return cache
 
-    def forward_cuda(self, *args, **kwargs) -> Any:
+    def forward_rtriton(self, *args, **kwargs) -> Any:
         return self.forward_native(*args, **kwargs)
 
     def forward_native(

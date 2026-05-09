@@ -1,9 +1,9 @@
 #include <ATen/OpMathType.h>
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <cuda.h>
-#include <cudaTypedefs.h>
-#include <cuda_runtime.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <rtriton.h>
+#include <rtritonTypedefs.h>
+#include <rtriton_runtime.h>
 #include <torch/all.h>
 
 #include <iostream>
@@ -225,8 +225,8 @@ __global__ void moe_sum_reduce_kernel_warp_token_general(
 }
 
 void moe_sum_reduce(at::Tensor& input, at::Tensor& output, double routed_scaling_factor) {
-  TORCH_CHECK(input.is_cuda(), "input must be CUDA tensor");
-  TORCH_CHECK(output.is_cuda(), "output must be CUDA tensor");
+  TORCH_CHECK(input.is_rtriton(), "input must be RTRITON tensor");
+  TORCH_CHECK(output.is_rtriton(), "output must be RTRITON tensor");
   TORCH_CHECK(input.dim() == 3, "input must be a 3D tensor like [token_num, topk_num, hidden_dim]");
   TORCH_CHECK(output.dim() == 2, "output must be [token_num, hidden_dim]");
   TORCH_CHECK(input.size(0) == output.size(0), "token dim mismatch");
@@ -243,7 +243,7 @@ void moe_sum_reduce(at::Tensor& input, at::Tensor& output, double routed_scaling
   const int64_t in_stride_topk = input.stride(1);
   const int64_t out_stride_token = output.stride(0);
 
-  auto stream = at::cuda::getCurrentCUDAStream();
+  auto stream = at::rtriton::getCurrentRTRITONStream();
 
   const bool fast_bf16_vec_ok = (input.scalar_type() == at::kBFloat16) && (token_num > 256) && (hidden_dim % 8 == 0);
 
@@ -262,7 +262,7 @@ void moe_sum_reduce(at::Tensor& input, at::Tensor& output, double routed_scaling
     dim3 block(THREADS);
     dim3 grid(static_cast<unsigned>(grid_x), static_cast<unsigned>(grid_y));
 
-    auto stream = at::cuda::getCurrentCUDAStream();
+    auto stream = at::rtriton::getCurrentRTRITONStream();
 
     const float scale = static_cast<float>(routed_scaling_factor);
     moe_sum_reduce_warp_per_token_vec_kernel<WARPS_PER_BLOCK><<<grid, block, 0, stream>>>(
@@ -276,7 +276,7 @@ void moe_sum_reduce(at::Tensor& input, at::Tensor& output, double routed_scaling
         out_stride_token,
         scale);
 
-    TORCH_CHECK(cudaGetLastError() == cudaSuccess, "moe_sum_reduce CUDA kernel (bf16 vec) launch failed");
+    TORCH_CHECK(rtritonGetLastError() == rtritonSuccess, "moe_sum_reduce RTRITON kernel (bf16 vec) launch failed");
     return;
   }
 
@@ -304,7 +304,7 @@ void moe_sum_reduce(at::Tensor& input, at::Tensor& output, double routed_scaling
       scale);
 
     AT_DISPATCH_FLOATING_TYPES_AND2(
-        at::kHalf, at::kBFloat16, input.scalar_type(), "moe_sum_reduce_cuda_small_token", [&] {
+        at::kHalf, at::kBFloat16, input.scalar_type(), "moe_sum_reduce_rtriton_small_token", [&] {
           using scalar_t_ = scalar_t;
           using acc_t_ = opmath_t<scalar_t_>;
           const acc_t_ scale = static_cast<acc_t_>(routed_scaling_factor);
@@ -337,7 +337,7 @@ void moe_sum_reduce(at::Tensor& input, at::Tensor& output, double routed_scaling
         });
 #undef LAUNCH_SMALL_TOKEN_KERNEL
 
-    TORCH_CHECK(cudaGetLastError() == cudaSuccess, "moe_sum_reduce CUDA kernel (small-token) launch failed");
+    TORCH_CHECK(rtritonGetLastError() == rtritonSuccess, "moe_sum_reduce RTRITON kernel (small-token) launch failed");
 
   } else {
     // ---------- warp-per-token ----------
@@ -365,7 +365,7 @@ void moe_sum_reduce(at::Tensor& input, at::Tensor& output, double routed_scaling
       scale);
 
     AT_DISPATCH_FLOATING_TYPES_AND2(
-        at::kHalf, at::kBFloat16, input.scalar_type(), "moe_sum_reduce_cuda_large_token", [&] {
+        at::kHalf, at::kBFloat16, input.scalar_type(), "moe_sum_reduce_rtriton_large_token", [&] {
           using scalar_t_ = scalar_t;
           using acc_t_ = opmath_t<scalar_t_>;
           const acc_t_ scale = static_cast<acc_t_>(routed_scaling_factor);
@@ -398,6 +398,6 @@ void moe_sum_reduce(at::Tensor& input, at::Tensor& output, double routed_scaling
         });
 #undef LAUNCH_WARP_PER_TOKEN_KERNEL
 
-    TORCH_CHECK(cudaGetLastError() == cudaSuccess, "moe_sum_reduce CUDA kernel (warp-token) launch failed");
+    TORCH_CHECK(rtritonGetLastError() == rtritonSuccess, "moe_sum_reduce RTRITON kernel (warp-token) launch failed");
   }
 }

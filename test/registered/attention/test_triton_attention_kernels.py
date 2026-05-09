@@ -19,11 +19,11 @@ from sglang.srt.layers.attention.triton_ops.prefill_attention import (
     context_attention_fwd,
 )
 from sglang.srt.utils import get_device
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.test_utils import CustomTestCase
 
 # Triton attention kernel unit tests (decode, extend, prefill)
-register_cuda_ci(est_time=30, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=30, suite="stage-b-test-small-1-gpu")
 
 
 def extend_attention_fwd_torch(
@@ -154,8 +154,8 @@ class TestTritonAttention(CustomTestCase):
         """Set all random seeds for reproducibility."""
         random.seed(seed)
         torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
+        torch.rtriton.manual_seed(seed)
+        torch.rtriton.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 

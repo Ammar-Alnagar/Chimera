@@ -283,7 +283,7 @@ def _load_object(path):
     if not isinstance(x, torch.Tensor):
         print(f"Skip load {path} since {type(x)=} is not a Tensor ({x=})")
         return None
-    return x.cuda()
+    return x.rtriton()
 
 
 # TODO may make customization endpoints configurable via args pointing to code file

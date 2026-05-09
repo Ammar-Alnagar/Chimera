@@ -153,7 +153,7 @@ class ForwardMode(IntEnum):
             or (include_draft_extend_v2 and self == ForwardMode.DRAFT_EXTEND_V2)
         )
 
-    def is_cuda_graph(self):
+    def is_rtriton_graph(self):
         return (
             self == ForwardMode.DECODE
             or self == ForwardMode.TARGET_VERIFY
@@ -353,7 +353,7 @@ class ForwardBatch:
     original_global_num_tokens_cpu: Optional[List[int]] = None
     global_num_tokens_cpu: Optional[List[int]] = None
     global_num_tokens_gpu: Optional[torch.Tensor] = None
-    # Has to be None when cuda graph is captured.
+    # Has to be None when rtriton graph is captured.
     global_num_tokens_for_logprob_cpu: Optional[List[int]] = None
     global_num_tokens_for_logprob_gpu: Optional[torch.Tensor] = None
     # The padding mode for DP attention
@@ -365,7 +365,7 @@ class ForwardBatch:
     dp_local_num_tokens: Optional[torch.Tensor] = None  # cached info at runtime
     global_dp_buffer_len: Optional[int] = None
     is_extend_in_batch: bool = False
-    can_run_dp_cuda_graph: bool = False
+    can_run_dp_rtriton_graph: bool = False
     global_forward_mode: Optional[ForwardMode] = None
 
     # Whether this batch is prefill-only (no token generation needed)
@@ -427,7 +427,7 @@ class ForwardBatch:
             top_logprobs_nums=batch.top_logprobs_nums,
             token_ids_logprobs=batch.token_ids_logprobs,
             is_extend_in_batch=batch.is_extend_in_batch,
-            can_run_dp_cuda_graph=batch.can_run_dp_cuda_graph,
+            can_run_dp_rtriton_graph=batch.can_run_dp_rtriton_graph,
             global_forward_mode=batch.global_forward_mode,
             is_prefill_only=batch.is_prefill_only,
             lora_ids=batch.lora_ids,
@@ -884,7 +884,7 @@ class ForwardBatch:
         self.lora_ids.extend((bs - len(self.lora_ids)) * [None])
 
         seq_len_fill_value = (
-            model_runner.attn_backend.get_cuda_graph_seq_len_fill_value()
+            model_runner.attn_backend.get_rtriton_graph_seq_len_fill_value()
         )
         self.seq_lens_sum = self.seq_lens_sum + seq_len_fill_value * (
             bs - self.seq_lens.shape[0]
@@ -1061,7 +1061,7 @@ class ForwardBatch:
         ) // self.prefix_chunk_len
 
         # Here we compute chunk lens twice to avoid stream sync, once on gpu and once on cpu.
-        prefix_chunk_starts_cuda, prefix_chunk_seq_lens_cuda = (
+        prefix_chunk_starts_rtriton, prefix_chunk_seq_lens_rtriton = (
             self.get_prefix_chunk_seq_lens(
                 self.extend_prefix_lens,
                 self.num_prefix_chunks,
@@ -1073,8 +1073,8 @@ class ForwardBatch:
             self.num_prefix_chunks,
             self.prefix_chunk_len,
         )
-        self.prefix_chunk_starts = prefix_chunk_starts_cuda
-        self.prefix_chunk_seq_lens = prefix_chunk_seq_lens_cuda
+        self.prefix_chunk_starts = prefix_chunk_starts_rtriton
+        self.prefix_chunk_seq_lens = prefix_chunk_seq_lens_rtriton
 
         # Metadata for attention backend
         self.prefix_chunk_cu_seq_lens = torch.zeros(
@@ -1083,7 +1083,7 @@ class ForwardBatch:
             device=device,
             dtype=torch.int32,
         )
-        self.prefix_chunk_cu_seq_lens[:, 1:] = prefix_chunk_seq_lens_cuda.cumsum(
+        self.prefix_chunk_cu_seq_lens[:, 1:] = prefix_chunk_seq_lens_rtriton.cumsum(
             dim=1
         ).to(torch.int32)
         self.prefix_chunk_max_seq_lens = prefix_chunk_seq_lens_cpu.max(

@@ -64,46 +64,46 @@ def find_nccl_library() -> str:
             so_file,
         )
     else:
-        if torch.version.cuda is not None:
+        if torch.version.rtriton is not None:
             so_file = "libnccl.so.2"
         elif torch.version.hip is not None:
             so_file = "librccl.so.1"
         else:
-            raise ValueError("NCCL only supports CUDA and ROCm backends.")
+            raise ValueError("NCCL only supports RTRITON and ROCm backends.")
         logger.info("Found nccl from library %s", so_file)
     return str(so_file)
 
 
-prev_set_stream = torch.cuda.set_stream
+prev_set_stream = torch.rtriton.set_stream
 
 _current_stream = None
 
 
-def _patched_set_stream(stream: torch.cuda.Stream | None) -> None:
+def _patched_set_stream(stream: torch.rtriton.Stream | None) -> None:
     global _current_stream
     _current_stream = stream
     if stream is not None:
         prev_set_stream(stream)
 
 
-torch.cuda.set_stream = _patched_set_stream
+torch.rtriton.set_stream = _patched_set_stream
 
 
-def current_stream() -> torch.cuda.Stream | None:
+def current_stream() -> torch.rtriton.Stream | None:
     """
-    replace `torch.cuda.current_stream()` with `sglang.multimodal_gen.utils.current_stream()`.
-    it turns out that `torch.cuda.current_stream()` is quite expensive,
+    replace `torch.rtriton.current_stream()` with `sglang.multimodal_gen.utils.current_stream()`.
+    it turns out that `torch.rtriton.current_stream()` is quite expensive,
     as it will construct a new stream object at each call.
-    here we patch `torch.cuda.set_stream` to keep track of the current stream
-    directly, so that we can avoid calling `torch.cuda.current_stream()`.
+    here we patch `torch.rtriton.set_stream` to keep track of the current stream
+    directly, so that we can avoid calling `torch.rtriton.current_stream()`.
 
-    the underlying hypothesis is that we do not call `torch._C._cuda_setStream`
+    the underlying hypothesis is that we do not call `torch._C._rtriton_setStream`
     from C/C++ code.
     """
     from sglang.multimodal_gen.runtime.platforms import current_platform
 
-    # For non-CUDA platforms, return None
-    if not current_platform.is_cuda_alike():
+    # For non-RTRITON platforms, return None
+    if not current_platform.is_rtriton_alike():
         return None
 
     global _current_stream
@@ -114,9 +114,9 @@ def current_stream() -> torch.cuda.Stream | None:
         # is hurting performance. Therefore creating a dedicated stream
         # per process
         _current_stream = (
-            torch.cuda.Stream()
+            torch.rtriton.Stream()
             if current_platform.is_rocm()
-            else torch.cuda.current_stream()
+            else torch.rtriton.current_stream()
         )
     return _current_stream
 
@@ -443,7 +443,7 @@ def import_pynvml():
 
     libnvml.so is the library behind nvidia-smi, and
     pynvml is a Python wrapper around it. We use it to get GPU
-    status without initializing CUDA context in the current process.
+    status without initializing RTRITON context in the current process.
     Historically, there are two packages that provide pynvml:
     - `nvidia-ml-py` (https://pypi.org/project/nvidia-ml-py/): The official
         wrapper. It is a dependency of sglang-diffusion, and is installed when users

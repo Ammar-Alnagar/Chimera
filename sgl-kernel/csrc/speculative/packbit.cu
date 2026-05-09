@@ -29,7 +29,7 @@ void segment_packbits(
     at::Tensor output_indptr,
     at::Tensor y,
     int64_t batch_size,
-    int64_t cuda_stream) {
+    int64_t rtriton_stream) {
   CHECK_INPUT(x);
   CHECK_INPUT(input_indptr);
   CHECK_INPUT(output_indptr);
@@ -39,8 +39,8 @@ void segment_packbits(
   CHECK_EQ(y.device(), device);
   CHECK_GE(output_indptr.size(0), batch_size + 1);
 
-  cudaStream_t stream = reinterpret_cast<cudaStream_t>(cuda_stream);
-  cudaError_t status = quantization::SegmentPackBits(
+  rtritonStream_t stream = reinterpret_cast<rtritonStream_t>(rtriton_stream);
+  rtritonError_t status = quantization::SegmentPackBits(
       static_cast<bool*>(x.data_ptr()),
       static_cast<uint8_t*>(y.data_ptr()),
       static_cast<int32_t*>(input_indptr.data_ptr()),

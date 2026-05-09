@@ -14,7 +14,7 @@
 """PyTorch hooks for layerwise NVTX profiling."""
 
 import torch
-import torch.cuda.nvtx as nvtx
+import torch.rtriton.nvtx as nvtx
 
 
 class PytHooks(object):

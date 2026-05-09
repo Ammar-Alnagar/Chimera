@@ -11,7 +11,7 @@ from torch.distributed import ProcessGroup, ReduceOp
 from sglang.multimodal_gen.runtime.distributed.device_communicators.pynccl_wrapper import (
     NCCLLibrary,
     buffer_type,
-    cudaStream_t,
+    rtritonStream_t,
     ncclComm_t,
     ncclDataTypeEnum,
     ncclRedOpTypeEnum,
@@ -37,7 +37,7 @@ class PyNcclCommunicator:
             group: the process group to work on. If None, it will use the
                 default process group.
             device: the device to bind the PyNcclCommunicator to. If None,
-                it will be bind to f"cuda:{local_rank}".
+                it will be bind to f"rtriton:{local_rank}".
             library_path: the path to the NCCL library. If None, it will
                 use the default library path.
         It is the caller's responsibility to make sure each communicator
@@ -94,16 +94,16 @@ class PyNcclCommunicator:
         else:
             self.unique_id = group.broadcast_obj(self.unique_id, src=0)
         if isinstance(device, int):
-            device = torch.device(f"cuda:{device}")
+            device = torch.device(f"rtriton:{device}")
         elif isinstance(device, str):
             device = torch.device(device)
         # now `device` is a `torch.device` object
         assert isinstance(device, torch.device)
         self.device = device
         # nccl communicator and stream will use this device
-        # `torch.cuda.device` is a context manager that changes the
-        # current cuda device to the specified one
-        with torch.cuda.device(device):
+        # `torch.rtriton.device` is a context manager that changes the
+        # current rtriton device to the specified one
+        with torch.rtriton.device(device):
             self.comm: ncclComm_t = self.nccl.ncclCommInitRank(
                 self.world_size, self.unique_id, self.rank
             )
@@ -140,7 +140,7 @@ class PyNcclCommunicator:
             ncclDataTypeEnum.from_torch(in_tensor.dtype),
             ncclRedOpTypeEnum.from_torch(op),
             self.comm,
-            cudaStream_t(stream.cuda_stream),
+            rtritonStream_t(stream.rtriton_stream),
         )
         return out_tensor
 
@@ -164,7 +164,7 @@ class PyNcclCommunicator:
             input_tensor.numel(),
             ncclDataTypeEnum.from_torch(input_tensor.dtype),
             self.comm,
-            cudaStream_t(stream.cuda_stream),
+            rtritonStream_t(stream.rtriton_stream),
         )
 
     def reduce_scatter(
@@ -192,7 +192,7 @@ class PyNcclCommunicator:
             ncclDataTypeEnum.from_torch(input_tensor.dtype),
             ncclRedOpTypeEnum.from_torch(op),
             self.comm,
-            cudaStream_t(stream.cuda_stream),
+            rtritonStream_t(stream.rtriton_stream),
         )
 
     def send(self, tensor: torch.Tensor, dst: int, stream=None):
@@ -210,7 +210,7 @@ class PyNcclCommunicator:
             ncclDataTypeEnum.from_torch(tensor.dtype),
             dst,
             self.comm,
-            cudaStream_t(stream.cuda_stream),
+            rtritonStream_t(stream.rtriton_stream),
         )
 
     def recv(self, tensor: torch.Tensor, src: int, stream=None):
@@ -228,7 +228,7 @@ class PyNcclCommunicator:
             ncclDataTypeEnum.from_torch(tensor.dtype),
             src,
             self.comm,
-            cudaStream_t(stream.cuda_stream),
+            rtritonStream_t(stream.rtriton_stream),
         )
 
     def broadcast(self, tensor: torch.Tensor, src: int, stream=None):
@@ -254,5 +254,5 @@ class PyNcclCommunicator:
             ncclDataTypeEnum.from_torch(tensor.dtype),
             src,
             self.comm,
-            cudaStream_t(stream.cuda_stream),
+            rtritonStream_t(stream.rtriton_stream),
         )

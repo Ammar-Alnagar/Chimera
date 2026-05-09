@@ -166,12 +166,12 @@ def chunk_gated_delta_rule(
         >>> from fla.ops.gated_delta_rule import chunk_gated_delta_rule
         # inputs with equal lengths
         >>> B, T, H, K, V = 4, 2048, 4, 512, 512
-        >>> q = torch.randn(B, T, H, K, dtype=torch.bfloat16, device='cuda')
-        >>> k = F.normalize(torch.randn(B, T, H, K, dtype=torch.bfloat16, device='cuda'), p=2, dim=-1)
-        >>> v = torch.randn(B, T, H, V, dtype=torch.bfloat16, device='cuda')
-        >>> beta = torch.rand(B, T, H, dtype=torch.bfloat16, device='cuda').sigmoid()
-        >>> g = F.logsigmoid(torch.rand(B, T, H, dtype=torch.bfloat16, device='cuda'))
-        >>> h0 = torch.randn(B, H, K, V, dtype=torch.bfloat16, device='cuda')
+        >>> q = torch.randn(B, T, H, K, dtype=torch.bfloat16, device='rtriton')
+        >>> k = F.normalize(torch.randn(B, T, H, K, dtype=torch.bfloat16, device='rtriton'), p=2, dim=-1)
+        >>> v = torch.randn(B, T, H, V, dtype=torch.bfloat16, device='rtriton')
+        >>> beta = torch.rand(B, T, H, dtype=torch.bfloat16, device='rtriton').sigmoid()
+        >>> g = F.logsigmoid(torch.rand(B, T, H, dtype=torch.bfloat16, device='rtriton'))
+        >>> h0 = torch.randn(B, H, K, V, dtype=torch.bfloat16, device='rtriton')
         >>> o, ht = chunk_gated_delta_rule(
             q, k, v, g, beta,
             initial_state=h0,

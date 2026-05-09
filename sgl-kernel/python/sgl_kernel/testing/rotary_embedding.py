@@ -120,7 +120,7 @@ class RotaryEmbedding(torch.nn.Module):
 
 
 class FlashInferRotaryEmbedding(RotaryEmbedding):
-    def forward_cuda(
+    def forward_rtriton(
         self,
         positions: torch.Tensor,
         query: torch.Tensor,
@@ -143,7 +143,7 @@ class FlashInferRotaryEmbedding(RotaryEmbedding):
 
 
 class SglKernelRotaryEmbedding(RotaryEmbedding):
-    def forward_cuda(
+    def forward_rtriton(
         self,
         positions: torch.Tensor,
         query: torch.Tensor,
@@ -180,7 +180,7 @@ class MHATokenToKVPool:
         self.size = MHATokenToKVPool.KV_POOL_SIZE
         self.page_size = 1
         self.store_dtype = torch.bfloat16
-        self.device = "cuda"
+        self.device = "rtriton"
         self.layer_num = 1
         self.start_layer = 0
         self._create_buffers()

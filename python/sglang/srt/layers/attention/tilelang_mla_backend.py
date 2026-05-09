@@ -15,15 +15,15 @@ from sglang.srt.layers.attention.flashinfer_mla_backend import FlashInferMLAAttn
 from sglang.srt.layers.attention.utils import create_flashmla_kv_indices_triton
 from sglang.srt.layers.dp_attention import get_attention_tp_size
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch, ForwardMode
-from sglang.srt.utils import is_cuda
+from sglang.srt.utils import is_rtriton
 
 if TYPE_CHECKING:
     from sglang.srt.layers.radix_attention import RadixAttention
     from sglang.srt.model_executor.model_runner import ModelRunner
     from sglang.srt.speculative.spec_info import SpecInput
 
-_is_cuda = is_cuda()
-if _is_cuda:
+_is_rtriton = is_rtriton()
+if _is_rtriton:
     from sgl_kernel import tilelang_mla_decode, tilelang_mla_get_workspace_size
 
 
@@ -108,7 +108,7 @@ class TileLangMLABackend(FlashInferMLAAttnBackend):
                     max_seqlen_pad * PAGE_SIZE, bs, num_kv_splits=1
                 )
                 workspace = torch.empty(
-                    workspace_size, device="cuda", dtype=torch.uint8
+                    workspace_size, device="rtriton", dtype=torch.uint8
                 )
                 self.forward_metadata = TileLangMLADecodeMetadata(
                     workspace,
@@ -119,31 +119,31 @@ class TileLangMLABackend(FlashInferMLAAttnBackend):
         else:
             super().init_forward_metadata(forward_batch)
 
-    def init_cuda_graph_state(
+    def init_rtriton_graph_state(
         self,
         max_bs: int,
         max_num_tokens: int,
         block_kv_indices: Optional[torch.Tensor] = None,
     ):
         if block_kv_indices is None:
-            cuda_graph_kv_indices = torch.full(
+            rtriton_graph_kv_indices = torch.full(
                 (max_bs, (self.max_context_len + PAGE_SIZE) // PAGE_SIZE),
                 1,
                 dtype=torch.int32,
-                device="cuda",
+                device="rtriton",
             )
         else:
-            cuda_graph_kv_indices = block_kv_indices
+            rtriton_graph_kv_indices = block_kv_indices
 
         workspace_size = tilelang_mla_get_workspace_size(
-            cuda_graph_kv_indices.shape[1] * PAGE_SIZE, max_bs, num_kv_splits=1
+            rtriton_graph_kv_indices.shape[1] * PAGE_SIZE, max_bs, num_kv_splits=1
         )
-        self.cuda_graph_mla_workspace = torch.empty(
-            workspace_size, device="cuda", dtype=torch.uint8
+        self.rtriton_graph_mla_workspace = torch.empty(
+            workspace_size, device="rtriton", dtype=torch.uint8
         )
-        self.cuda_graph_kv_indices = cuda_graph_kv_indices
+        self.rtriton_graph_kv_indices = rtriton_graph_kv_indices
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -155,24 +155,24 @@ class TileLangMLABackend(FlashInferMLAAttnBackend):
     ):
         if forward_mode.is_decode_or_idle():
             if spec_info is None:
-                max_seqlen_pad = self.cuda_graph_kv_indices.shape[1]
+                max_seqlen_pad = self.rtriton_graph_kv_indices.shape[1]
 
                 create_flashmla_kv_indices_triton[(bs,)](
                     self.req_to_token,
                     req_pool_indices,
                     seq_lens,
                     None,
-                    self.cuda_graph_kv_indices,
+                    self.rtriton_graph_kv_indices,
                     self.req_to_token.stride(0),
-                    self.cuda_graph_kv_indices.stride(0),
+                    self.rtriton_graph_kv_indices.stride(0),
                     PAGED_SIZE=PAGE_SIZE,
                 )
                 self.forward_metadata = TileLangMLADecodeMetadata(
-                    self.cuda_graph_mla_workspace,
-                    self.cuda_graph_kv_indices[:bs, :max_seqlen_pad],
+                    self.rtriton_graph_mla_workspace,
+                    self.rtriton_graph_kv_indices[:bs, :max_seqlen_pad],
                 )
         else:
-            super().init_forward_metadata_capture_cuda_graph(
+            super().init_forward_metadata_capture_rtriton_graph(
                 bs,
                 num_tokens,
                 req_pool_indices,
@@ -182,7 +182,7 @@ class TileLangMLABackend(FlashInferMLAAttnBackend):
                 spec_info,
             )
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -203,13 +203,13 @@ class TileLangMLABackend(FlashInferMLAAttnBackend):
                 req_pool_indices[:bs],
                 seq_lens,
                 None,
-                self.cuda_graph_kv_indices,
+                self.rtriton_graph_kv_indices,
                 self.req_to_token.stride(0),
-                self.cuda_graph_kv_indices.stride(0),
+                self.rtriton_graph_kv_indices.stride(0),
                 PAGED_SIZE=PAGE_SIZE,
             )
         else:
-            super().init_forward_metadata_replay_cuda_graph(
+            super().init_forward_metadata_replay_rtriton_graph(
                 bs,
                 req_pool_indices,
                 seq_lens,
@@ -220,7 +220,7 @@ class TileLangMLABackend(FlashInferMLAAttnBackend):
                 seq_lens_cpu,
             )
 
-    def get_cuda_graph_seq_len_fill_value(self):
+    def get_rtriton_graph_seq_len_fill_value(self):
         return 1
 
     def forward_decode(

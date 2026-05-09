@@ -273,7 +273,7 @@ class BaseSparseAlgorithmImpl(BaseSparseAlgorithm):
 
         TODO:
             1. Using triton kernel to speed up this function
-            2. Support CUDA Graph
+            2. Support RTRITON Graph
         """
         bs, device = queries.shape[0], queries.device
 

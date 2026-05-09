@@ -133,7 +133,7 @@ def _compile_deep_gemm_one_type_all(
             m_list = sorted(list(set(m for m in m_list if m % m_alignment == 0)))
 
         # Here the precompilation is only run on the first rank, so gpu_id should be 0
-        memory_budget = get_available_gpu_memory(device="cuda", gpu_id=0)
+        memory_budget = get_available_gpu_memory(device="rtriton", gpu_id=0)
 
         # If the memory budget is less memory requirement, we need to reduce max_m to avoid out of memory, which might further cause hanging during warmup
         max_m = max(m_list)
@@ -171,9 +171,9 @@ def _compile_deep_gemm_one_type_all(
         deep_gemm.set_compile_mode(old_compile_mode)
 
         # clean up input buffers
-        torch.cuda.current_stream().synchronize()
+        torch.rtriton.current_stream().synchronize()
         del executor
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
     finally:
         # Restore symmetric memory context
         restore_symmetric_memory_context(saved_context)
@@ -215,9 +215,9 @@ class _BaseWarmupExecutor:
 def _empty_token_fp8(size):
     *dims, k = size
     return (
-        torch.empty(size, device="cuda", dtype=torch.float8_e4m3fn),
+        torch.empty(size, device="rtriton", dtype=torch.float8_e4m3fn),
         torch.empty(
-            (*dims, ceil_div(k, _BLOCK_SIZE)), device="cuda", dtype=torch.float32
+            (*dims, ceil_div(k, _BLOCK_SIZE)), device="rtriton", dtype=torch.float32
         ),
     )
 
@@ -225,10 +225,10 @@ def _empty_token_fp8(size):
 def _empty_block_fp8(size):
     *dims, n, k = size
     return (
-        torch.empty(size, device="cuda", dtype=torch.float8_e4m3fn),
+        torch.empty(size, device="rtriton", dtype=torch.float8_e4m3fn),
         torch.empty(
             (*dims, ceil_div(n, _BLOCK_SIZE), ceil_div(k, _BLOCK_SIZE)),
-            device="cuda",
+            device="rtriton",
             dtype=torch.float32,
         ),
     )
@@ -241,7 +241,7 @@ class _NormalWarmupExecutor(_BaseWarmupExecutor):
     def __init__(self, max_m: int, n: int, k: int, num_groups: int):
         self.lhs_q, self.lhs_s = _empty_token_fp8((max_m, k))
         self.rhs_q, self.rhs_s = _empty_block_fp8((n, k))
-        self.out = torch.empty((max_m, n), device="cuda", dtype=torch.bfloat16)
+        self.out = torch.empty((max_m, n), device="rtriton", dtype=torch.bfloat16)
 
     def execute(self, m):
         deep_gemm.fp8_gemm_nt(
@@ -255,8 +255,8 @@ class _GroupedContWarmupExecutor(_BaseWarmupExecutor):
     def __init__(self, max_m: int, n: int, k: int, num_groups: int):
         self.lhs_q, self.lhs_s = _empty_token_fp8((max_m, k))
         self.rhs_q, self.rhs_s = _empty_block_fp8((num_groups, n, k))
-        self.m_indices = torch.zeros((max_m,), device="cuda", dtype=torch.int32)
-        self.out = torch.empty((max_m, n), device="cuda", dtype=torch.bfloat16)
+        self.m_indices = torch.zeros((max_m,), device="rtriton", dtype=torch.int32)
+        self.out = torch.empty((max_m, n), device="rtriton", dtype=torch.bfloat16)
 
     def execute(self, m):
         deep_gemm.m_grouped_fp8_gemm_nt_contiguous(
@@ -271,9 +271,9 @@ class _GroupedMaskedWarmupExecutor(_BaseWarmupExecutor):
     def __init__(self, max_m: int, n: int, k: int, num_groups: int):
         self.lhs_q, self.lhs_s = _empty_token_fp8((num_groups, max_m, k))
         self.rhs_q, self.rhs_s = _empty_block_fp8((num_groups, n, k))
-        self.masked_m = torch.zeros((num_groups,), device="cuda", dtype=torch.int32)
+        self.masked_m = torch.zeros((num_groups,), device="rtriton", dtype=torch.int32)
         self.out = torch.empty(
-            (num_groups, max_m, n), device="cuda", dtype=torch.bfloat16
+            (num_groups, max_m, n), device="rtriton", dtype=torch.bfloat16
         )
 
     def execute(self, m):

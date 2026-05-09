@@ -9,7 +9,7 @@ import unittest
 from types import SimpleNamespace
 
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.test_utils import (
     DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
     DEFAULT_URL_FOR_TEST,
@@ -18,7 +18,7 @@ from sglang.test.test_utils import (
     popen_launch_server,
 )
 
-register_cuda_ci(est_time=500, suite="nightly-4-gpu", nightly=True)
+register_rtriton_ci(est_time=500, suite="nightly-4-gpu", nightly=True)
 
 MODELS = [
     SimpleNamespace(model="Qwen/Qwen2.5-VL-72B-Instruct", mmmu_accuracy=0.55),
@@ -131,8 +131,8 @@ class TestVLMEncoderDP(CustomTestCase):
             process_env = os.environ.copy()
             if custom_env:
                 process_env.update(custom_env)
-            # if test vlm with cuda_ipc feature, open this env_var
-            process_env["SGLANG_USE_CUDA_IPC_TRANSPORT"] = "1"
+            # if test vlm with rtriton_ipc feature, open this env_var
+            process_env["SGLANG_USE_RTRITON_IPC_TRANSPORT"] = "1"
 
             # Prepare stdout/stderr redirection if needed
             stdout_file = None
@@ -149,7 +149,7 @@ class TestVLMEncoderDP(CustomTestCase):
                 api_key=self.api_key,
                 other_args=[
                     "--trust-remote-code",
-                    "--cuda-graph-max-bs",
+                    "--rtriton-graph-max-bs",
                     "32",
                     "--mm-enable-dp-encoder",
                     "--tp=4",

@@ -24,15 +24,15 @@ import torch
 from sglang.jit_kernel.norm import can_use_fused_inplace_qknorm, fused_inplace_qknorm
 from sglang.srt.environ import envs
 from sglang.srt.layers.radix_attention import RadixAttention
-from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
+from sglang.srt.model_executor.rtriton_graph_runner import get_is_capture_mode
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
-from sglang.srt.utils import is_cuda
+from sglang.srt.utils import is_rtriton
 from sglang.srt.utils.custom_op import register_custom_op
 
 if TYPE_CHECKING:
     from sglang.srt.layers.layernorm import RMSNorm
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
 WeightsMapping = Mapping[str, Optional[str]]
 """If a key maps to a value of `None`, the corresponding weight is ignored."""
@@ -104,9 +104,9 @@ class WeightsMapper:
 
 
 def enable_fused_set_kv_buffer(forward_batch: ForwardBatch):
-    """Enable fused set_kv_buffer only on CUDA with bfloat16 KV cache."""
+    """Enable fused set_kv_buffer only on RTRITON with bfloat16 KV cache."""
     return (
-        _is_cuda
+        _is_rtriton
         and hasattr(forward_batch.token_to_kv_pool, "dtype")
         and forward_batch.token_to_kv_pool.dtype == torch.bfloat16
     )
@@ -205,7 +205,7 @@ def apply_qk_norm(
     q_norm: RMSNorm,
     k_norm: RMSNorm,
     head_dim: int,
-    alt_stream: Optional[torch.cuda.Stream] = None,
+    alt_stream: Optional[torch.rtriton.Stream] = None,
     allow_inplace: bool = True,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
@@ -218,7 +218,7 @@ def apply_qk_norm(
         q_norm: RMSNorm layer for query normalization
         k_norm: RMSNorm layer for key normalization
         head_dim: Dimension of each attention head
-        alt_stream: Optional alternative CUDA stream for overlapping computation
+        alt_stream: Optional alternative RTRITON stream for overlapping computation
         allow_inplace: Whether to allow inplace normalization. (True for better performance)
 
     Returns:
@@ -229,7 +229,7 @@ def apply_qk_norm(
     q_eps = q_norm.variance_epsilon
     k_eps = k_norm.variance_epsilon
     if (
-        _is_cuda  # TODO(dark): have not tested on ROCm or other backends
+        _is_rtriton  # TODO(dark): have not tested on ROCm or other backends
         and allow_inplace  # TODO(dark): this can be relaxed if needed
         and (q_eps == k_eps)  # TODO(dark): this can also be relaxed
         and not envs.SGLANG_ENABLE_DETERMINISTIC_INFERENCE.get()
@@ -246,11 +246,11 @@ def apply_qk_norm(
         return q, k
 
     if alt_stream is not None and get_is_capture_mode():
-        current_stream = torch.cuda.current_stream()
+        current_stream = torch.rtriton.current_stream()
         alt_stream.wait_stream(current_stream)
         q_by_head = q.reshape(-1, head_dim)
         q_by_head = q_norm(q_by_head)
-        with torch.cuda.stream(alt_stream):
+        with torch.rtriton.stream(alt_stream):
             k_by_head = k.reshape(-1, head_dim)
             k_by_head = k_norm(k_by_head)
         current_stream.wait_stream(alt_stream)

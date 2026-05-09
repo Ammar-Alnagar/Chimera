@@ -13,10 +13,10 @@ from sglang.srt.layers.quantization.marlin_utils import (
     should_use_atomic_add_reduce,
 )
 from sglang.srt.layers.quantization.utils import get_scalar_types
-from sglang.srt.utils import is_cuda
+from sglang.srt.utils import is_rtriton
 
-_is_cuda = is_cuda()
-if _is_cuda:
+_is_rtriton = is_rtriton()
+if _is_rtriton:
     from sgl_kernel import gptq_marlin_gemm, gptq_marlin_repack
 
 ScalarType, scalar_types = get_scalar_types()

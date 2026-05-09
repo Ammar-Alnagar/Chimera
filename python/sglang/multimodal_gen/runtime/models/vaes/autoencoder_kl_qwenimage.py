@@ -828,7 +828,7 @@ class AutoencoderKLQwenImage(ParallelTiledVAE):
             if self.encoder is not None
             else 0,
         }
-        cuda_device = get_local_torch_device()
+        rtriton_device = get_local_torch_device()
         # FIXME: hardcode
         dtype = torch.bfloat16
         latent_channels = config.arch_config.z_dim
@@ -838,7 +838,7 @@ class AutoencoderKLQwenImage(ParallelTiledVAE):
                 config.arch_config.latents_mean
             )
             .view(1, latent_channels, 1, 1, 1)
-            .to(cuda_device, dtype)
+            .to(rtriton_device, dtype)
         )
 
     def enable_tiling(

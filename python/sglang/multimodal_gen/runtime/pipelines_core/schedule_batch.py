@@ -91,7 +91,7 @@ class Req:
     seed: int | None = None
     seeds: list[int] | None = None
     generator_device: str = (
-        "cuda"  # Device for random generator: "cuda", "musa" or "cpu"
+        "rtriton"  # Device for random generator: "rtriton", "musa" or "cpu"
     )
 
     # Tracking if embeddings are already processed

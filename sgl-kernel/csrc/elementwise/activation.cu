@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 #include <torch/all.h>
 
 #ifndef USE_ROCM
@@ -87,8 +87,8 @@ void silu_and_mul(at::Tensor& out, at::Tensor& input) {
   int64_t num_tokens = input.numel() / input.size(-1);
   dim3 grid(num_tokens);
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(input));
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(input));
 
   DISPATCH_PYTORCH_DTYPE_TO_CTYPE_FLOAT_FP16(input.scalar_type(), c_type, [&] {
     uint32_t vec_size = 16 / sizeof(c_type);
@@ -109,8 +109,8 @@ void gelu_tanh_and_mul(at::Tensor& out, at::Tensor& input) {
   int64_t num_tokens = input.numel() / input.size(-1);
   dim3 grid(num_tokens);
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(input));
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(input));
 
   DISPATCH_PYTORCH_DTYPE_TO_CTYPE_FLOAT_FP16(input.scalar_type(), c_type, [&] {
     uint32_t vec_size = 16 / sizeof(c_type);
@@ -131,8 +131,8 @@ void gelu_and_mul(at::Tensor& out, at::Tensor& input) {
   int64_t num_tokens = input.numel() / input.size(-1);
   dim3 grid(num_tokens);
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(input));
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(input));
 
   DISPATCH_PYTORCH_DTYPE_TO_CTYPE_FLOAT_FP16(input.scalar_type(), c_type, [&] {
     uint32_t vec_size = 16 / sizeof(c_type);
@@ -155,8 +155,8 @@ void gelu_quick(at::Tensor& out, const at::Tensor& input) {
   int64_t num_tokens = input.numel() / input.size(-1);
   dim3 grid(num_tokens);
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(input));
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(input));
 
   DISPATCH_PYTORCH_DTYPE_TO_CTYPE_FLOAT_FP16(input.scalar_type(), c_type, [&] {
     uint32_t vec_size = 16 / sizeof(c_type);

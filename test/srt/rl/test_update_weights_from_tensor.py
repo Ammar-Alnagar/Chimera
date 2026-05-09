@@ -21,8 +21,8 @@ from sglang.test.test_utils import (
 
 
 def test_update_weights_from_tensor(tp_size):
-    assert torch.cuda.device_count() >= tp_size, f"At least {tp_size} GPUs are required"
-    torch.cuda.empty_cache()
+    assert torch.rtriton.device_count() >= tp_size, f"At least {tp_size} GPUs are required"
+    torch.rtriton.empty_cache()
 
     engine = sgl.Engine(model_path=DEFAULT_SMALL_MODEL_NAME_FOR_TEST, tp_size=tp_size)
 
@@ -30,8 +30,8 @@ def test_update_weights_from_tensor(tp_size):
 
     _check_param(engine, param_names[0], [0.0087, -0.0214, -0.0004, 0.0039, 0.0110])
 
-    memory_before = torch.cuda.memory_allocated()
-    new_tensor = torch.full((16384, 2048), 1.5, device="cuda")
+    memory_before = torch.rtriton.memory_allocated()
+    new_tensor = torch.full((16384, 2048), 1.5, device="rtriton")
 
     time_start = time.perf_counter()
     engine.update_weights_from_tensor([(x, new_tensor) for x in param_names])
@@ -44,9 +44,9 @@ def test_update_weights_from_tensor(tp_size):
 
     del new_tensor
     gc.collect()
-    torch.cuda.ipc_collect()
-    torch.cuda.empty_cache()
-    memory_after = torch.cuda.memory_allocated()
+    torch.rtriton.ipc_collect()
+    torch.rtriton.empty_cache()
+    memory_after = torch.rtriton.memory_allocated()
     assert (
         memory_after <= memory_before + 1024
     ), f"Memory leak detected: {memory_after - memory_before} bytes"
@@ -56,7 +56,7 @@ class TestUpdateWeightsFromTensor(CustomTestCase):
     def test_update_weights_from_tensor(self):
         tp_sizes = [1, 2]
         for tp_size in tp_sizes:
-            if torch.cuda.device_count() < tp_size:
+            if torch.rtriton.device_count() < tp_size:
                 continue
 
             with self.subTest(tp_size=tp_size):
@@ -139,7 +139,7 @@ class TestUpdateWeightsFromTensor(CustomTestCase):
         for _, name in enumerate(param_names):
             # Create tensors with different values for each parameter
             value = 2.0  # Different value for each parameter
-            new_tensor = torch.full((16384, 2048), value, device="cuda")
+            new_tensor = torch.full((16384, 2048), value, device="rtriton")
             new_tensors.append((name, new_tensor))
 
         # Create a flattened bucket
@@ -258,7 +258,7 @@ class TestServerUpdateWeightsFromTensorNonBlocking(CustomTestCase):
                 param_names = [
                     f"model.layers.{i}.mlp.up_proj.weight" for i in range(6, 16)
                 ]
-                new_tensor = torch.full((16384, 2048), 1.5, device="cuda")
+                new_tensor = torch.full((16384, 2048), 1.5, device="rtriton")
                 named_tensors = [(x, new_tensor) for x in param_names]
 
                 ret = self.pause_generation(pause_generation_mode)

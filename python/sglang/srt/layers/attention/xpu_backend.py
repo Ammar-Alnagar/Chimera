@@ -53,7 +53,7 @@ class XPUAttentionBackend(AttentionBackend):
         self.forward_metadata_spec_decode_expand: FlashAttentionMetadata = None
         self.max_context_len = model_runner.model_config.context_len
         self.device = model_runner.device
-        self.decode_cuda_graph_metadata = {}
+        self.decode_rtriton_graph_metadata = {}
         self.target_verify_metadata = {}
         self.req_to_token = model_runner.req_to_token_pool.req_to_token
         self.kv_cache_dtype = model_runner.kv_cache_dtype
@@ -928,8 +928,8 @@ class XPUAttentionBackend(AttentionBackend):
 
         return o.view(-1, layer.tp_q_head_num * layer.v_head_dim)
 
-    def get_cuda_graph_seq_len_fill_value(self):
-        """Get the fill value for sequence length in CUDA graph."""
+    def get_rtriton_graph_seq_len_fill_value(self):
+        """Get the fill value for sequence length in RTRITON graph."""
         return 1
 
     def _init_local_attn_metadata(

@@ -140,7 +140,7 @@ class TestDecodeAttention(CustomTestCase):
         self.assertGreater(cos_sim.item(), 0.99)
         torch.testing.assert_close(o, o_grouped, atol=3e-2, rtol=1e-6)
 
-    def _test_grouped_decode_attention(self, device="cuda"):
+    def _test_grouped_decode_attention(self, device="rtriton"):
         configs = [
             (2, 16, 16, 64, 64),
             (2, 16, 1, 16, 16),

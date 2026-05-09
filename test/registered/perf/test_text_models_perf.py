@@ -1,6 +1,6 @@
 import unittest
 
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.nightly_utils import NightlyBenchmarkRunner
 from sglang.test.test_utils import (
     DEFAULT_URL_FOR_TEST,
@@ -9,7 +9,7 @@ from sglang.test.test_utils import (
     parse_models,
 )
 
-register_cuda_ci(est_time=3600, suite="nightly-perf-text-2-gpu", nightly=True)
+register_rtriton_ci(est_time=3600, suite="nightly-perf-text-2-gpu", nightly=True)
 
 PROFILE_DIR = "performance_profiles_text_models"
 

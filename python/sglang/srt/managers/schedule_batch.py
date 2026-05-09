@@ -88,7 +88,7 @@ from sglang.srt.sampling.sampling_batch_info import SamplingBatchInfo
 from sglang.srt.sampling.sampling_params import SamplingParams
 from sglang.srt.server_args import ServerArgs, get_global_server_args
 from sglang.srt.utils import flatten_nested_list
-from sglang.srt.utils.cuda_ipc_transport_utils import CudaIpcTensorTransportProxy
+from sglang.srt.utils.rtriton_ipc_transport_utils import RtritonIpcTensorTransportProxy
 
 if TYPE_CHECKING:
     from sglang.srt.configs.model_config import ModelConfig
@@ -363,7 +363,7 @@ class MultimodalInputs:
                 try_add_to_buffer,
             )
 
-            device = torch.cuda.current_device() if torch.cuda.is_available() else "cpu"
+            device = torch.rtriton.current_device() if torch.rtriton.is_available() else "cpu"
             if not is_feature_buffer_initialized():
                 init_feature_buffer(device)
             reset_buffer_offset()
@@ -1207,7 +1207,7 @@ class ScheduleBatch(ScheduleBatchDisaggregationDecodeMixin):
     global_num_tokens: Optional[List[int]] = None
     global_num_tokens_for_logprob: Optional[List[int]] = None
     is_extend_in_batch: bool = False
-    can_run_dp_cuda_graph: bool = False
+    can_run_dp_rtriton_graph: bool = False
     tbo_split_seq_index: Optional[int] = None
     global_forward_mode: Optional[ForwardMode] = None
 
@@ -1252,7 +1252,7 @@ class ScheduleBatch(ScheduleBatchDisaggregationDecodeMixin):
     has_grammar: bool = False
 
     # Device
-    device: str = "cuda"
+    device: str = "rtriton"
 
     # Speculative decoding
     spec_algorithm: SpeculativeAlgorithm = None
@@ -1568,9 +1568,9 @@ class ScheduleBatch(ScheduleBatchDisaggregationDecodeMixin):
                 pixel_values = getattr(mm_item, "feature", None)
                 if isinstance(pixel_values, torch.Tensor):
                     mm_item.feature = pixel_values.to(self.device, non_blocking=True)
-                elif isinstance(pixel_values, CudaIpcTensorTransportProxy):
+                elif isinstance(pixel_values, RtritonIpcTensorTransportProxy):
                     mm_item.feature = pixel_values.reconstruct_on_target_device(
-                        torch.cuda.current_device()
+                        torch.rtriton.current_device()
                     )
         self.multimodal_inputs = multimodal_inputs
         self.token_type_ids = token_type_ids_tensor
@@ -2104,7 +2104,7 @@ class ScheduleBatch(ScheduleBatchDisaggregationDecodeMixin):
             global_num_tokens=self.global_num_tokens,
             global_num_tokens_for_logprob=self.global_num_tokens_for_logprob,
             is_extend_in_batch=self.is_extend_in_batch,
-            can_run_dp_cuda_graph=self.can_run_dp_cuda_graph,
+            can_run_dp_rtriton_graph=self.can_run_dp_rtriton_graph,
             tbo_split_seq_index=self.tbo_split_seq_index,
             global_forward_mode=self.global_forward_mode,
             extend_num_tokens=self.extend_num_tokens,
@@ -2160,7 +2160,7 @@ class ScheduleBatch(ScheduleBatchDisaggregationDecodeMixin):
             spec_algorithm=self.spec_algorithm,
             global_num_tokens=self.global_num_tokens,
             global_num_tokens_for_logprob=self.global_num_tokens_for_logprob,
-            can_run_dp_cuda_graph=self.can_run_dp_cuda_graph,
+            can_run_dp_rtriton_graph=self.can_run_dp_rtriton_graph,
             is_extend_in_batch=self.is_extend_in_batch,
             is_prefill_only=self.is_prefill_only,
             seq_lens_cpu=self.seq_lens_cpu,
@@ -2212,7 +2212,7 @@ class ModelWorkerBatch:
     global_num_tokens: Optional[List[int]]
     global_num_tokens_for_logprob: Optional[List[int]]
     is_extend_in_batch: bool
-    can_run_dp_cuda_graph: bool
+    can_run_dp_rtriton_graph: bool
     tbo_split_seq_index: Optional[int]
     global_forward_mode: Optional[ForwardMode]
 

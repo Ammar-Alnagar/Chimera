@@ -32,14 +32,14 @@ class TestForwardSplitPrefill(CustomTestCase):
         """Set up the test environment once for all tests."""
         cls.model_path = DEFAULT_SMALL_MODEL_NAME_FOR_TEST
         cls.tp_size = 1
-        cls.device = "cuda"
+        cls.device = "rtriton"
 
         # Initialize server args
         cls.server_args = ServerArgs(
             model_path=cls.model_path,
             tokenizer_path=cls.model_path,
             host="127.0.0.1",
-            disable_cuda_graph=True,  # Disable CUDA graph for testing split prefill
+            disable_rtriton_graph=True,  # Disable RTRITON graph for testing split prefill
             disable_hybrid_swa_memory=True,
             port=30000,
             tp_size=cls.tp_size,

@@ -96,52 +96,52 @@ else:
 def benchmark(batch_size, provider, N, K):
     M = batch_size
     # For W8A8
-    a = to_int8(torch.randn((M, K), device="cuda") * 5)
-    b = to_int8(torch.randn((N, K), device="cuda").t() * 5)
+    a = to_int8(torch.randn((M, K), device="rtriton") * 5)
+    b = to_int8(torch.randn((N, K), device="rtriton").t() * 5)
     a_fp16 = a.to(torch.float16)
     b_fp16 = b.to(torch.float16)
-    scale_a = torch.randn((M,), device="cuda", dtype=torch.float32)
-    scale_b = torch.randn((N,), device="cuda", dtype=torch.float32)
+    scale_a = torch.randn((M,), device="rtriton", dtype=torch.float32)
+    scale_b = torch.randn((N,), device="rtriton", dtype=torch.float32)
 
     # For Qserve W4A8 per channel
     a_qserve_chn = a
     # two int4s pack into one int8
-    b_qserve_chn = to_int8(torch.randn((N, K // 2), device="cuda") * 5)
+    b_qserve_chn = to_int8(torch.randn((N, K // 2), device="rtriton") * 5)
     # b_qserve_chn = b.t().contiguous()
     scale_a_qserve_chn = scale_a.to(torch.float16)
     scale_b_qserve_chn = scale_b.to(torch.float16)
-    szero_b_qserve_chn = torch.randn((N,), device="cuda", dtype=torch.float16)
-    a_sum_qserve_chn = torch.randn((M,), device="cuda", dtype=torch.float16)
+    szero_b_qserve_chn = torch.randn((N,), device="rtriton", dtype=torch.float16)
+    a_sum_qserve_chn = torch.randn((M,), device="rtriton", dtype=torch.float16)
 
     # For Qserve W4A8 per group
     group_size = 128
     assert K % group_size == 0, "K must be divisible by group_size"
     a_qserve_group = a
     # two int4s pack into one int8
-    b_qserve_group = to_int8(torch.randn((N, K // 2), device="cuda") * 5)
+    b_qserve_group = to_int8(torch.randn((N, K // 2), device="rtriton") * 5)
     # b_qserve_group = b.t().contiguous()
     scale_a_qserve_group = scale_a.to(torch.float16)
     scale_b_qserve_group = scale_b.to(torch.float16)
     scale_i8_b_qserve_group = to_int8(
-        torch.randn((K // group_size, N), device="cuda", dtype=torch.float16)
+        torch.randn((K // group_size, N), device="rtriton", dtype=torch.float16)
     )
     zero_i8_b_qserve_group = to_int8(
-        torch.randn((K // group_size, N), device="cuda", dtype=torch.float16)
+        torch.randn((K // group_size, N), device="rtriton", dtype=torch.float16)
     )
 
     quantiles = [0.5, 0.2, 0.8]
     if provider == "FP16":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: torch.matmul(a_fp16, b_fp16),
             quantiles=quantiles,
         )
     if provider == "W8A8":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: int8_scaled_mm(a, b, scale_a, scale_b, torch.float16),
             quantiles=quantiles,
         )
     if provider == "Qserve_W4A8_Per_Channel":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: qserve_w4a8_per_chn_gemm(
                 a_qserve_chn,
                 b_qserve_chn,
@@ -153,7 +153,7 @@ def benchmark(batch_size, provider, N, K):
             quantiles=quantiles,
         )
     if provider == "Qserve_W4A8_Per_Group":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: qserve_w4a8_per_group_gemm(
                 a_qserve_group,
                 b_qserve_group,

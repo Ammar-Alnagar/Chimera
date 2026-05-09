@@ -61,7 +61,7 @@ class SamplingBatchInfo:
     sampling_seed: Optional[torch.Tensor] = None
 
     # Device
-    device: str = "cuda"
+    device: str = "rtriton"
 
     # Handle logit bias
     logit_bias: Optional[torch.Tensor] = None

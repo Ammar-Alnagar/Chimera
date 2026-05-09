@@ -21,7 +21,7 @@ limitations under the License.
 #include <vector>
 
 at::Tensor weak_ref_tensor(const at::Tensor& tensor) {
-  TORCH_CHECK(tensor.is_cuda(), "weak_ref_tensor expects a CUDA tensor");
+  TORCH_CHECK(tensor.is_rtriton(), "weak_ref_tensor expects a RTRITON tensor");
 
   void* data_ptr = tensor.data_ptr();
   std::vector<int64_t> sizes = tensor.sizes().vec();

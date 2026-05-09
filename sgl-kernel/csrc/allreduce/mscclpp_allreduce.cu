@@ -1,5 +1,5 @@
-#include <c10/cuda/CUDAGuard.h>
-#include <c10/cuda/CUDAStream.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <c10/rtriton/RTRITONStream.h>
 #include <torch/all.h>
 #include <torch/library.h>
 
@@ -18,7 +18,7 @@ class MscclContext {
   MscclContext(MscclContextSelection selection) : selection_(selection) {}
   template <typename T>
   void allreduce(
-      cudaStream_t stream, T* input, T* output, const size_t input_numel, int threads = 512, int block_limit = 21) {
+      rtritonStream_t stream, T* input, T* output, const size_t input_numel, int threads = 512, int block_limit = 21) {
     if (selection_ == MSCCL1NODELL) {
       msccl_1nodeLL_context->allreduce<T>(stream, input, output, input_numel, threads, block_limit);
     } else if (selection_ == MSCCL2NODELL) {
@@ -94,8 +94,8 @@ bool _mscclpp_is_weak_contiguous(torch::Tensor& t) {
 }
 void mscclpp_allreduce(fptr_t _context, torch::Tensor& inp, torch::Tensor& out, int64_t nthreads, int64_t nblocks) {
   MscclContext* context = reinterpret_cast<MscclContext*>(_context);
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(inp));
-  auto stream = c10::cuda::getCurrentCUDAStream().stream();
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(inp));
+  auto stream = c10::rtriton::getCurrentRTRITONStream().stream();
 
   TORCH_CHECK_EQ(inp.scalar_type(), out.scalar_type());
   TORCH_CHECK_EQ(inp.numel(), out.numel());
@@ -122,7 +122,7 @@ void mscclpp_allreduce(fptr_t _context, torch::Tensor& inp, torch::Tensor& out, 
           nblocks);
       break;
     }
-#if (__CUDA_ARCH__ >= 800 || !defined(__CUDA_ARCH__))
+#if (__RTRITON_ARCH__ >= 800 || !defined(__RTRITON_ARCH__))
     case at::ScalarType::BFloat16: {
       context->allreduce<__nv_bfloat16>(
           stream,

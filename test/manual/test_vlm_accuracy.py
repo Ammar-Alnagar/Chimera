@@ -29,7 +29,7 @@ class VisionLLMLogitsBase(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
         cls.image_url = "https://github.com/sgl-project/sglang/blob/main/examples/assets/example_image.png?raw=true"
-        cls.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        cls.device = torch.device("rtriton" if torch.rtriton.is_available() else "cpu")
         cls.model_path = ""
         cls.chat_template = ""
         cls.processor = ""
@@ -152,7 +152,7 @@ class VisionLLMLogitsBase(unittest.IsolatedAsyncioTestCase):
             nccl_port=12435,
             server_args=ServerArgs(
                 model_path=self.model_path,
-                disable_cuda_graph=True,
+                disable_rtriton_graph=True,
             ),
         )
         return self.model_runner.model
@@ -171,7 +171,7 @@ class TestMiniCPMV2_6Logits(VisionLLMLogitsBase):
         )
         cls.chat_template = "minicpmv"
 
-        cls.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        cls.device = torch.device("rtriton" if torch.rtriton.is_available() else "cpu")
         cls.hf_model = (
             AutoModel.from_pretrained(
                 cls.model_path, torch_dtype=torch.bfloat16, trust_remote_code=True
@@ -277,7 +277,7 @@ class TestMiniCPMV4Logits(VisionLLMLogitsBase):
         )
         cls.chat_template = "minicpmv"
 
-        cls.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        cls.device = torch.device("rtriton" if torch.rtriton.is_available() else "cpu")
         cls.hf_model = (
             AutoModel.from_pretrained(
                 cls.model_path, torch_dtype=torch.bfloat16, trust_remote_code=True

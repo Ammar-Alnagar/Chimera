@@ -101,7 +101,7 @@ class BaseTpWorker(ABC):
         success, message = self.model_runner.update_weights_from_disk(
             recv_req.model_path,
             recv_req.load_format,
-            recapture_cuda_graph=recv_req.recapture_cuda_graph,
+            recapture_rtriton_graph=recv_req.recapture_rtriton_graph,
         )
         return success, message
 
@@ -405,13 +405,13 @@ class TpModelWorker(BaseTpWorker):
     def _forward_batch_generation_dllm(
         self, forward_batch: ForwardBatch
     ) -> GenerationBatchResult:
-        logits_output, next_token_ids, can_run_cuda_graph = self.dllm_algorithm.run(
+        logits_output, next_token_ids, can_run_rtriton_graph = self.dllm_algorithm.run(
             self.model_runner, forward_batch
         )
         return GenerationBatchResult(
             logits_output=logits_output,
             next_token_ids=next_token_ids,
-            can_run_cuda_graph=can_run_cuda_graph,
+            can_run_rtriton_graph=can_run_rtriton_graph,
         )
 
     def get_remote_instance_transfer_engine_info(self):
@@ -450,10 +450,10 @@ class TpModelWorker(BaseTpWorker):
                 pp_proxy_tensors=pp_proxy_tensors,
                 skip_attn_backend_init=skip_attn_backend_init,
             )
-            logits_output, can_run_cuda_graph = out.logits_output, out.can_run_graph
+            logits_output, can_run_rtriton_graph = out.logits_output, out.can_run_graph
             batch_result = GenerationBatchResult(
                 logits_output=logits_output,
-                can_run_cuda_graph=can_run_cuda_graph,
+                can_run_rtriton_graph=can_run_rtriton_graph,
                 expert_distribution_metrics=out.expert_distribution_metrics,
             )
 
@@ -505,10 +505,10 @@ class TpModelWorker(BaseTpWorker):
                 pp_proxy_tensors=pp_proxy_tensors,
                 skip_attn_backend_init=skip_attn_backend_init,
             )
-            pp_proxy_tensors, can_run_cuda_graph = out.logits_output, out.can_run_graph
+            pp_proxy_tensors, can_run_rtriton_graph = out.logits_output, out.can_run_graph
             return GenerationBatchResult(
                 pp_hidden_states_proxy_tensors=pp_proxy_tensors,
-                can_run_cuda_graph=can_run_cuda_graph,
+                can_run_rtriton_graph=can_run_rtriton_graph,
                 expert_distribution_metrics=out.expert_distribution_metrics,
             )
 
@@ -524,14 +524,14 @@ class TpModelWorker(BaseTpWorker):
         out = self.model_runner.forward(
             batch.split_forward_batch, split_forward_count=batch.split_forward_count
         )
-        logits_output, can_run_cuda_graph = out.logits_output, out.can_run_graph
+        logits_output, can_run_rtriton_graph = out.logits_output, out.can_run_graph
         if logits_output:
             next_token_ids = self.model_runner.sample(logits_output, model_worker_batch)
         else:
             next_token_ids = None
         batch_result = GenerationBatchResult(
             logits_output=logits_output,
-            can_run_cuda_graph=can_run_cuda_graph,
+            can_run_rtriton_graph=can_run_rtriton_graph,
             expert_distribution_metrics=out.expert_distribution_metrics,
         )
         batch_result.next_token_ids = next_token_ids

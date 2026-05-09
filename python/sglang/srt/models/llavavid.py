@@ -225,7 +225,7 @@ class LlavaVidForCausalLM(nn.Module):
         vision_path = self.config.mm_vision_tower
         self.vision_tower = CLIPVisionModel.from_pretrained(
             vision_path, torch_dtype=torch.float16
-        ).cuda()
+        ).rtriton()
         self.vision_tower.eval()
 
         self.vision_feature_layer = self.config.mm_vision_select_layer

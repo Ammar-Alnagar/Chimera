@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 @lru_cache(maxsize=1)
 def _jit_stream_wait_value_module() -> Module:
     return load_jit(
-        "cuda_wait_value",
-        cuda_files=["cuda_wait_value.cuh"],
-        cuda_wrappers=[("stream_wait_value", "stream_wait_value")],
+        "rtriton_wait_value",
+        rtriton_files=["rtriton_wait_value.cuh"],
+        rtriton_wrappers=[("stream_wait_value", "stream_wait_value")],
     )
 
 
@@ -28,7 +28,7 @@ def stream_wait_value(flag: torch.Tensor, value: int) -> None:
 
 class Event:
     def __init__(self) -> None:
-        self.flag = torch.zeros(1, dtype=torch.int32, device="cuda")
+        self.flag = torch.zeros(1, dtype=torch.int32, device="rtriton")
 
     def record(self, value: int = 1) -> None:
         self.flag[0] = value
@@ -37,16 +37,16 @@ class Event:
         stream_wait_value(self.flag, value)
 
 
-def test_wait_before_record(event: Event | torch.cuda.Event):
-    stream_a = torch.cuda.Stream()
-    stream_b = torch.cuda.Stream()
+def test_wait_before_record(event: Event | torch.rtriton.Event):
+    stream_a = torch.rtriton.Stream()
+    stream_b = torch.rtriton.Stream()
 
-    with torch.cuda.stream(stream_a):
+    with torch.rtriton.stream(stream_a):
         event.wait()
 
     stream_a.synchronize()
 
-    with torch.cuda.stream(stream_b):
+    with torch.rtriton.stream(stream_b):
         event.record()
 
 
@@ -60,7 +60,7 @@ def main():
     block_thead.start()
 
     non_block_thread = threading.Thread(
-        target=test_wait_before_record, args=(torch.cuda.Event(),)
+        target=test_wait_before_record, args=(torch.rtriton.Event(),)
     )
     non_block_thread.start()
 
@@ -70,7 +70,7 @@ def main():
         time.sleep(1)
 
     assert block_thead.is_alive(), "Custom Event did not block as expected"
-    assert not non_block_thread.is_alive(), "torch.cuda.Event should not block"
+    assert not non_block_thread.is_alive(), "torch.rtriton.Event should not block"
     print("=" * 40)
     print("Test completed successfully.")
 

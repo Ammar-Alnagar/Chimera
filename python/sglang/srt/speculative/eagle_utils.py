@@ -4,13 +4,13 @@ from typing import List, Optional
 
 import torch
 
-from sglang.srt.utils import is_cuda, is_hip, is_npu
+from sglang.srt.utils import is_rtriton, is_hip, is_npu
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 _is_npu = is_npu()
 
-if _is_cuda or _is_hip:
+if _is_rtriton or _is_hip:
     from sgl_kernel import (
         build_tree_kernel_efficient as sgl_build_tree_kernel_efficient,
     )
@@ -169,7 +169,7 @@ def verify_tree_greedy_func(
     target_predict: torch.Tensor,
     topk: int = -1,
 ):
-    if _is_cuda or _is_hip:
+    if _is_rtriton or _is_hip:
         from sgl_kernel import verify_tree_greedy
 
         verify_tree_greedy(

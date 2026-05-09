@@ -113,33 +113,33 @@ class TritonLoRABackend(BaseLoRABackend):
         )
         return lora_output
 
-    def init_cuda_graph_batch_info(
+    def init_rtriton_graph_batch_info(
         self,
-        max_bs_in_cuda_graph: int,
+        max_bs_in_rtriton_graph: int,
         num_tokens_per_bs: int,
     ):
-        with torch.device("cuda"):
-            self.cuda_graph_batch_info = LoRABatchInfo(
-                bs=max_bs_in_cuda_graph,
-                use_cuda_graph=True,
+        with torch.device("rtriton"):
+            self.rtriton_graph_batch_info = LoRABatchInfo(
+                bs=max_bs_in_rtriton_graph,
+                use_rtriton_graph=True,
                 num_segments=None,
                 seg_lens=torch.full(
-                    (max_bs_in_cuda_graph,), num_tokens_per_bs, dtype=torch.int32
+                    (max_bs_in_rtriton_graph,), num_tokens_per_bs, dtype=torch.int32
                 ),
-                seg_indptr=torch.zeros(max_bs_in_cuda_graph + 1, dtype=torch.int32),
+                seg_indptr=torch.zeros(max_bs_in_rtriton_graph + 1, dtype=torch.int32),
                 max_len=num_tokens_per_bs,
-                weight_indices=torch.zeros(max_bs_in_cuda_graph, dtype=torch.int32),
+                weight_indices=torch.zeros(max_bs_in_rtriton_graph, dtype=torch.int32),
                 lora_ranks=torch.zeros(self.max_loras_per_batch, dtype=torch.int32),
                 scalings=torch.zeros(self.max_loras_per_batch, dtype=torch.float),
                 permutation=None,
             )
 
-            # Initialize seg_indptr for CUDA graph as they remain constant
+            # Initialize seg_indptr for RTRITON graph as they remain constant
             # across batches.
             torch.cumsum(
-                self.cuda_graph_batch_info.seg_lens[:max_bs_in_cuda_graph],
+                self.rtriton_graph_batch_info.seg_lens[:max_bs_in_rtriton_graph],
                 dim=0,
-                out=self.cuda_graph_batch_info.seg_indptr[1 : max_bs_in_cuda_graph + 1],
+                out=self.rtriton_graph_batch_info.seg_indptr[1 : max_bs_in_rtriton_graph + 1],
             )
 
     def prepare_lora_batch(
@@ -148,7 +148,7 @@ class TritonLoRABackend(BaseLoRABackend):
         weight_indices: list[int],
         lora_ranks: list[int],
         scalings: list[float],
-        use_cuda_graph: bool,
+        use_rtriton_graph: bool,
     ):
         # Use pinned memory to avoid synchronizations during host-to-device transfer
         weight_indices_tensor = torch.tensor(
@@ -163,11 +163,11 @@ class TritonLoRABackend(BaseLoRABackend):
 
         bs = forward_batch.batch_size
 
-        if use_cuda_graph:
+        if use_rtriton_graph:
             assert (
-                self.cuda_graph_batch_info is not None
-            ), "CUDA Graph batch info is not initialized."
-            batch_info = self.cuda_graph_batch_info
+                self.rtriton_graph_batch_info is not None
+            ), "RTRITON Graph batch info is not initialized."
+            batch_info = self.rtriton_graph_batch_info
             batch_info.bs = forward_batch.batch_size
             batch_info.num_segments = forward_batch.batch_size
         else:
@@ -189,7 +189,7 @@ class TritonLoRABackend(BaseLoRABackend):
                 bs=forward_batch.batch_size,
                 num_segments=forward_batch.batch_size,
                 max_len=max_len,
-                use_cuda_graph=False,
+                use_rtriton_graph=False,
                 seg_lens=seg_lens,
                 seg_indptr=seg_indptr,
                 weight_indices=torch.empty(

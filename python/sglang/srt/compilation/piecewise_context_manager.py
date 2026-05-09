@@ -6,13 +6,13 @@ import torch
 
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
 
-_in_piecewise_cuda_graph = False
+_in_piecewise_rtriton_graph = False
 _in_pcg_torch_compile = False
 _pcg_capture_stream = None
 
 
-def is_in_piecewise_cuda_graph():
-    return _in_piecewise_cuda_graph
+def is_in_piecewise_rtriton_graph():
+    return _in_piecewise_rtriton_graph
 
 
 def is_in_pcg_torch_compile():
@@ -24,7 +24,7 @@ def get_pcg_capture_stream():
 
 
 @contextmanager
-def enable_piecewise_cuda_graph_compile():
+def enable_piecewise_rtriton_graph_compile():
     global _in_pcg_torch_compile
     _in_pcg_torch_compile = True
     yield
@@ -32,17 +32,17 @@ def enable_piecewise_cuda_graph_compile():
 
 
 @contextmanager
-def enable_piecewise_cuda_graph():
-    global _in_piecewise_cuda_graph
-    _in_piecewise_cuda_graph = True
+def enable_piecewise_rtriton_graph():
+    global _in_piecewise_rtriton_graph
+    _in_piecewise_rtriton_graph = True
 
     yield
 
-    _in_piecewise_cuda_graph = False
+    _in_piecewise_rtriton_graph = False
 
 
 @contextmanager
-def set_pcg_capture_stream(stream: torch.cuda.Stream):
+def set_pcg_capture_stream(stream: torch.rtriton.Stream):
     global _pcg_capture_stream
     _pcg_capture_stream = stream
     yield

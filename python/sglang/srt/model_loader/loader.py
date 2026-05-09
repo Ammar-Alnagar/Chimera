@@ -1134,7 +1134,7 @@ class QuantizedRLModelLoader(DefaultModelLoader):
         del current_param_data
         if is_last_update:
             gc.collect()
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
         logger.info("[QuantizedRL] Reload complete")
         return updated_param_names, is_last_update
@@ -1678,7 +1678,7 @@ class BitsAndBytesModelLoader(BaseModelLoader):
                 if param_name + "." in k:
                     quant_state[k] = temp_state_dict[k]
 
-            return QuantState.from_dict(quant_state, device="cuda")
+            return QuantState.from_dict(quant_state, device="rtriton")
 
         # Second iterate over all prequant and normal weights
         # pre quantized weights would have a quant_state
@@ -1732,10 +1732,10 @@ class BitsAndBytesModelLoader(BaseModelLoader):
                     weight_sub_tensor = weight_tensor[start_index:end_index, ...]
 
                 # bitsandbytes requires data in GPU
-                if weight_sub_tensor.is_cuda:
+                if weight_sub_tensor.is_rtriton:
                     loaded_weight = weight_sub_tensor
                 else:
-                    loaded_weight = weight_sub_tensor.cuda()
+                    loaded_weight = weight_sub_tensor.rtriton()
 
                 # remove the following after the issue is fixed:
                 # https://github.com/bitsandbytes-foundation/bitsandbytes/issues/1342
@@ -1814,7 +1814,7 @@ class BitsAndBytesModelLoader(BaseModelLoader):
 
         model.load_weights(qweight_iterator)
 
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
         param_dict = dict(model.named_parameters())
         stacked_quant_state_dict: Dict[str, Dict[int, Any]] = {}
@@ -2107,7 +2107,7 @@ class RemoteInstanceModelLoader(BaseModelLoader):
             tp_rank=load_config.tp_rank,
             instance_ip=instance_ip,
         )
-        torch.cuda.synchronize()
+        torch.rtriton.synchronize()
         end_build_group_tic = time.time()
         logger.debug(
             f"finish building group for remote instance, time used: {(end_build_group_tic - start_build_group_tic):.4f}s"
@@ -2133,7 +2133,7 @@ class RemoteInstanceModelLoader(BaseModelLoader):
                     src=0,
                     group=client._model_update_group,
                 )
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
 
             if hasattr(model, "post_load_weights"):
                 model.post_load_weights()
@@ -2145,7 +2145,7 @@ class RemoteInstanceModelLoader(BaseModelLoader):
         torch.distributed.distributed_c10d.destroy_process_group(
             client._model_update_group
         )
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
     def load_model_from_remote_instance_by_transfer_engine(
         self, model, transfer_engine, seed_url, tp_rank

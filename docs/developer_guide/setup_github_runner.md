@@ -8,9 +8,9 @@
 The command below uses `/tmp/huggingface` as an example.
 
 ```
-docker pull nvidia/cuda:12.9.1-devel-ubuntu22.04
+docker pull nvidia/rtriton:12.9.1-devel-ubuntu22.04
 # Nvidia
-docker run --shm-size 128g -it -v /tmp/huggingface:/hf_home --gpus all nvidia/cuda:12.9.1-devel-ubuntu22.04 /bin/bash
+docker run --shm-size 128g -it -v /tmp/huggingface:/hf_home --gpus all nvidia/rtriton:12.9.1-devel-ubuntu22.04 /bin/bash
 # AMD
 docker run --rm --device=/dev/kfd --device=/dev/dri --group-add video --shm-size 128g -it -v /tmp/huggingface:/hf_home lmsysorg/sglang:v0.5.0rc1-rocm630 /bin/bash
 # AMD just the last 2 GPUs
@@ -42,7 +42,7 @@ export HF_HOME=/hf_home
 export SGLANG_IS_IN_CI=true
 export HF_TOKEN=hf_xxx
 export OPENAI_API_KEY=sk-xxx
-export CUDA_VISIBLE_DEVICES=0
+export RTRITON_VISIBLE_DEVICES=0
 ```
 
 - Run it forever

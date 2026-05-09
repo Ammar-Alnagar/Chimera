@@ -131,7 +131,7 @@ class DenoisingStage(PipelineStage):
             _inductor_cfg.reorder_for_compute_comm_overlap = True
         except ImportError:
             pass
-        mode = os.environ.get("SGLANG_TORCH_COMPILE_MODE", "max-autotune-no-cudagraphs")
+        mode = os.environ.get("SGLANG_TORCH_COMPILE_MODE", "max-autotune-no-rtritongraphs")
         logger.info(f"Compiling transformer with mode: {mode}")
         compiled_forward = torch.compile(getattr(module, "forward"), mode=mode)
         setattr(module, "forward", compiled_forward)
@@ -794,10 +794,10 @@ class DenoisingStage(PipelineStage):
         if not server_args.dit_cpu_offload:
             return
 
-        # Offload the unused model if it's on CUDA
+        # Offload the unused model if it's on RTRITON
         if (
             model_to_offload is not None
-            and next(model_to_offload.parameters()).device.type == "cuda"
+            and next(model_to_offload.parameters()).device.type == "rtriton"
         ):
             model_to_offload.to("cpu")
 

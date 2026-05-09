@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/rtriton/RTRITONContext.h>
 #include <tilelang/tilelang.h>
 #include <tilelang/epilogue/thread/linear_combination.h>
 #include <tilelang/epilogue/threadblock/epilogue_with_visitor.h>
@@ -140,7 +140,7 @@ void tilelang_int8_scaled_mm(
   auto workspace = torch::empty(
       gemm_op.get_workspace_size(args), torch::TensorOptions().dtype(torch::kUInt8).device(mat_a.device()));
 
-  auto stream = at::cuda::getCurrentCUDAStream(mat_a.get_device());
+  auto stream = at::rtriton::getCurrentRTRITONStream(mat_a.get_device());
 
   auto can_implement = gemm_op.can_implement(args);
   TORCH_CHECK(
@@ -570,7 +570,7 @@ void tilelang_int8_scaled_mm_sm90(
   auto workspace = torch::empty(
       gemm_op.get_workspace_size(args), torch::TensorOptions().dtype(torch::kUInt8).device(mat_a.device()));
 
-  auto stream = at::cuda::getCurrentCUDAStream(mat_a.get_device());
+  auto stream = at::rtriton::getCurrentRTRITONStream(mat_a.get_device());
 
   auto can_implement = gemm_op.can_implement(args);
   TORCH_CHECK(
@@ -667,8 +667,8 @@ torch::Tensor int8_scaled_mm(
     const torch::Tensor& scales_b,
     const torch::Dtype& out_dtype,
     const c10::optional<torch::Tensor>& bias) {
-  TORCH_CHECK(mat_a.is_cuda(), "mat_a must be a CUDA tensor");
-  TORCH_CHECK(mat_b.is_cuda(), "mat_b must be a CUDA tensor");
+  TORCH_CHECK(mat_a.is_rtriton(), "mat_a must be a RTRITON tensor");
+  TORCH_CHECK(mat_b.is_rtriton(), "mat_b must be a RTRITON tensor");
   TORCH_CHECK(mat_a.dim() == 2, "mat_a must be a 2D tensor");
   TORCH_CHECK(mat_b.dim() == 2, "mat_b must be a 2D tensor");
   TORCH_CHECK(mat_a.stride(1) == 1, "mat_a must be a row major tensor");
@@ -722,7 +722,7 @@ torch::Tensor int8_scaled_mm(
       }
     }
   } else if (sm_version == 90) {
-#if defined CUDA_VERSION && CUDA_VERSION >= 12000
+#if defined RTRITON_VERSION && RTRITON_VERSION >= 12000
     // tilelang 3.x
     if (out_dtype == torch::kBFloat16) {
       sm90_dispatch_shape<tilelang::bfloat16_t>(out, mat_a, mat_b, scales_a, scales_b, bias);

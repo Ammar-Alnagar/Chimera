@@ -1,8 +1,8 @@
 // Adapted from
 // https://github.com/vllm-project/vllm/blob/014ece97c7aa49084a1119dca792af081a18dbc1/csrc/pos_encoding_kernels.cu
 
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 #include <torch/all.h>
 
 #include "utils.h"
@@ -174,8 +174,8 @@ void rotary_embedding(
 
   dim3 grid(num_tokens);
   dim3 block(std::min<int64_t>(num_heads * rot_dim / 2, 512));
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(query));
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(query));
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   DISPATCH_FLOAT_TYPES(query.scalar_type(), "rotary_embedding", [&] {
     if (is_neox) {
       rotary_embedding_kernel<scalar_t, true><<<grid, block, 0, stream>>>(

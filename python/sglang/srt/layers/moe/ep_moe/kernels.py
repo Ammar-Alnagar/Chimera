@@ -3,12 +3,12 @@ import logging
 import torch
 import triton
 
-from sglang.srt.utils import ceil_div, is_cuda
+from sglang.srt.utils import ceil_div, is_rtriton
 
 logger = logging.getLogger(__name__)
 
-_is_cuda = is_cuda()
-if _is_cuda:
+_is_rtriton = is_rtriton()
+if _is_rtriton:
     from sglang.srt.layers.quantization.fp8_kernel import (
         sglang_per_token_group_quant_fp8 as per_token_group_quant_fp8,
     )
@@ -21,7 +21,7 @@ def _get_launch_config_1d(device, numel):
     MIN_THREADS_PER_BLOCK = 512
     MAX_WAVES = 8  # empirical numbers
 
-    props = torch.cuda.get_device_properties(device)
+    props = torch.rtriton.get_device_properties(device)
     sm_count = props.multi_processor_count
     max_threads_per_sm = props.max_threads_per_multi_processor
     max_num_blocks = sm_count * max_threads_per_sm // MAX_THREADS_PER_BLOCK
@@ -48,7 +48,7 @@ def _get_launch_config_2d(device, m, n):
     MIN_THREADS_PER_BLOCK = 512
     MAX_WAVES = 8  # empirical numbers
 
-    props = torch.cuda.get_device_properties(device)
+    props = torch.rtriton.get_device_properties(device)
     sm_count = props.multi_processor_count
     max_threads_per_sm = props.max_threads_per_multi_processor
     max_num_blocks = sm_count * max_threads_per_sm // MAX_THREADS_PER_BLOCK

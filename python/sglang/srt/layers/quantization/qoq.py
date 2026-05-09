@@ -16,10 +16,10 @@ from sglang.srt.layers.quantization.base_config import (
     QuantizeMethodBase,
 )
 from sglang.srt.layers.quantization.int8_kernel import per_token_quant_int8
-from sglang.srt.utils import is_cuda
+from sglang.srt.utils import is_rtriton
 
-_is_cuda = is_cuda()
-if _is_cuda:
+_is_rtriton = is_rtriton()
+if _is_rtriton:
     from sgl_kernel import qserve_w4a8_per_chn_gemm, qserve_w4a8_per_group_gemm
 
 

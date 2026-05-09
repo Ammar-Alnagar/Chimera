@@ -37,7 +37,7 @@ class TestAscendTp4Bf16(CustomTestCase):
             "--attention-backend",
             "ascend",
             "--disable-radix-cache",
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             32,
             "--tp-size",
             4,

@@ -65,12 +65,12 @@ from sglang.srt.server_args import get_global_server_args
 from sglang.srt.utils import (
     add_prefix,
     get_current_device_stream_fast,
-    is_cuda,
+    is_rtriton,
     make_layers,
 )
 from sglang.utils import logger
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
 
 class NemotronHMLP(nn.Module):
@@ -190,7 +190,7 @@ class NemotronHMoE(nn.Module):
         self,
         hidden_states: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
-        if _is_cuda:
+        if _is_rtriton:
             return self._forward_core_shared_routed_overlap(hidden_states)
         else:
             return self._forward_core_normal(hidden_states)
@@ -691,8 +691,8 @@ class NemotronHForCausalLM(nn.Module):
         else:
             return hidden_states
 
-    def copy_inputs_before_cuda_graphs(self, input_buffers, **kwargs):
-        return self.mamba_cache.copy_inputs_before_cuda_graphs(input_buffers, **kwargs)
+    def copy_inputs_before_rtriton_graphs(self, input_buffers, **kwargs):
+        return self.mamba_cache.copy_inputs_before_rtriton_graphs(input_buffers, **kwargs)
 
     def get_seqlen_agnostic_capture_inputs(self, batch_size: int):
         return self.mamba_cache.get_seqlen_agnostic_capture_inputs(batch_size)

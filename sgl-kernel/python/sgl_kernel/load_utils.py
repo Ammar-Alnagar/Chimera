@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 def _get_compute_capability():
     """Get the compute capability of the current GPU."""
-    if not torch.cuda.is_available():
+    if not torch.rtriton.is_available():
         return None
 
     # Get the current device
-    device = torch.cuda.current_device()
-    properties = torch.cuda.get_device_properties(device)
+    device = torch.rtriton.current_device()
+    properties = torch.rtriton.get_device_properties(device)
 
     # Return as integer (major * 10 + minor)
     return properties.major * 10 + properties.minor
@@ -189,28 +189,28 @@ Error details from previous import attempts:
 
 
 # copy & modify from torch/utils/cpp_extension.py
-def _find_cuda_home():
-    """Find the CUDA install path."""
+def _find_rtriton_home():
+    """Find the RTRITON install path."""
     # Guess #1
-    cuda_home = os.environ.get("CUDA_HOME") or os.environ.get("CUDA_PATH")
-    if cuda_home is None:
+    rtriton_home = os.environ.get("RTRITON_HOME") or os.environ.get("RTRITON_PATH")
+    if rtriton_home is None:
         # Guess #2
         nvcc_path = shutil.which("nvcc")
         if nvcc_path is not None:
-            cuda_home = os.path.dirname(os.path.dirname(nvcc_path))
+            rtriton_home = os.path.dirname(os.path.dirname(nvcc_path))
         else:
             # Guess #3
-            cuda_home = "/usr/local/cuda"
-    return cuda_home
+            rtriton_home = "/usr/local/rtriton"
+    return rtriton_home
 
 
-def _preload_cuda_library():
-    """Preload the CUDA runtime library to help avoid 'libcudart.so.12 not found' issues."""
-    cuda_home = Path(_find_cuda_home())
+def _preload_rtriton_library():
+    """Preload the RTRITON runtime library to help avoid 'librtritonrt.so.12 not found' issues."""
+    rtriton_home = Path(_find_rtriton_home())
 
     candidate_dirs = [
-        cuda_home / "lib",
-        cuda_home / "lib64",
+        rtriton_home / "lib",
+        rtriton_home / "lib64",
         Path("/usr/lib/x86_64-linux-gnu"),
         Path("/usr/lib/aarch64-linux-gnu"),
         Path("/usr/lib64"),
@@ -218,15 +218,15 @@ def _preload_cuda_library():
     ]
 
     for base in candidate_dirs:
-        candidate = base / "libcudart.so.12"
+        candidate = base / "librtritonrt.so.12"
         if candidate.exists():
             try:
-                cuda_runtime_lib = candidate.resolve()
-                ctypes.CDLL(str(cuda_runtime_lib), mode=ctypes.RTLD_GLOBAL)
-                logger.debug(f"Preloaded CUDA runtime under {cuda_runtime_lib}")
+                rtriton_runtime_lib = candidate.resolve()
+                ctypes.CDLL(str(rtriton_runtime_lib), mode=ctypes.RTLD_GLOBAL)
+                logger.debug(f"Preloaded RTRITON runtime under {rtriton_runtime_lib}")
                 return
             except Exception as e:
                 logger.debug(f"Failed to load {candidate}: {e}")
                 continue
 
-    logger.debug("[sgl_kernel] Could not preload CUDA runtime library")
+    logger.debug("[sgl_kernel] Could not preload RTRITON runtime library")

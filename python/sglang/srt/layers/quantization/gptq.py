@@ -49,7 +49,7 @@ from sglang.srt.layers.quantization.utils import (
     replace_parameter,
     unpack_cols,
 )
-from sglang.srt.utils import is_cuda
+from sglang.srt.utils import is_rtriton
 from sglang.srt.utils.patch_torch import register_fake_if_exists
 
 if TYPE_CHECKING:
@@ -58,9 +58,9 @@ if TYPE_CHECKING:
         StandardDispatchOutput,
     )
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import gptq_gemm, gptq_marlin_repack, gptq_shuffle
 
 
@@ -379,7 +379,7 @@ class GPTQMarlinConfig(QuantizationConfig):
         sym = quant_config.get("sym")
         desc_act = quant_config.get("desc_act")
 
-        if not _is_cuda:
+        if not _is_rtriton:
             return False
 
         if quant_method != "gptq":
@@ -1084,7 +1084,7 @@ class GPTQMarlinMoEMethod(FusedMoEMethodBase):
 
 
 # Register fake implementations for torch.compile support
-if _is_cuda:
+if _is_rtriton:
 
     @register_fake_if_exists("sgl_kernel::gptq_gemm")
     def _(a, b_q_weight, b_gptq_qzeros, b_gptq_scales, b_g_idx, use_shuffle, bit):

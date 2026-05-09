@@ -26,7 +26,7 @@ if _is_npu:
 
     patches = [
         ["profiler.profile", torch_npu.profiler.profile],
-        ["profiler.ProfilerActivity.CUDA", torch_npu.profiler.ProfilerActivity.NPU],
+        ["profiler.ProfilerActivity.RTRITON", torch_npu.profiler.ProfilerActivity.NPU],
         ["profiler.ProfilerActivity.CPU", torch_npu.profiler.ProfilerActivity.CPU],
     ]
     torch_npu._apply_patches(patches)
@@ -152,7 +152,7 @@ class SchedulerProfilerMixin:
 
         activity_map = {
             "CPU": torch.profiler.ProfilerActivity.CPU,
-            "GPU": torch.profiler.ProfilerActivity.CUDA,
+            "GPU": torch.profiler.ProfilerActivity.RTRITON,
         }
         torchprof_activities = [
             activity_map[a] for a in activities if a in activity_map
@@ -204,12 +204,12 @@ class SchedulerProfilerMixin:
             self.profile_in_progress = True
 
         if "MEM" in activities:
-            torch.cuda.memory._record_memory_history(max_entries=100000)
+            torch.rtriton.memory._record_memory_history(max_entries=100000)
             self.profile_in_progress = True
 
-        if "CUDA_PROFILER" in activities:
+        if "RTRITON_PROFILER" in activities:
             if self.gpu_id == get_global_server_args().base_gpu_id:
-                torch.cuda.cudart().cudaProfilerStart()
+                torch.rtriton.rtritonrt().rtritonProfilerStart()
             self.profile_in_progress = True
 
         return ProfileReqOutput(success=True, message="Succeeded")
@@ -314,12 +314,12 @@ class SchedulerProfilerMixin:
                 + stage_suffix
                 + ".pickle",
             )
-            torch.cuda.memory._dump_snapshot(memory_profile_path)
-            torch.cuda.memory._record_memory_history(enabled=None)
+            torch.rtriton.memory._dump_snapshot(memory_profile_path)
+            torch.rtriton.memory._record_memory_history(enabled=None)
 
-        if "CUDA_PROFILER" in self.profiler_activities:
+        if "RTRITON_PROFILER" in self.profiler_activities:
             if self.gpu_id == get_global_server_args().base_gpu_id:
-                torch.cuda.cudart().cudaProfilerStop()
+                torch.rtriton.rtritonrt().rtritonProfilerStop()
 
         merge_message = self._merge_profile_traces()
 

@@ -99,7 +99,7 @@ def analyse(args):
     dataset = get_dataset()
     output_dir = Path(args.output_dir)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "rtriton" if torch.rtriton.is_available() else "cpu"
     scorer = BERTScorer(lang="en", device=device)
 
     hyps: List[str] = []

@@ -60,7 +60,7 @@ TORCH_LIBRARY_FRAGMENT(sgl_kernel, m) {
       "    Tensor?  sinks"
       ") -> (Tensor, Tensor, Tensor, Tensor)");  // NEW return type: tuple of 4 tensors
 
-  m.impl("fwd", torch::kCUDA, make_pytorch_shim(&mha_fwd));
+  m.impl("fwd", torch::kRTRITON, make_pytorch_shim(&mha_fwd));
 }
 
 REGISTER_EXTENSION(flash_ops)

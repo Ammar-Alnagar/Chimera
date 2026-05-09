@@ -30,7 +30,7 @@ def rmsnorm(
         The output tensor, if specified, the kernel will update this tensor inplace.
     enable_pdl: Optional[bool]
         Whether to enable `programmatic dependent launch
-        <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#programmatic-dependent-launch-and-synchronization>`_
+        <https://docs.nvidia.com/rtriton/rtriton-c-programming-guide/index.html#programmatic-dependent-launch-and-synchronization>`_
         If None, will be automatically enabled on Hopper architecture.
 
     Returns
@@ -73,7 +73,7 @@ def fused_add_rmsnorm(
         Epsilon for numerical stability.
     enable_pdl: Optional[bool]
         Whether to enable `programmatic dependent launch
-        <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#programmatic-dependent-launch-and-synchronization>`_
+        <https://docs.nvidia.com/rtriton/rtriton-c-programming-guide/index.html#programmatic-dependent-launch-and-synchronization>`_
         If None, will be automatically enabled on Hopper architecture.
     """
     if enable_pdl is None:
@@ -106,7 +106,7 @@ def gemma_rmsnorm(
         The output tensor, if specified, the kernel will update this tensor inplace.
     enable_pdl: Optional[bool]
         Whether to enable `programmatic dependent launch
-        <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#programmatic-dependent-launch-and-synchronization>`_
+        <https://docs.nvidia.com/rtriton/rtriton-c-programming-guide/index.html#programmatic-dependent-launch-and-synchronization>`_
         If None, will be automatically enabled on Hopper architecture.
 
     Returns
@@ -149,7 +149,7 @@ def gemma_fused_add_rmsnorm(
         Epsilon for numerical stability.
     enable_pdl: Optional[bool]
         Whether to enable `programmatic dependent launch
-        <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#programmatic-dependent-launch-and-synchronization>`_
+        <https://docs.nvidia.com/rtriton/rtriton-c-programming-guide/index.html#programmatic-dependent-launch-and-synchronization>`_
         If None, will be automatically enabled on Hopper architecture.
     """
     if enable_pdl is None:
@@ -220,7 +220,7 @@ if torch.version.hip is not None:
         """
         Quick-GELU:  y = x * sigmoid(1.702 * x)
 
-        The CUDA/HIP kernel uses 128-bit (16-byte) vector loads & stores,
+        The RTRITON/HIP kernel uses 128-bit (16-byte) vector loads & stores,
         so the last-dimension byte length must be a multiple of 16 bytes.
         """
         if input.shape[-1] * input.dtype.itemsize % 16 != 0:

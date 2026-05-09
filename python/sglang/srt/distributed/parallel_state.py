@@ -46,7 +46,7 @@ from sglang.srt.utils import (
     get_int_env_var,
     get_local_ip_auto,
     is_cpu,
-    is_cuda_alike,
+    is_rtriton_alike,
     is_hip,
     is_npu,
     is_shm_available,
@@ -89,7 +89,7 @@ def _split_tensor_dict(
         if isinstance(value, torch.Tensor):
             # Note: we cannot use `value.device` here,
             # because it contains not only the device type but also the device
-            # index (e.g. "cuda:0"). We only need the device type.
+            # index (e.g. "rtriton:0"). We only need the device type.
             # receiving side will set the device index.
             device = value.device.type
             metadata_list.append(
@@ -174,7 +174,7 @@ class GroupCoordinator:
     GroupCoordinator takes charge of all the communication operations among
         the processes in the group. It can route the communication to
         a specific implementation (e.g. switch allreduce implementation
-        based on the tensor size and cuda graph mode).
+        based on the tensor size and rtriton graph mode).
     """
 
     # available attributes:
@@ -259,11 +259,11 @@ class GroupCoordinator:
         assert self.cpu_group is not None
         assert self.device_group is not None
 
-        if is_cuda_alike():
+        if is_rtriton_alike():
             device_id = (
                 0 if envs.SGLANG_ONE_VISIBLE_DEVICE_PER_PROCESS.get() else local_rank
             )
-            self.device = torch.device(f"cuda:{device_id}")
+            self.device = torch.device(f"rtriton:{device_id}")
         elif _is_npu:
             self.device = torch.device(f"npu:{local_rank}")
         else:
@@ -439,7 +439,7 @@ class GroupCoordinator:
     def graph_capture(
         self,
         graph_capture_context: Optional[GraphCaptureContext] = None,
-        stream: Optional[torch.cuda.Stream] = None,
+        stream: Optional[torch.rtriton.Stream] = None,
     ):
         if graph_capture_context is None:
             if stream is None:
@@ -1410,15 +1410,15 @@ get_pipeline_model_parallel_group = get_pp_group
 
 
 @contextmanager
-def graph_capture(stream: Optional[torch.cuda.Stream] = None):
+def graph_capture(stream: Optional[torch.rtriton.Stream] = None):
     """
     `graph_capture` is a context manager which should surround the code that
-    is capturing the CUDA graph. Its main purpose is to ensure that the
+    is capturing the RTRITON graph. Its main purpose is to ensure that the
     some operations will be run after the graph is captured, before the graph
     is replayed. It returns a `GraphCaptureContext` object which contains the
     necessary data for the graph capture. Currently, it only contains the
     stream that the graph capture is running on. This stream is set to the
-    current CUDA stream when the context manager is entered and reset to the
+    current RTRITON stream when the context manager is entered and reset to the
     default stream when the context manager is exited. This is to ensure that
     the graph capture is running on a separate stream from the default stream,
     in order to explicitly distinguish the kernels to capture
@@ -1868,8 +1868,8 @@ def cleanup_dist_env_and_memory(shutdown_ray: bool = False):
         ray.shutdown()
     gc.collect()
     if not _is_cpu:
-        if hasattr(torch, "cuda") and torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        if hasattr(torch, "rtriton") and torch.rtriton.is_available():
+            torch.rtriton.empty_cache()
             if hasattr(torch._C, "_host_emptyCache"):
                 torch._C._host_emptyCache()
             else:

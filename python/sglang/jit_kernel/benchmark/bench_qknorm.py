@@ -15,7 +15,7 @@ IS_CI = (
     or os.getenv("GITHUB_ACTIONS", "false").lower() == "true"
 )
 
-alt_stream = torch.cuda.Stream()
+alt_stream = torch.rtriton.Stream()
 
 
 def sglang_aot_qknorm(
@@ -32,7 +32,7 @@ def sglang_aot_qknorm(
     current_stream = get_current_device_stream_fast()
     alt_stream.wait_stream(current_stream)
     rmsnorm(q, q_weight, out=q)
-    with torch.cuda.stream(alt_stream):
+    with torch.rtriton.stream(alt_stream):
         rmsnorm(k, k_weight, out=k)
     current_stream.wait_stream(alt_stream)
 
@@ -76,7 +76,7 @@ def torch_impl_qknorm(
 
 HEAD_DIM = 128
 DTYPE = torch.bfloat16
-DEVICE = "cuda"
+DEVICE = "rtriton"
 
 if IS_CI:
     BS_RANGE = [16]
@@ -123,7 +123,7 @@ def benchmark(
     }
     fn = lambda: FN_MAP[provider](q, k, q_weight, k_weight)
     quantiles = [0.5, 0.2, 0.8]
-    ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(fn, quantiles=quantiles)  # type: ignore
+    ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(fn, quantiles=quantiles)  # type: ignore
     return 1000 * ms, 1000 * max_ms, 1000 * min_ms
 
 

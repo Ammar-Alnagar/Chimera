@@ -43,11 +43,11 @@ from sglang.srt.utils.common import (
     get_device_name,
     get_device_sm,
     is_blackwell_supported,
-    is_cuda,
+    is_rtriton,
     is_fa3_default_architecture,
     is_flashinfer_available,
     is_hip,
-    is_hopper_with_cuda_12_3,
+    is_hopper_with_rtriton_12_3,
     is_no_spec_infer_or_topk_one,
     is_npu,
     is_port_available,
@@ -518,12 +518,12 @@ class ServerArgs:
 
     # Optimization/debug options
     disable_radix_cache: bool = False
-    cuda_graph_max_bs: Optional[int] = None
-    cuda_graph_bs: Optional[List[int]] = None
-    disable_cuda_graph: bool = False
-    disable_cuda_graph_padding: bool = False
-    enable_profile_cuda_graph: bool = False
-    enable_cudagraph_gc: bool = False
+    rtriton_graph_max_bs: Optional[int] = None
+    rtriton_graph_bs: Optional[List[int]] = None
+    disable_rtriton_graph: bool = False
+    disable_rtriton_graph_padding: bool = False
+    enable_profile_rtriton_graph: bool = False
+    enable_rtritongraph_gc: bool = False
     enable_layerwise_nvtx_marker: bool = False
     enable_nccl_nvls: bool = False
     enable_symm_mem: bool = False
@@ -542,12 +542,12 @@ class ServerArgs:
     enable_single_batch_overlap: bool = False
     tbo_token_distribution_threshold: float = 0.48
     enable_torch_compile: bool = False
-    enable_piecewise_cuda_graph: bool = False
+    enable_piecewise_rtriton_graph: bool = False
     enable_torch_compile_debug_mode: bool = False
     torch_compile_max_bs: int = 32
-    piecewise_cuda_graph_max_tokens: Optional[int] = None
-    piecewise_cuda_graph_tokens: Optional[List[int]] = None
-    piecewise_cuda_graph_compiler: str = "eager"
+    piecewise_rtriton_graph_max_tokens: Optional[int] = None
+    piecewise_rtriton_graph_tokens: Optional[List[int]] = None
+    piecewise_rtriton_graph_compiler: str = "eager"
     torchao_config: str = ""
     enable_nan_detection: bool = False
     enable_p2p_check: bool = False
@@ -668,7 +668,7 @@ class ServerArgs:
         # Get GPU memory capacity, which is a common dependency for several configuration steps.
         gpu_mem = get_device_memory_capacity(self.device)
 
-        # Handle memory-related, chunked prefill, and CUDA graph batch size configurations.
+        # Handle memory-related, chunked prefill, and RTRITON graph batch size configurations.
         self._handle_gpu_memory_settings(gpu_mem)
 
         # Apply model-specific adjustments.
@@ -823,33 +823,33 @@ class ServerArgs:
 
             set_default_server_args(self)
 
-            if self.piecewise_cuda_graph_compiler != "eager":
+            if self.piecewise_rtriton_graph_compiler != "eager":
                 logger.warning(
                     "At this moment Ascend platform only support prefill graph compilation with "
-                    "piecewise_cuda_graph_compiler='eager', change piecewise_cuda_graph_compiler to 'eager'."
+                    "piecewise_rtriton_graph_compiler='eager', change piecewise_rtriton_graph_compiler to 'eager'."
                 )
-                self.piecewise_cuda_graph_compiler = "eager"
+                self.piecewise_rtriton_graph_compiler = "eager"
 
     def _handle_gpu_memory_settings(self, gpu_mem):
         """
         Configure GPU memory-dependent settings including
-        chunked_prefill_size, cuda_graph_max_bs, and mem_fraction_static.
+        chunked_prefill_size, rtriton_graph_max_bs, and mem_fraction_static.
 
         Here are our heuristics:
-        - Set chunked_prefill_size and cuda_graph_max_bs based on the GPU memory capacity.
+        - Set chunked_prefill_size and rtriton_graph_max_bs based on the GPU memory capacity.
           This is because GPUs with more memory are generally more powerful, we need to use a larger
-          chunked_prefill_size and a larger cuda_graph_max_bs to fully utilize the GPU.
-        - Then set mem_fraction_static based on chunked_prefill_size and cuda_graph_max_bs.
+          chunked_prefill_size and a larger rtriton_graph_max_bs to fully utilize the GPU.
+        - Then set mem_fraction_static based on chunked_prefill_size and rtriton_graph_max_bs.
 
-          GPU memory capacity = model weights + KV cache pool + activations + cuda graph buffers
+          GPU memory capacity = model weights + KV cache pool + activations + rtriton graph buffers
 
           The argument mem_fraction_static is defined as (model weights + KV cache pool) / GPU memory capacity,
-          or equivalently, mem_fraction_static = (GPU memory capacity - activations - cuda graph buffers) / GPU memory capacity.
+          or equivalently, mem_fraction_static = (GPU memory capacity - activations - rtriton graph buffers) / GPU memory capacity.
 
-          In order to compute mem_fraction_static, we need to estimate the size of activations and cuda graph buffers.
+          In order to compute mem_fraction_static, we need to estimate the size of activations and rtriton graph buffers.
           The activation memory is proportional to the chunked_prefill_size.
-          The cuda graph memory is proportional to the cuda_graph_max_bs.
-          We use reserved_mem = chunked_prefill_size * 1.5 + cuda_graph_max_bs * 2 to estimate the size of activations and cuda graph buffers in GB.
+          The rtriton graph memory is proportional to the rtriton_graph_max_bs.
+          We use reserved_mem = chunked_prefill_size * 1.5 + rtriton_graph_max_bs * 2 to estimate the size of activations and rtriton graph buffers in GB.
           and set mem_fraction_static = (GPU memory capacity - reserved_mem) / GPU memory capacity.
 
           The coefficient 1.5 is a heuristic value, in the future, we can do better estimation by looking at the model types, hidden sizes or even do a dummy run.
@@ -857,83 +857,83 @@ class ServerArgs:
         if gpu_mem is not None:
             if gpu_mem < 20 * 1024:
                 # T4, 4080
-                # (chunked_prefill_size 2k, cuda_graph_max_bs 8)
+                # (chunked_prefill_size 2k, rtriton_graph_max_bs 8)
                 if self.chunked_prefill_size is None:
                     self.chunked_prefill_size = 2048
-                if self.cuda_graph_max_bs is None:
-                    self.cuda_graph_max_bs = 8
+                if self.rtriton_graph_max_bs is None:
+                    self.rtriton_graph_max_bs = 8
             elif gpu_mem < 35 * 1024:
                 # A10, 4090, 5090
-                # (chunked_prefill_size 2k, cuda_graph_max_bs 24 if tp < 4 else 80)
+                # (chunked_prefill_size 2k, rtriton_graph_max_bs 24 if tp < 4 else 80)
                 if self.chunked_prefill_size is None:
                     self.chunked_prefill_size = 2048
-                if self.cuda_graph_max_bs is None:
-                    # Based on detailed statistics, when serving TP1/TP2 models on lower-end GPUs with HBM < 35GB, you can either disable cuda graph or set `cuda_graph_max_bs` to a very small value to reduce the memory overhead of creating cuda graphs, with almost no impact on performance.
-                    # However, when serving models with TP4 or TP8, we need to enable cuda graph to maintain high performance. In this case, we can set `cuda_graph_max_bs` to 80 (half of the default value 160) to reduce the memory overhead of creating cuda graphs. Looking at the logs
-                    # from TP4 serving of qwen2-72b, a value of 80 is sufficient and can reduce the memory overhead of creating cuda graphs on lower-end GPUs compared to the original 160, avoiding OOM issues.
+                if self.rtriton_graph_max_bs is None:
+                    # Based on detailed statistics, when serving TP1/TP2 models on lower-end GPUs with HBM < 35GB, you can either disable rtriton graph or set `rtriton_graph_max_bs` to a very small value to reduce the memory overhead of creating rtriton graphs, with almost no impact on performance.
+                    # However, when serving models with TP4 or TP8, we need to enable rtriton graph to maintain high performance. In this case, we can set `rtriton_graph_max_bs` to 80 (half of the default value 160) to reduce the memory overhead of creating rtriton graphs. Looking at the logs
+                    # from TP4 serving of qwen2-72b, a value of 80 is sufficient and can reduce the memory overhead of creating rtriton graphs on lower-end GPUs compared to the original 160, avoiding OOM issues.
                     if self.tp_size < 4:
-                        self.cuda_graph_max_bs = 24
+                        self.rtriton_graph_max_bs = 24
                     else:
-                        self.cuda_graph_max_bs = 80
+                        self.rtriton_graph_max_bs = 80
             elif gpu_mem < 60 * 1024:
                 # A100 (40GB), L40,
-                # (chunked_prefill_size 4k, cuda_graph_max_bs 32 if tp < 4 else 160)
+                # (chunked_prefill_size 4k, rtriton_graph_max_bs 32 if tp < 4 else 160)
                 if self.chunked_prefill_size is None:
                     self.chunked_prefill_size = 4096
-                if self.cuda_graph_max_bs is None:
+                if self.rtriton_graph_max_bs is None:
                     if self.tp_size < 4:
-                        self.cuda_graph_max_bs = 32
+                        self.rtriton_graph_max_bs = 32
                     else:
-                        self.cuda_graph_max_bs = 160
+                        self.rtriton_graph_max_bs = 160
             elif gpu_mem < 90 * 1024:
                 # H100, A100
-                # (chunked_prefill_size 8k, cuda_graph_max_bs 256 if tp < 4 else 512)
+                # (chunked_prefill_size 8k, rtriton_graph_max_bs 256 if tp < 4 else 512)
                 if self.chunked_prefill_size is None:
                     self.chunked_prefill_size = 8192
-                if self.cuda_graph_max_bs is None:
+                if self.rtriton_graph_max_bs is None:
                     if self.tp_size < 4:
-                        self.cuda_graph_max_bs = 256
+                        self.rtriton_graph_max_bs = 256
                     else:
-                        self.cuda_graph_max_bs = 512
+                        self.rtriton_graph_max_bs = 512
             elif gpu_mem < 160 * 1024:
                 # H20, H200
-                # (chunked_prefill_size 8k, cuda_graph_max_bs 256 if tp < 4 else 512)
+                # (chunked_prefill_size 8k, rtriton_graph_max_bs 256 if tp < 4 else 512)
                 if self.chunked_prefill_size is None:
                     self.chunked_prefill_size = 8192
-                if self.cuda_graph_max_bs is None:
+                if self.rtriton_graph_max_bs is None:
                     if self.tp_size < 4:
-                        self.cuda_graph_max_bs = 256
+                        self.rtriton_graph_max_bs = 256
                     else:
-                        self.cuda_graph_max_bs = 512
+                        self.rtriton_graph_max_bs = 512
             else:
                 # B200, MI300
-                # (chunked_prefill_size 16k, cuda_graph_max_bs 512)
+                # (chunked_prefill_size 16k, rtriton_graph_max_bs 512)
                 if self.chunked_prefill_size is None:
                     self.chunked_prefill_size = 16384
-                if self.cuda_graph_max_bs is None:
-                    self.cuda_graph_max_bs = 512
+                if self.rtriton_graph_max_bs is None:
+                    self.rtriton_graph_max_bs = 512
         else:
             # Fallback defaults when gpu_mem is None
             if self.chunked_prefill_size is None:
                 self.chunked_prefill_size = 4096
-            if self.cuda_graph_max_bs is None:
-                self.cuda_graph_max_bs = 160
+            if self.rtriton_graph_max_bs is None:
+                self.rtriton_graph_max_bs = 160
 
-        # Set cuda graph batch sizes
-        if self.cuda_graph_bs is None:
-            self.cuda_graph_bs = self._generate_cuda_graph_batch_sizes()
+        # Set rtriton graph batch sizes
+        if self.rtriton_graph_bs is None:
+            self.rtriton_graph_bs = self._generate_rtriton_graph_batch_sizes()
         else:
-            self.cuda_graph_max_bs = max(self.cuda_graph_bs)
+            self.rtriton_graph_max_bs = max(self.rtriton_graph_bs)
 
-        if self.piecewise_cuda_graph_max_tokens is None:
-            # Capture piecewise cuda graph tokens up to the chunked prefill size. Two benefits:
-            # 1. cuda graph acceleration for all prefill lengths.
+        if self.piecewise_rtriton_graph_max_tokens is None:
+            # Capture piecewise rtriton graph tokens up to the chunked prefill size. Two benefits:
+            # 1. rtriton graph acceleration for all prefill lengths.
             # 2. do not need more temporary memory for activations. Less fragmentation.
-            self.piecewise_cuda_graph_max_tokens = self.chunked_prefill_size
+            self.piecewise_rtriton_graph_max_tokens = self.chunked_prefill_size
 
-        if self.piecewise_cuda_graph_tokens is None:
-            self.piecewise_cuda_graph_tokens = (
-                self._generate_piecewise_cuda_graph_tokens()
+        if self.piecewise_rtriton_graph_tokens is None:
+            self.piecewise_rtriton_graph_tokens = (
+                self._generate_piecewise_rtriton_graph_tokens()
             )
 
         if self.mem_fraction_static is None:
@@ -944,35 +944,35 @@ class ServerArgs:
                 reserved_mem += max(self.chunked_prefill_size, 2048) * 1.5
             else:
                 reserved_mem += max(self.max_prefill_tokens, 2048) * 1.5
-            # For cuda graphs
-            reserved_mem += self.cuda_graph_max_bs * 2
+            # For rtriton graphs
+            reserved_mem += self.rtriton_graph_max_bs * 2
             # Some adjustments for large parallel size
             reserved_mem += self.tp_size * self.pp_size / 8 * 1024
 
             if self.enable_dp_attention:
                 # DP attention needs more padding for some operations
-                reserved_mem += self.cuda_graph_max_bs * self.dp_size * 3
+                reserved_mem += self.rtriton_graph_max_bs * self.dp_size * 3
 
-                # DP attention uses much more memory for large cuda graph max bs,
+                # DP attention uses much more memory for large rtriton graph max bs,
                 # likely due to some inefficiencies in torch allocator or our implementation.
                 # So we need to reserve more memory.
-                if self.cuda_graph_max_bs > 300:
-                    reserved_mem += self.cuda_graph_max_bs * self.dp_size * 1.5
+                if self.rtriton_graph_max_bs > 300:
+                    reserved_mem += self.rtriton_graph_max_bs * self.dp_size * 1.5
 
             if gpu_mem is not None and gpu_mem > 60 * 1024:
                 reserved_mem = max(reserved_mem, 10 * 1024)
 
             if self.speculative_algorithm is not None:
                 if self.speculative_algorithm == "STANDALONE":
-                    # standalonedraft model and cuda graphs
+                    # standalonedraft model and rtriton graphs
                     reserved_mem += 6 * 1024
                 elif self.speculative_algorithm != "NGRAM":
-                    # eagle draft models and cuda graphs
+                    # eagle draft models and rtriton graphs
                     reserved_mem += 2 * 1024
 
-            # For piecewise cuda graphs
-            if self.enable_piecewise_cuda_graph:
-                reserved_mem += self.piecewise_cuda_graph_max_tokens // 8
+            # For piecewise rtriton graphs
+            if self.enable_piecewise_rtriton_graph:
+                reserved_mem += self.piecewise_rtriton_graph_max_tokens // 8
 
             self.mem_fraction_static = (
                 round((gpu_mem - reserved_mem) / gpu_mem, 3)
@@ -986,21 +986,21 @@ class ServerArgs:
             if model_config.is_multimodal:
                 self.adjust_mem_fraction_for_vlm(model_config)
 
-    def _generate_cuda_graph_batch_sizes(self):
+    def _generate_rtriton_graph_batch_sizes(self):
         """
-        Generate the list of batch sizes for CUDA graph capture based on cuda_graph_max_bs.
-        This integrates the logic from cuda_graph_runner.py.
+        Generate the list of batch sizes for RTRITON graph capture based on rtriton_graph_max_bs.
+        This integrates the logic from rtriton_graph_runner.py.
         """
-        # Handle disable_cuda_graph_padding as the first condition for both spec and non-spec
-        if self.disable_cuda_graph_padding:
-            capture_bs = list(range(1, self.cuda_graph_max_bs + 1))
+        # Handle disable_rtriton_graph_padding as the first condition for both spec and non-spec
+        if self.disable_rtriton_graph_padding:
+            capture_bs = list(range(1, self.rtriton_graph_max_bs + 1))
         elif self.speculative_algorithm is None:
             # Normal case:
             capture_bs = (
                 [1, 2, 4, 8, 12]
                 + list(range(16, 257, 8))
                 + list(range(272, 512, 16))
-                + list(range(512, self.cuda_graph_max_bs + 1, 32))
+                + list(range(512, self.rtriton_graph_max_bs + 1, 32))
             )
         else:
             # Spec decoding case: less padding for smaller batch sizes
@@ -1009,28 +1009,28 @@ class ServerArgs:
                 + list(range(10, 33, 2))
                 + list(range(40, 65, 4))
                 + list(range(72, 257, 8))
-                + list(range(272, self.cuda_graph_max_bs + 1, 16))
+                + list(range(272, self.rtriton_graph_max_bs + 1, 16))
             )
 
-        capture_bs = [bs for bs in capture_bs if bs <= self.cuda_graph_max_bs]
+        capture_bs = [bs for bs in capture_bs if bs <= self.rtriton_graph_max_bs]
 
         return capture_bs
 
-    def _generate_piecewise_cuda_graph_tokens(self):
+    def _generate_piecewise_rtriton_graph_tokens(self):
         """
-        Generate the list of batch sizes for piecewise CUDA graph capture
-        based on piecewise_cuda_graph_max_tokens.
+        Generate the list of batch sizes for piecewise RTRITON graph capture
+        based on piecewise_rtriton_graph_max_tokens.
         """
         capture_sizes = (
             list(range(4, 33, 4))
             + list(range(48, 257, 16))
             + list(range(288, 513, 32))
             + list(range(640, 4096 + 1, 128))
-            + list(range(4352, self.piecewise_cuda_graph_max_tokens + 1, 256))
+            + list(range(4352, self.piecewise_rtriton_graph_max_tokens + 1, 256))
         )
 
         capture_sizes = [
-            s for s in capture_sizes if s <= self.piecewise_cuda_graph_max_tokens
+            s for s in capture_sizes if s <= self.piecewise_rtriton_graph_max_tokens
         ]
 
         return capture_sizes
@@ -1061,7 +1061,7 @@ class ServerArgs:
                     self.attention_backend = "nsa"
                     logger.info("Use nsa attention backend for DeepSeek NSA.")
 
-                if not is_npu():  # CUDA GPU
+                if not is_npu():  # RTRITON GPU
                     self.enable_dp_attention = True
                     logger.warning("DP attention is enabled for DeepSeek NSA.")
                     if self.enable_nsa_prefill_context_parallel:
@@ -1091,7 +1091,7 @@ class ServerArgs:
                     # For Hopper, we support both bf16 and fp8 kv cache; for Blackwell, we support fp8 only currently
                     import torch
 
-                    major, _ = torch.cuda.get_device_capability()
+                    major, _ = torch.rtriton.get_device_capability()
                     if self.kv_cache_dtype == "auto":
                         self.kv_cache_dtype = "fp8_e4m3" if major >= 10 else "bfloat16"
                         logger.warning(
@@ -1130,8 +1130,8 @@ class ServerArgs:
 
             else:
                 # DeepSeek V3/R1/V3.1
-                if self.enable_piecewise_cuda_graph:
-                    logger.info("Piecewise CUDA graph is enabled, use MLA for prefill.")
+                if self.enable_piecewise_rtriton_graph:
+                    logger.info("Piecewise RTRITON graph is enabled, use MLA for prefill.")
 
                 if is_sm100_supported():
                     if (
@@ -1225,10 +1225,10 @@ class ServerArgs:
                 self.dtype = "bfloat16"
 
             if self.moe_runner_backend == "auto":
-                if self.enable_piecewise_cuda_graph:
+                if self.enable_piecewise_rtriton_graph:
                     self.moe_runner_backend = "auto"
                     logger.warning(
-                        "Enable piecewise CUDA graph, enabling auto MOE kernel."
+                        "Enable piecewise RTRITON graph, enabling auto MOE kernel."
                     )
                 elif is_blackwell_supported() and is_mxfp4_quant_format:
                     self.moe_runner_backend = "flashinfer_mxfp4"
@@ -1318,9 +1318,9 @@ class ServerArgs:
             self.disable_hybrid_swa_memory = True
 
             if self.attention_backend is None:
-                if is_cuda() and is_sm100_supported():
+                if is_rtriton() and is_sm100_supported():
                     self.attention_backend = "trtllm_mha"
-                elif is_cuda() and get_device_sm() >= 80:
+                elif is_rtriton() and get_device_sm() >= 80:
                     self.attention_backend = "fa3"
                 else:
                     self.attention_backend = "triton"
@@ -1445,8 +1445,8 @@ class ServerArgs:
             # Mamba radix cache v2
             if self.enable_mamba_extra_buffer():
                 assert (
-                    is_cuda()
-                ), "Mamba extra_buffer is only supported on CUDA devices with FLA backend"
+                    is_rtriton()
+                ), "Mamba extra_buffer is only supported on RTRITON devices with FLA backend"
                 if self.speculative_num_draft_tokens is not None:
                     assert (
                         self.mamba_track_interval >= self.speculative_num_draft_tokens
@@ -1560,7 +1560,7 @@ class ServerArgs:
             if not use_mla_backend:
                 # MHA architecture
                 if (
-                    is_hopper_with_cuda_12_3()
+                    is_hopper_with_rtriton_12_3()
                     and is_no_spec_infer_or_topk_one(self)
                     and is_fa3_default_architecture(self.model_config.hf_config)
                 ):
@@ -1582,7 +1582,7 @@ class ServerArgs:
                     )
             else:
                 # MLA architecture
-                if is_hopper_with_cuda_12_3():
+                if is_hopper_with_rtriton_12_3():
                     self.attention_backend = "fa3"
                 elif is_sm100_supported():
                     self.attention_backend = "flashinfer"
@@ -1603,15 +1603,15 @@ class ServerArgs:
         # Torch native and flex attention backends
         if self.attention_backend == "torch_native":
             logger.warning(
-                "Cuda graph is disabled because of using torch native attention backend"
+                "Rtriton graph is disabled because of using torch native attention backend"
             )
-            self.disable_cuda_graph = True
+            self.disable_rtriton_graph = True
 
         if self.attention_backend == "flex_attention":
             logger.warning(
-                "Cuda graph is disabled because of using torch Flex Attention backend"
+                "Rtriton graph is disabled because of using torch Flex Attention backend"
             )
-            self.disable_cuda_graph = True
+            self.disable_rtriton_graph = True
             assert (
                 self.speculative_algorithm is None
             ), "Speculative decoding is currently not supported with Flex Attention backend"
@@ -1752,7 +1752,7 @@ class ServerArgs:
             self.get_attention_backends()
         )
 
-        if is_cuda():
+        if is_rtriton():
             if (
                 self.prefill_attention_backend_str != self.decode_attention_backend_str
                 and self.prefill_attention_backend_str != "fa4"
@@ -1818,7 +1818,7 @@ class ServerArgs:
                             f"{KV4_ATTENTION_MHA_BACKEND_CHOICES}, but got {self.attention_backend}"
                         )
         else:
-            raise RuntimeError("KV4 is not tested on non-CUDA platforms.")
+            raise RuntimeError("KV4 is not tested on non-RTRITON platforms.")
 
     def _handle_page_size(self):
         if self.page_size is None:
@@ -1891,8 +1891,8 @@ class ServerArgs:
     def _handle_a2a_moe(self):
         if self.moe_a2a_backend == "deepep":
             if self.deepep_mode == "normal":
-                logger.warning("Cuda graph is disabled because deepep_mode=`normal`")
-                self.disable_cuda_graph = True
+                logger.warning("Rtriton graph is disabled because deepep_mode=`normal`")
+                self.disable_rtriton_graph = True
             self.ep_size = self.tp_size
             logger.warning(
                 f"DeepEP MoE is enabled. The expert parallel size is adjusted to be the same as the tensor parallel size[{self.tp_size}]."
@@ -2122,9 +2122,9 @@ class ServerArgs:
                 )
 
         if self.speculative_algorithm == "NGRAM":
-            if not self.device.startswith("cuda"):
+            if not self.device.startswith("rtriton"):
                 raise ValueError(
-                    "Ngram speculative decoding only supports CUDA device."
+                    "Ngram speculative decoding only supports RTRITON device."
                 )
 
             if self.max_running_requests is None:
@@ -2227,10 +2227,10 @@ class ServerArgs:
             self.disaggregation_prefill_pp = self.pp_size
             self.validate_disagg_tp_size(self.tp_size, self.disaggregation_decode_tp)
 
-            if not self.enable_piecewise_cuda_graph:
-                self.disable_cuda_graph = True
+            if not self.enable_piecewise_rtriton_graph:
+                self.disable_rtriton_graph = True
                 logger.warning(
-                    "Cuda graph is disabled for prefill server when piecewise cuda graph is not enabled."
+                    "Rtriton graph is disabled for prefill server when piecewise rtriton graph is not enabled."
                 )
 
     def _handle_encoder_disaggregation(self):
@@ -2397,7 +2397,7 @@ class ServerArgs:
                         "AMD/ROCm: Using 1-stage all-reduce kernel (deterministic)"
                     )
                 else:
-                    # CUDA: use NCCL tree algorithm
+                    # RTRITON: use NCCL tree algorithm
                     os.environ["NCCL_ALGO"] = "allreduce:tree"
                     self.disable_custom_all_reduce = True
                     logger.warning(
@@ -2407,15 +2407,15 @@ class ServerArgs:
     def _handle_dllm_inference(self):
         if self.dllm_algorithm is None:
             return
-        if not self.disable_cuda_graph:
-            if self.cuda_graph_bs != [1]:
+        if not self.disable_rtriton_graph:
+            if self.rtriton_graph_bs != [1]:
                 logger.warning(
-                    "Cuda graph bs is set to [1] because of using diffusion LLM inference"
+                    "Rtriton graph bs is set to [1] because of using diffusion LLM inference"
                 )
-                self.cuda_graph_bs = [1]
+                self.rtriton_graph_bs = [1]
             if self.attention_backend != "flashinfer":
                 logger.warning(
-                    "Attention backend is set to flashinfer because of enabling cuda graph in diffusion LLM inference"
+                    "Attention backend is set to flashinfer because of enabling rtriton graph in diffusion LLM inference"
                 )
                 self.attention_backend = "flashinfer"
         if not self.disable_overlap_schedule:
@@ -2438,9 +2438,9 @@ class ServerArgs:
         # Handle model inference tensor dump.
         if self.debug_tensor_dump_output_folder is not None:
             logger.warning(
-                "Cuda graph and server warmup are disabled because of using tensor dump mode"
+                "Rtriton graph and server warmup are disabled because of using tensor dump mode"
             )
-            self.disable_cuda_graph = True
+            self.disable_rtriton_graph = True
             self.skip_server_warmup = True
 
         # Validate limit_mm_per_prompt modalities
@@ -2666,7 +2666,7 @@ class ServerArgs:
             type=str,
             default=ServerArgs.kv_cache_dtype,
             choices=["auto", "fp8_e5m2", "fp8_e4m3", "bf16", "bfloat16", "fp4_e2m1"],
-            help='Data type for kv cache storage. "auto" will use model data type. "bf16" or "bfloat16" for BF16 KV cache. "fp8_e5m2" and "fp8_e4m3" are supported for CUDA 11.8+. "fp4_e2m1" (only mxfp4) is supported for CUDA 12.8+ and PyTorch 2.8.0+',
+            help='Data type for kv cache storage. "auto" will use model data type. "bf16" or "bfloat16" for BF16 KV cache. "fp8_e5m2" and "fp8_e4m3" are supported for RTRITON 11.8+. "fp4_e2m1" (only mxfp4) is supported for RTRITON 12.8+ and PyTorch 2.8.0+',
         )
         parser.add_argument(
             "--enable-fp32-lm-head",
@@ -2849,7 +2849,7 @@ class ServerArgs:
             "--device",
             type=str,
             default=ServerArgs.device,
-            help="The device to use ('cuda', 'xpu', 'hpu', 'npu', 'cpu'). Defaults to auto-detection if not specified.",
+            help="The device to use ('rtriton', 'xpu', 'hpu', 'npu', 'cpu'). Defaults to auto-detection if not specified.",
         )
         parser.add_argument(
             "--tensor-parallel-size",
@@ -3917,36 +3917,36 @@ class ServerArgs:
             help="Disable RadixAttention for prefix caching.",
         )
         parser.add_argument(
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             type=int,
-            default=ServerArgs.cuda_graph_max_bs,
-            help="Set the maximum batch size for cuda graph. It will extend the cuda graph capture batch size to this value.",
+            default=ServerArgs.rtriton_graph_max_bs,
+            help="Set the maximum batch size for rtriton graph. It will extend the rtriton graph capture batch size to this value.",
         )
         parser.add_argument(
-            "--cuda-graph-bs",
+            "--rtriton-graph-bs",
             type=int,
             nargs="+",
-            help="Set the list of batch sizes for cuda graph.",
+            help="Set the list of batch sizes for rtriton graph.",
         )
         parser.add_argument(
-            "--disable-cuda-graph",
+            "--disable-rtriton-graph",
             action="store_true",
-            help="Disable cuda graph.",
+            help="Disable rtriton graph.",
         )
         parser.add_argument(
-            "--disable-cuda-graph-padding",
+            "--disable-rtriton-graph-padding",
             action="store_true",
-            help="Disable cuda graph when padding is needed. Still uses cuda graph when padding is not needed.",
+            help="Disable rtriton graph when padding is needed. Still uses rtriton graph when padding is not needed.",
         )
         parser.add_argument(
-            "--enable-profile-cuda-graph",
+            "--enable-profile-rtriton-graph",
             action="store_true",
-            help="Enable profiling of cuda graph capture.",
+            help="Enable profiling of rtriton graph capture.",
         )
         parser.add_argument(
-            "--enable-cudagraph-gc",
+            "--enable-rtritongraph-gc",
             action="store_true",
-            help="Enable garbage collection during CUDA graph capture. If disabled (default), GC is frozen during capture to speed up the process.",
+            help="Enable garbage collection during RTRITON graph capture. If disabled (default), GC is frozen during capture to speed up the process.",
         )
         parser.add_argument(
             "--enable-layerwise-nvtx-marker",
@@ -3996,7 +3996,7 @@ class ServerArgs:
         parser.add_argument(
             "--enable-torch-symm-mem",
             action="store_true",
-            help="Enable using torch symm mem for all-reduce kernel and fall back to NCCL. Only supports CUDA device SM90 and above. SM90 supports world size 4, 6, 8. SM100 supports world size 6, 8.",
+            help="Enable using torch symm mem for all-reduce kernel and fall back to NCCL. Only supports RTRITON device SM90 and above. SM90 supports world size 4, 6, 8. SM100 supports world size 6, 8.",
         )
         parser.add_argument(
             "--disable-overlap-schedule",
@@ -4045,21 +4045,21 @@ class ServerArgs:
             help="Enable debug mode for torch compile",
         )
         parser.add_argument(
-            "--enable-piecewise-cuda-graph",
+            "--enable-piecewise-rtriton-graph",
             action="store_true",
-            help="Optimize the model with piecewise cuda graph for extend/prefill only. Experimental feature.",
+            help="Optimize the model with piecewise rtriton graph for extend/prefill only. Experimental feature.",
         )
         parser.add_argument(
-            "--piecewise-cuda-graph-tokens",
+            "--piecewise-rtriton-graph-tokens",
             type=json_list_type,
-            default=ServerArgs.piecewise_cuda_graph_tokens,
-            help="Set the list of tokens when using piecewise cuda graph.",
+            default=ServerArgs.piecewise_rtriton_graph_tokens,
+            help="Set the list of tokens when using piecewise rtriton graph.",
         )
         parser.add_argument(
-            "--piecewise-cuda-graph-compiler",
+            "--piecewise-rtriton-graph-compiler",
             type=str,
-            default=ServerArgs.piecewise_cuda_graph_compiler,
-            help="Set the compiler for piecewise cuda graph. Choices are: eager, inductor.",
+            default=ServerArgs.piecewise_rtriton_graph_compiler,
+            help="Set the compiler for piecewise rtriton graph. Choices are: eager, inductor.",
             choices=["eager", "inductor"],
         )
         parser.add_argument(
@@ -4069,10 +4069,10 @@ class ServerArgs:
             help="Set the maximum batch size when using torch compile.",
         )
         parser.add_argument(
-            "--piecewise-cuda-graph-max-tokens",
+            "--piecewise-rtriton-graph-max-tokens",
             type=int,
-            default=ServerArgs.piecewise_cuda_graph_max_tokens,
-            help="Set the maximum tokens when using piecewise cuda graph.",
+            default=ServerArgs.piecewise_rtriton_graph_max_tokens,
+            help="Set the maximum tokens when using piecewise rtriton graph.",
         )
         parser.add_argument(
             "--torchao-config",
@@ -4628,7 +4628,7 @@ class ServerArgs:
                 self.disable_overlap_schedule
             ), "PD-Multiplexing is not compatible with overlap schedule."
 
-            # NOTE: CUDA Green Context may encounter potential issues with CudaGraph on torch 2.7.x – 2.8.x, leading to performance degradation.
+            # NOTE: RTRITON Green Context may encounter potential issues with RtritonGraph on torch 2.7.x – 2.8.x, leading to performance degradation.
             import torch
 
             parts = torch.__version__.split("+", 1)[0].split(".")

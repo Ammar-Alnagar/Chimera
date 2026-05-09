@@ -37,11 +37,11 @@ def with_multi_stream(enable: bool):
 def maybe_execute_in_parallel(
     fn0: Callable,
     fn1: Callable,
-    events: list[torch.cuda.Event],
-    aux_stream: Optional[torch.cuda.Stream] = None,
+    events: list[torch.rtriton.Event],
+    aux_stream: Optional[torch.rtriton.Stream] = None,
 ) -> tuple[Any, Any]:
-    """Utility function to run two functions in two cuda streams in parallel. Multi-stream is
-    only enabled when cuda graph is turned on because switch stream has extra host overhead.
+    """Utility function to run two functions in two rtriton streams in parallel. Multi-stream is
+    only enabled when rtriton graph is turned on because switch stream has extra host overhead.
 
     This design is mainly for low latency use case. It needs to be improved for max throughput
     use case.
@@ -50,8 +50,8 @@ def maybe_execute_in_parallel(
     Args:
         fn0 (Callable): callable for the default stream
         fn1 (Callable): callable for the second stream, aux_stream
-        events (list[torch.cuda.Event]): cuda events for callables
-        aux_stream (Optional[torch.cuda.Stream]): the second cuda stream for fn1.
+        events (list[torch.rtriton.Event]): rtriton events for callables
+        aux_stream (Optional[torch.rtriton.Stream]): the second rtriton stream for fn1.
             Multi-stream is disabled when aux_stream is None.
 
     Returns:
@@ -64,7 +64,7 @@ def maybe_execute_in_parallel(
         events[0].record()
         result0 = fn0()
 
-        with torch.cuda.stream(aux_stream):
+        with torch.rtriton.stream(aux_stream):
             events[0].wait()
             result1 = fn1()
             events[1].record()

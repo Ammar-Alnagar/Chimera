@@ -26,7 +26,7 @@ class TestSWA(unittest.TestCase):
         num_layers = 48
         global_interval = 4
         dtype = torch.bfloat16
-        device = "cuda"
+        device = "rtriton"
         full_attention_layer_ids = [i for i in range(0, num_layers, global_interval)]
         full_attention_layer_ids_set = set(full_attention_layer_ids)
         swa_attention_layer_ids = [
@@ -75,7 +75,7 @@ class TestSWA(unittest.TestCase):
         num_layers = 48
         global_interval = 4
         dtype = torch.bfloat16
-        device = "cuda"
+        device = "rtriton"
         full_attention_layer_ids = [i for i in range(0, num_layers, global_interval)]
         full_attention_layer_ids_set = set(full_attention_layer_ids)
         swa_attention_layer_ids = [
@@ -208,7 +208,7 @@ class TestSWA(unittest.TestCase):
         num_layers = 48
         global_interval = 4
         dtype = torch.bfloat16
-        device = "cuda"
+        device = "rtriton"
         full_attention_layer_ids = [i for i in range(0, num_layers, global_interval)]
         full_attention_layer_ids_set = set(full_attention_layer_ids)
         swa_attention_layer_ids = [

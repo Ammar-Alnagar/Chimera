@@ -18,7 +18,7 @@ from torch._dispatch.python import enable_python_dispatcher
 from sglang.srt.compilation.compilation_config import CompilationConfig
 from sglang.srt.compilation.compilation_counter import compilation_counter
 from sglang.srt.compilation.compiler_interface import EagerAdapter, InductorAdaptor
-from sglang.srt.compilation.cuda_piecewise_backend import CUDAPiecewiseBackend
+from sglang.srt.compilation.rtriton_piecewise_backend import RTRITONPiecewiseBackend
 from sglang.srt.compilation.npu_piecewise_backend import NPUPiecewiseBackend
 from sglang.srt.compilation.pass_manager import PostGradPassManager
 from sglang.srt.utils.common import is_npu, rank0_log
@@ -47,7 +47,7 @@ def make_backend(
     sglang_backend,
 ):
 
-    backend_cls = CUDAPiecewiseBackend if not is_npu() else NPUPiecewiseBackend
+    backend_cls = RTRITONPiecewiseBackend if not is_npu() else NPUPiecewiseBackend
     return backend_cls(
         graph,
         compile_config,

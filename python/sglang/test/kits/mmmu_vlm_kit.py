@@ -246,8 +246,8 @@ class MMMUMultiModelTestBase(CustomTestCase):
             process_env = os.environ.copy()
             if custom_env:
                 process_env.update(custom_env)
-            # if test vlm with cuda_ipc feature, open this env_var
-            process_env["SGLANG_USE_CUDA_IPC_TRANSPORT"] = "1"
+            # if test vlm with rtriton_ipc feature, open this env_var
+            process_env["SGLANG_USE_RTRITON_IPC_TRANSPORT"] = "1"
 
             # Prepare stdout/stderr redirection if needed
             stdout_file = None
@@ -264,7 +264,7 @@ class MMMUMultiModelTestBase(CustomTestCase):
                 api_key=self.api_key,
                 other_args=[
                     "--trust-remote-code",
-                    "--cuda-graph-max-bs",
+                    "--rtriton-graph-max-bs",
                     "64",
                     "--enable-multimodal",
                     "--mem-fraction-static",

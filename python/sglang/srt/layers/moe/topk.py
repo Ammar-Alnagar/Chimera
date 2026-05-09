@@ -54,7 +54,7 @@ from sglang.srt.utils import (
     get_bool_env_var,
     get_compiler_backend,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
     is_npu,
 )
@@ -65,14 +65,14 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 _is_cpu = is_cpu()
 _is_cpu_amx_available = cpu_has_amx_support()
 _is_npu = is_npu()
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import moe_fused_gate
 
     try:
@@ -80,7 +80,7 @@ if _is_cuda:
     except ImportError as e:
         pass
 
-if _is_cuda or _is_hip:
+if _is_rtriton or _is_hip:
     from sgl_kernel import topk_softmax
 
     try:
@@ -261,7 +261,7 @@ class TopK(MultiPlatformOp):
             expert_location_dispatch_info=expert_location_dispatch_info,
         )
 
-    def forward_cuda(
+    def forward_rtriton(
         self,
         hidden_states: torch.Tensor,
         router_logits: torch.Tensor,
@@ -734,7 +734,7 @@ def biased_grouped_topk_gpu(
 ):
     # TODO: moe_fused_gate kernel is not supported for num_fused_shared_experts > 0 now.
     if (
-        _is_cuda
+        _is_rtriton
         and gating_output.shape[1] // num_expert_group
         <= 32  # moe_fused_gate kernel ensure that num_experts/num_expert_group does not exceed MAX_VPT=32 now. And when kernel can handle MAX_VPT > 32, we can remove this assertion.
         and is_power_of_two(correction_bias.shape[0])
@@ -780,7 +780,7 @@ def biased_grouped_topk_gpu(
     else:
         # Use optimized path for Kimi K2 (384 experts with num_expert_group=1)
         num_experts = gating_output.shape[1]
-        if _is_cuda and num_experts == 384 and num_expert_group == 1:
+        if _is_rtriton and num_experts == 384 and num_expert_group == 1:
             return kimi_k2_moe_fused_gate(
                 gating_output.to(dtype=torch.float32),
                 correction_bias,
@@ -989,7 +989,7 @@ def select_experts(
 
 
 # Register fake implementations for torch.compile support
-if _is_cuda:
+if _is_rtriton:
 
     @register_fake_if_exists("sgl_kernel::moe_fused_gate")
     def _moe_fused_gate(

@@ -85,7 +85,7 @@ def tilelang_w4a8_moe_mm(
         chunk_size: Number of elements each scale value applies to (K//512), default to 128
 
     Requirements:
-        - All tensors must be on a CUDA device
+        - All tensors must be on a RTRITON device
         - Requires an NVIDIA Hopper GPU (H100)
         - A tensors must be in float8_e4m3fn format
         - B tensors must contain packed int4 values (stored as int8)

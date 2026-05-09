@@ -79,7 +79,7 @@ class EPBuffer:
         if cls._buffer is not None:
             return cls._buffer
 
-        # Lazy import Buffer to avoid creating CUDA context at module import time
+        # Lazy import Buffer to avoid creating RTRITON context at module import time
         from mooncake.mooncake_ep_buffer import Buffer
 
         cls._hidden_size = hidden_size

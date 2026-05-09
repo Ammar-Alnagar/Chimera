@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from sglang.srt.distributed.naive_distributed import get_naive_distributed
-from sglang.srt.utils import check_cuda_result
+from sglang.srt.utils import check_rtriton_result
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class HostSharedMemoryManager:
         return raw.view(dtype).view(*shape)
 
     def _malloc_raw(self, *, num_bytes: int) -> torch.Tensor:
-        import cuda.bindings.runtime as cuda_rt
+        import rtriton.bindings.runtime as rtriton_rt
 
         self._operation_index += 1
         shm_name = f"{self._base_name}_op{self._operation_index}"
@@ -42,9 +42,9 @@ class HostSharedMemoryManager:
         np_array = np.ndarray((num_bytes,), dtype=np.uint8, buffer=shm.buf)
         tensor = torch.from_numpy(np_array)
 
-        check_cuda_result(
-            cuda_rt.cudaHostRegister(
-                tensor.data_ptr(), num_bytes, cuda_rt.cudaHostRegisterPortable
+        check_rtriton_result(
+            rtriton_rt.rtritonHostRegister(
+                tensor.data_ptr(), num_bytes, rtriton_rt.rtritonHostRegisterPortable
             )
         )
 

@@ -17,15 +17,15 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 from typing_extensions import ParamSpec
 
-from sglang.srt.distributed.device_communicators.cuda_wrapper import CudaRTLibrary
-from sglang.srt.utils import is_cuda, is_hip
+from sglang.srt.distributed.device_communicators.rtriton_wrapper import RtritonRTLibrary
+from sglang.srt.utils import is_rtriton, is_hip
 
 logger = logging.getLogger(__name__)
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 
-if _is_cuda:
+if _is_rtriton:
     try:
         import pynvml
     except ImportError as e:
@@ -64,18 +64,18 @@ def producer(
     producer_queue,
     consumer_queue,
     result_queue,
-    cuda_visible_devices: Optional[str] = None,
+    rtriton_visible_devices: Optional[str] = None,
 ):
-    if cuda_visible_devices is not None:
-        update_environment_variables({"CUDA_VISIBLE_DEVICES": cuda_visible_devices})
+    if rtriton_visible_devices is not None:
+        update_environment_variables({"RTRITON_VISIBLE_DEVICES": rtriton_visible_devices})
 
-    lib = CudaRTLibrary()
+    lib = RtritonRTLibrary()
     for i in batch_src:
-        lib.cudaSetDevice(i)
-        pointer = lib.cudaMalloc(1024)
-        lib.cudaMemset(pointer, 1, 1024)
-        lib.cudaDeviceSynchronize()
-        handle = lib.cudaIpcGetMemHandle(pointer)
+        lib.rtritonSetDevice(i)
+        pointer = lib.rtritonMalloc(1024)
+        lib.rtritonMemset(pointer, 1, 1024)
+        lib.rtritonDeviceSynchronize()
+        handle = lib.rtritonIpcGetMemHandle(pointer)
         producer_queue.put(handle)
         open_success = consumer_queue.get()
         if open_success:
@@ -84,13 +84,13 @@ def producer(
             consumer_queue.get()
             # check if the memory is modified
             host_data = (ctypes.c_char * 1024)()
-            lib.cudaMemcpy(host_data, pointer, 1024)  # type: ignore
+            lib.rtritonMemcpy(host_data, pointer, 1024)  # type: ignore
             for i in range(1024):
                 if ord(host_data[i]) != 2:
                     open_success = False
                     break
         result_queue.put(open_success)
-        lib.cudaDeviceReset()
+        lib.rtritonDeviceReset()
 
 
 def consumer(
@@ -98,18 +98,18 @@ def consumer(
     producer_queue,
     consumer_queue,
     result_queue,
-    cuda_visible_devices: Optional[str] = None,
+    rtriton_visible_devices: Optional[str] = None,
 ):
-    if cuda_visible_devices is not None:
-        update_environment_variables({"CUDA_VISIBLE_DEVICES": cuda_visible_devices})
+    if rtriton_visible_devices is not None:
+        update_environment_variables({"RTRITON_VISIBLE_DEVICES": rtriton_visible_devices})
 
-    lib = CudaRTLibrary()
+    lib = RtritonRTLibrary()
     for j in batch_tgt:
-        lib.cudaSetDevice(j)
+        lib.rtritonSetDevice(j)
         handle = producer_queue.get()
         open_success = False
         try:
-            pointer = lib.cudaIpcOpenMemHandle(handle)  # type: ignore
+            pointer = lib.rtritonIpcOpenMemHandle(handle)  # type: ignore
             open_success = True
         except RuntimeError:
             # cannot error out here, because the producer process
@@ -118,20 +118,20 @@ def consumer(
         consumer_queue.put(open_success)
         if open_success:
             # modify the memory
-            lib.cudaMemset(pointer, 2, 1024)
-            lib.cudaDeviceSynchronize()
+            lib.rtritonMemset(pointer, 2, 1024)
+            lib.rtritonDeviceSynchronize()
             # use two queues to simulate barrier
             producer_queue.get()
             consumer_queue.put(0)
             # check if the memory is modified
             host_data = (ctypes.c_char * 1024)()
-            lib.cudaMemcpy(host_data, pointer, 1024)  # type: ignore
+            lib.rtritonMemcpy(host_data, pointer, 1024)  # type: ignore
             for i in range(1024):
                 if ord(host_data[i]) != 2:
                     open_success = False
                     break
         result_queue.put(open_success)
-        lib.cudaDeviceReset()
+        lib.rtritonDeviceReset()
 
 
 def can_actually_p2p(
@@ -140,22 +140,22 @@ def can_actually_p2p(
 ) -> Sequence[bool]:
     """
     Usually, checking if P2P access is enabled can be done by
-    `torch.cuda.can_device_access_peer(src, tgt)`. However, sometimes
-    the driver might be broken, and `torch.cuda.can_device_access_peer(src, tgt)`
+    `torch.rtriton.can_device_access_peer(src, tgt)`. However, sometimes
+    the driver might be broken, and `torch.rtriton.can_device_access_peer(src, tgt)`
     returns `True` even if P2P access is not actually possible.
     See https://github.com/vllm-project/vllm/issues/2728 and
     https://forums.developer.nvidia.com/t/direct-gpu-gpu-communication-does-not-seem-to-work-properly/283264/10
     Therefore, we have to perform a real P2P access to check if it is actually
     possible.
 
-    Note on p2p and cuda IPC:
+    Note on p2p and rtriton IPC:
     Usually, one process uses one GPU:
-    GPU src --> cuda context src --> tensor src --> process src
+    GPU src --> rtriton context src --> tensor src --> process src
 
-    We need to combine p2p and cuda IPC, so that:
-    GPU src --> cuda context src --> tensor src --> process src
+    We need to combine p2p and rtriton IPC, so that:
+    GPU src --> rtriton context src --> tensor src --> process src
                                       |shared|
-    GPU tgt --> cuda context tgt --> tensor tgt --> process tgt
+    GPU tgt --> rtriton context tgt --> tensor tgt --> process tgt
     That is to say, process src creates a tensor in GPU src, passes IPC handle to
     process tgt, and process tgt accesses the tensor in GPU tgt. Any operation on the
     tensor in process tgt will be reflected in the tensor in process src, because
@@ -168,8 +168,8 @@ def can_actually_p2p(
     processes for testing all pairs of GPUs in batch. The trick is to reset
     the device after each test (which is not available in PyTorch).
     """  # noqa
-    cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", None)
-    # pass the CUDA_VISIBLE_DEVICES to the child process
+    rtriton_visible_devices = os.environ.get("RTRITON_VISIBLE_DEVICES", None)
+    # pass the RTRITON_VISIBLE_DEVICES to the child process
     # to make sure they see the same set of GPUs
 
     # make sure the processes are spawned
@@ -184,7 +184,7 @@ def can_actually_p2p(
             producer_queue,
             consumer_queue,
             result_queue,
-            cuda_visible_devices,
+            rtriton_visible_devices,
         ),
     )
     p_tgt = smp.Process(
@@ -194,7 +194,7 @@ def can_actually_p2p(
             producer_queue,
             consumer_queue,
             result_queue,
-            cuda_visible_devices,
+            rtriton_visible_devices,
         ),
     )
     p_src.start()
@@ -226,8 +226,8 @@ def can_actually_p2p(
 # to reduce the time, we use a cache file to store the p2p access status.
 # the cache file is generated by the master process if it does not exist.
 # then all the processes can read the cache file to check the p2p access status.
-# Note that the cache file is suffixed by the CUDA_VISIBLE_DEVICES, so that we
-#  can have different cache files for different CUDA_VISIBLE_DEVICES settings,
+# Note that the cache file is suffixed by the RTRITON_VISIBLE_DEVICES, so that we
+#  can have different cache files for different RTRITON_VISIBLE_DEVICES settings,
 #  e.g. used by different vllm engines. The device id in the cache file is a
 #  **local** device id, i.e. from 0 to num_dev-1, where num_dev is the number
 #  of visible devices in the vllm engine.
@@ -245,16 +245,16 @@ def gpu_p2p_access_check(src: int, tgt: int) -> bool:
 
     is_distributed = dist.is_initialized()
 
-    num_dev = torch.cuda.device_count()
-    cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", None)
-    if cuda_visible_devices is None:
-        cuda_visible_devices = ",".join(str(i) for i in range(num_dev))
+    num_dev = torch.rtriton.device_count()
+    rtriton_visible_devices = os.environ.get("RTRITON_VISIBLE_DEVICES", None)
+    if rtriton_visible_devices is None:
+        rtriton_visible_devices = ",".join(str(i) for i in range(num_dev))
 
     # VLLM_CACHE_ROOT -> SGLANG_CACHE_ROOT
     # "~/.cache/vllm" -> "~/.cache/sglang"
     SGLANG_CACHE_ROOT = os.path.expanduser("~/.cache/sglang")
     path = os.path.join(
-        SGLANG_CACHE_ROOT, f"gpu_p2p_access_cache_for_{cuda_visible_devices}.json"
+        SGLANG_CACHE_ROOT, f"gpu_p2p_access_cache_for_{rtriton_visible_devices}.json"
     )
     os.makedirs(os.path.dirname(path), exist_ok=True)
     from sglang.srt.distributed.parallel_state import get_world_group

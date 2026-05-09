@@ -75,9 +75,9 @@ def mscclpp_bench_time(func, test_niter: int = 10, warmup_niter: int = 2):
     # warmup
     for _ in range(warmup_niter):
         func()
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
-    torch.cuda.synchronize()
+    start_event = torch.rtriton.Event(enable_timing=True)
+    end_event = torch.rtriton.Event(enable_timing=True)
+    torch.rtriton.synchronize()
     dist.barrier()
     start_event.record()
     for _ in range(test_niter):
@@ -106,7 +106,7 @@ class PyMscclppCommunicator:
             group: the process group to work on. If None, it will use the
                 default process group.
             device: the device to bind the CustomAllreduce to. If None,
-                it will be bind to f"cuda:{local_rank}".
+                it will be bind to f"rtriton:{local_rank}".
         It is the caller's responsibility to make sure each communicator
         is bind to a unique device, and all communicators in this group
         are in the same node.
@@ -116,7 +116,7 @@ class PyMscclppCommunicator:
 
         if not ops.IS_MSCCLPP_AR_AVAILABLE:
             # disable because of missing mscclpp library
-            # e.g. in a non-cuda environment
+            # e.g. in a non-rtriton environment
             return
 
         self.group = group
@@ -142,7 +142,7 @@ class PyMscclppCommunicator:
             return
 
         self.ranks = torch.distributed.get_process_group_ranks(group)
-        self.nranks_per_node = torch.cuda.device_count()
+        self.nranks_per_node = torch.rtriton.device_count()
         # for now mscclpp with stride in the communicator is not tested
         if not (abs(self.ranks[-1] - self.ranks[0]) == world_size - 1):
             logger.warning(
@@ -154,7 +154,7 @@ class PyMscclppCommunicator:
             return
 
         if isinstance(device, int):
-            device = torch.device(f"cuda:{device}")
+            device = torch.device(f"rtriton:{device}")
         elif isinstance(device, str):
             device = torch.device(device)
         # now `device` is a `torch.device` object
@@ -224,7 +224,7 @@ class PyMscclppCommunicator:
         )
         self.msg_size2best_config = msg_size2best_config[0]
 
-        # PyMscclpp is enabled only in cuda graph
+        # PyMscclpp is enabled only in rtriton graph
         self.disabled = True
 
     def pre_tune_config(self, dtype=torch.bfloat16) -> bool:
@@ -232,7 +232,7 @@ class PyMscclppCommunicator:
         nthreads_to_try = [256, 512, 1024]
         nblocks_to_try = [21, 42, 84]
         inp_randn = torch.ones(
-            self.msg_size_for_finetune[-1] // dtype.itemsize, dtype=dtype, device="cuda"
+            self.msg_size_for_finetune[-1] // dtype.itemsize, dtype=dtype, device="rtriton"
         )
         oup_randn = torch.empty_like(inp_randn)
         for msg_size in self.msg_size_for_finetune:
@@ -275,7 +275,7 @@ class PyMscclppCommunicator:
 
     def all_reduce(self, tensor: torch.Tensor, op: ReduceOp = ReduceOp.SUM):
         if self._IS_CAPTURING:
-            if torch.cuda.is_current_stream_capturing():
+            if torch.rtriton.is_current_stream_capturing():
                 self.graph_input_set.add((tensor.dtype, tensor.numel()))
         msg_size = tensor.numel() * tensor.itemsize
         index = bisect.bisect_left(self.msg_size_for_finetune, msg_size)

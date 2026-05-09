@@ -1,7 +1,7 @@
 // Adapted from: https://github.com/vllm-project/vllm/blob/v0.8.2/csrc/custom_all_reduce.cu
-#include <ATen/cuda/Exceptions.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <c10/cuda/CUDAStream.h>
+#include <ATen/rtriton/Exceptions.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <c10/rtriton/RTRITONStream.h>
 #include <torch/all.h>
 
 #include "custom_all_reduce.cuh"
@@ -56,8 +56,8 @@ bool _is_weak_contiguous(torch::Tensor& t) {
  */
 void all_reduce(fptr_t _fa, torch::Tensor& inp, torch::Tensor& out, fptr_t _reg_buffer, int64_t reg_buffer_sz_bytes) {
   auto fa = reinterpret_cast<sglang::CustomAllreduce*>(_fa);
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(inp));
-  auto stream = c10::cuda::getCurrentCUDAStream().stream();
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(inp));
+  auto stream = c10::rtriton::getCurrentRTRITONStream().stream();
 
   TORCH_CHECK_EQ(inp.scalar_type(), out.scalar_type());
   TORCH_CHECK_EQ(inp.numel(), out.numel());
@@ -67,7 +67,7 @@ void all_reduce(fptr_t _fa, torch::Tensor& inp, torch::Tensor& out, fptr_t _reg_
   auto reg_buffer = reinterpret_cast<void*>(_reg_buffer);
   if (reg_buffer) {
     TORCH_CHECK_LE(input_size, reg_buffer_sz_bytes);
-    AT_CUDA_CHECK(cudaMemcpyAsync(reg_buffer, inp.data_ptr(), input_size, cudaMemcpyDeviceToDevice, stream));
+    AT_RTRITON_CHECK(rtritonMemcpyAsync(reg_buffer, inp.data_ptr(), input_size, rtritonMemcpyDeviceToDevice, stream));
   } else {
     reg_buffer = inp.data_ptr();
   }
@@ -82,7 +82,7 @@ void all_reduce(fptr_t _fa, torch::Tensor& inp, torch::Tensor& out, fptr_t _reg_
           stream, reinterpret_cast<half*>(reg_buffer), reinterpret_cast<half*>(out.data_ptr()), out.numel());
       break;
     }
-#if (__CUDA_ARCH__ >= 800 || !defined(__CUDA_ARCH__))
+#if (__RTRITON_ARCH__ >= 800 || !defined(__RTRITON_ARCH__))
     case at::ScalarType::BFloat16: {
       fa->allreduce<nv_bfloat16>(
           stream,

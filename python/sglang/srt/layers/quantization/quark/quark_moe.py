@@ -466,12 +466,12 @@ class QuarkW8A8FP8MoEMethod(QuarkMoEMethod):
                     shuffle_weight(layer.w13_weight.data, (16, 16)),
                     requires_grad=False,
                 )
-                torch.cuda.empty_cache()
+                torch.rtriton.empty_cache()
                 layer.w2_weight = torch.nn.Parameter(
                     shuffle_weight(layer.w2_weight.data, (16, 16)),
                     requires_grad=False,
                 )
-                torch.cuda.empty_cache()
+                torch.rtriton.empty_cache()
 
     def create_moe_runner(
         self, layer: torch.nn.Module, moe_runner_config: MoeRunnerConfig

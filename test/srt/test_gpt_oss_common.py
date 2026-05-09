@@ -40,7 +40,7 @@ class BaseTestGptOss(CustomTestCase):
         }[(model_variant, quantization)]
 
         if model_variant == "20b":
-            other_args += ["--cuda-graph-max-bs", "600"]
+            other_args += ["--rtriton-graph-max-bs", "600"]
         if _is_hip:
             os.environ["SGLANG_USE_AITER"] = "0"
         self._run_test_raw(

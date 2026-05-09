@@ -35,7 +35,7 @@ def test_tree_speculative_sampling_target_only(
     """
     Tests the tree_speculative_sampling_target_only function using Pytest parameterization.
     """
-    device = "cuda"
+    device = "rtriton"
 
     candidates = torch.tensor(
         [

@@ -34,7 +34,7 @@ class TestReleaseMemoryOccupation(unittest.TestCase):
                     ),
                     receiver_info=dict(
                         visible_devices=[1, 0],
-                        # If enable patch, this should be fixed, and cuda:1 becomes cuda:0
+                        # If enable patch, this should be fixed, and rtriton:1 becomes rtriton:0
                         tensor_device=0 if enable_patch else 1,
                     ),
                 ),
@@ -51,11 +51,11 @@ class TestReleaseMemoryOccupation(unittest.TestCase):
         enable_patch: bool,
     ):
         print(
-            f'test_monkey_patch_torch_reductions_core {os.environ.get("CUDA_VISIBLE_DEVICES")=}'
+            f'test_monkey_patch_torch_reductions_core {os.environ.get("RTRITON_VISIBLE_DEVICES")=}'
         )
-        cuda_visible_devices_list: List[int] = [
+        rtriton_visible_devices_list: List[int] = [
             int(x)
-            for x in os.environ.get("CUDA_VISIBLE_DEVICES", "0,1,2,3,4,5,6,7").split(
+            for x in os.environ.get("RTRITON_VISIBLE_DEVICES", "0,1,2,3,4,5,6,7").split(
                 ","
             )
         ]
@@ -67,8 +67,8 @@ class TestReleaseMemoryOccupation(unittest.TestCase):
             ("sender", sender_info),
             ("receiver", receiver_info),
         ]:
-            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(
-                str(cuda_visible_devices_list[device])
+            os.environ["RTRITON_VISIBLE_DEVICES"] = ",".join(
+                str(rtriton_visible_devices_list[device])
                 for device in info["visible_devices"]
             )
             p = mp.Process(
@@ -97,7 +97,7 @@ def _run_subprocess(
     role: str, queue: mp.Queue, output_writer, tensor_device: int, enable_patch: bool
 ):
     print(
-        f'subprocess[{role}] start {os.environ.get("CUDA_VISIBLE_DEVICES")=}',
+        f'subprocess[{role}] start {os.environ.get("RTRITON_VISIBLE_DEVICES")=}',
         flush=True,
     )
 
@@ -107,14 +107,14 @@ def _run_subprocess(
 
     try:
         if role == "sender":
-            tensor = torch.tensor([1.0, 2.0], device=f"cuda:{tensor_device}")
+            tensor = torch.tensor([1.0, 2.0], device=f"rtriton:{tensor_device}")
             print(f"sender queue.put {tensor=} {tensor.device=}")
             queue.put(tensor)
             assert queue.get() == "done"
         elif role == "receiver":
             tensor = queue.get()
             print(f"receiver queue.get {tensor=} {tensor.device=}")
-            assert str(tensor.device) == f"cuda:{tensor_device}"
+            assert str(tensor.device) == f"rtriton:{tensor_device}"
             queue.put("done")
         else:
             raise NotImplementedError

@@ -9,7 +9,7 @@ def fast_topk(values, topk, dim):
         return torch.max(values, dim=dim, keepdim=True)
     else:
         # Use topk for efficiency with larger k values
-        # TODO: implement faster cuda kernels for large vocab sizes
+        # TODO: implement faster rtriton kernels for large vocab sizes
         return torch.topk(values, topk, dim=dim)
 
 

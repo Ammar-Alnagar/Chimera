@@ -1,5 +1,5 @@
 #pragma once
-#include <cuda.h>
+#include <rtriton.h>
 
 #include <iostream>
 

@@ -35,7 +35,7 @@ void tilelang_fp4_bf16_gemm_dispatch_sm120(
     int m,
     int n,
     int k,
-    cudaStream_t stream);
+    rtritonStream_t stream);
 
 void tilelang_fp4_f16_gemm_dispatch_sm120(
     torch::Tensor& D,
@@ -47,7 +47,7 @@ void tilelang_fp4_f16_gemm_dispatch_sm120(
     int m,
     int n,
     int k,
-    cudaStream_t stream);
+    rtritonStream_t stream);
 #endif
 
 void tilelang_scaled_fp4_mm(

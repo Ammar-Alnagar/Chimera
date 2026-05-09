@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch
 
 import torch
 
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 
-register_cuda_ci(est_time=2, suite="nightly-1-gpu", nightly=True)
+register_rtriton_ci(est_time=2, suite="nightly-1-gpu", nightly=True)
 
 from sglang.srt.layers import dp_attention as _dp_attn
 
@@ -29,7 +29,7 @@ from sglang.test.test_utils import CustomTestCase
 
 # Global configuration for all indexer tests
 DEFAULT_CONFIG = {
-    "device": "cuda",
+    "device": "rtriton",
     "dtype": torch.bfloat16,
     "kv_cache_dtype": torch.float8_e4m3fn,
     "context_len": 2048,
@@ -56,7 +56,7 @@ class MockIndexerMetadata(BaseIndexerMetadata):
         self.batch_size = batch_size
         self.seq_lens = seq_lens
         self.page_table = page_table
-        self.device = "cuda"
+        self.device = "rtriton"
 
     def get_seqlens_int32(self) -> torch.Tensor:
         """Return: (batch_size,) int32 tensor"""
@@ -104,7 +104,7 @@ class MockIndexerMetadata(BaseIndexerMetadata):
 
 class MockModelRunner:
     def __init__(self, config=None):
-        self.device = "cuda"
+        self.device = "rtriton"
         self.config = {**DEFAULT_CONFIG, **(config or {})}
         self.dtype = self.config["dtype"]
         self.kv_cache_dtype = self.config["kv_cache_dtype"]
@@ -188,7 +188,7 @@ class MockModelRunner:
         )()
 
 
-@unittest.skipIf(not torch.cuda.is_available(), "Test requires CUDA")
+@unittest.skipIf(not torch.rtriton.is_available(), "Test requires RTRITON")
 class TestNSAIndexer(CustomTestCase):
     @classmethod
     def setUpClass(cls):
@@ -200,8 +200,8 @@ class TestNSAIndexer(CustomTestCase):
         set_global_server_args_for_scheduler(server_args)
 
         # Check GPU capability for FP8
-        if torch.cuda.is_available():
-            compute_capability = torch.cuda.get_device_capability()
+        if torch.rtriton.is_available():
+            compute_capability = torch.rtriton.get_device_capability()
             cls.supports_fp8 = compute_capability[0] >= 9  # Hopper or newer
 
     @classmethod
@@ -214,7 +214,7 @@ class TestNSAIndexer(CustomTestCase):
         self.batch_size = 2
         self.seq_len = 128
         self.config = DEFAULT_CONFIG.copy()
-        self.device = "cuda"
+        self.device = "rtriton"
         self.dtype = torch.bfloat16
 
     def _init_model_runner(self, config_override=None):
@@ -245,7 +245,7 @@ class TestNSAIndexer(CustomTestCase):
 
         torch.set_default_dtype(self.dtype)
         indexer = Indexer(**params)
-        # Move indexer to CUDA device
+        # Move indexer to RTRITON device
         indexer = indexer.to(device=self.device)
 
         # Convert linear layer weights to bfloat16 (but preserve LayerNorm's float32
@@ -334,7 +334,7 @@ class TestNSAIndexer(CustomTestCase):
     def _verify_topk_output(self, topk_indices, batch_size, q_len, topk):
         """Verify the topk indices output shape and basic properties."""
         self.assertIsNotNone(topk_indices)
-        self.assertEqual(topk_indices.device.type, "cuda")
+        self.assertEqual(topk_indices.device.type, "rtriton")
 
         # Check shape - should be (total_q_len, topk_padded)
         # where topk_padded is aligned to 2048
@@ -392,7 +392,7 @@ class TestNSAIndexer(CustomTestCase):
             k_fp8, k_scale = kv
             max_kv_len = k_fp8.shape[0]  # Total keys across all batches (k_offset)
             return torch.randn(
-                num_queries, max_kv_len, dtype=torch.float32, device="cuda"
+                num_queries, max_kv_len, dtype=torch.float32, device="rtriton"
             )
 
         mock_deep_gemm.fp8_mqa_logits.side_effect = mock_mqa_logits
@@ -401,7 +401,7 @@ class TestNSAIndexer(CustomTestCase):
         def mock_paged_mqa_logits(q, kv, weights, *args, **kwargs):
             batch_size = q.shape[0]
             seq_len = 128
-            return torch.randn(batch_size, seq_len, dtype=torch.float32, device="cuda")
+            return torch.randn(batch_size, seq_len, dtype=torch.float32, device="rtriton")
 
         mock_deep_gemm.fp8_paged_mqa_logits.side_effect = mock_paged_mqa_logits
 
@@ -468,7 +468,7 @@ class TestNSAIndexer(CustomTestCase):
         def mock_paged_mqa_logits(q, kv, weights, *args, **kwargs):
             batch_size = q.shape[0]
             seq_len = 128
-            return torch.randn(batch_size, seq_len, dtype=torch.float32, device="cuda")
+            return torch.randn(batch_size, seq_len, dtype=torch.float32, device="rtriton")
 
         mock_deep_gemm.fp8_paged_mqa_logits.side_effect = mock_paged_mqa_logits
 
@@ -546,7 +546,7 @@ class TestNSAIndexer(CustomTestCase):
         seqlens = metadata.get_seqlens_int32()
         self.assertEqual(seqlens.shape, (batch_size,))
         self.assertEqual(seqlens.dtype, torch.int32)
-        self.assertTrue(torch.all(seqlens == torch.tensor(seq_lens, device="cuda")))
+        self.assertTrue(torch.all(seqlens == torch.tensor(seq_lens, device="rtriton")))
 
         # Test get_page_table_64
         page_table = metadata.get_page_table_64()
@@ -555,7 +555,7 @@ class TestNSAIndexer(CustomTestCase):
         self.assertEqual(page_table.dtype, torch.int32)
 
         # Test topk_transform
-        logits = torch.randn(batch_size, 128, device="cuda")
+        logits = torch.randn(batch_size, 128, device="rtriton")
         topk = 64
         topk_indices = metadata.topk_transform(logits, topk)
         self.assertEqual(topk_indices.shape, (batch_size, topk))
@@ -583,10 +583,10 @@ class TestNSAIndexer(CustomTestCase):
 
     @patch("sglang.srt.layers.attention.nsa.nsa_indexer.deep_gemm")
     def test_indexer_with_alt_stream(self, mock_deep_gemm):
-        """Test indexer creation with alternative CUDA stream."""
+        """Test indexer creation with alternative RTRITON stream."""
         mock_deep_gemm.get_num_sms.return_value = 132
 
-        alt_stream = torch.cuda.Stream()
+        alt_stream = torch.rtriton.Stream()
         indexer = self._create_indexer(alt_stream=alt_stream)
         self.assertEqual(indexer.alt_stream, alt_stream)
 

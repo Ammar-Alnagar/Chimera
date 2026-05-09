@@ -38,7 +38,7 @@ engine = Engine(
     trust_remote_code: bool = False,
     mem_fraction_static: float = 0.9,
     tp_size: int = 1,
-    device: str = "cuda",
+    device: str = "rtriton",
     schedule_policy: str = "lpm",
     enable_prefix_caching: bool = True,
     disable_radix_cache: bool = False,
@@ -58,7 +58,7 @@ engine = Engine(
 | `trust_remote_code` | bool | False | Trust remote code in model |
 | `mem_fraction_static` | float | 0.9 | Fraction of GPU memory for static allocation |
 | `tp_size` | int | 1 | Tensor parallelism size |
-| `device` | str | "cuda" | Device to run on (cuda, cpu) |
+| `device` | str | "rtriton" | Device to run on (rtriton, cpu) |
 | `schedule_policy` | str | "lpm" | Scheduling policy (lpm, random, fcfs) |
 | `enable_prefix_caching` | bool | True | Enable prefix caching for radix attention |
 | `disable_radix_cache` | bool | False | Disable radix cache |
@@ -622,12 +622,12 @@ import torch
 from sgl_kernel import tilelang_fp8_blockwise_scaled_mm
 
 # Input tensors (FP8)
-mat_a = torch.randn(128, 512, dtype=torch.float8_e4m3fn).cuda()
-mat_b = torch.randn(256, 512, dtype=torch.float8_e4m3fn).cuda()
+mat_a = torch.randn(128, 512, dtype=torch.float8_e4m3fn).rtriton()
+mat_b = torch.randn(256, 512, dtype=torch.float8_e4m3fn).rtriton()
 
 # Scale factors
-scales_a = torch.randn(1, 4, dtype=torch.float32).cuda()
-scales_b = torch.randn(2, 4, dtype=torch.float32).cuda()
+scales_a = torch.randn(1, 4, dtype=torch.float32).rtriton()
+scales_b = torch.randn(2, 4, dtype=torch.float32).rtriton()
 
 # Execute
 output = tilelang_fp8_blockwise_scaled_mm(
@@ -648,13 +648,13 @@ Multi-head latent attention decode.
 ```python
 from sgl_kernel import tilelang_mla_decode
 
-out = torch.zeros(8, 32, 128, dtype=torch.float16).cuda()
-q_nope = torch.randn(8, 32, 128, dtype=torch.float16).cuda()
-q_pe = torch.randn(8, 32, 128, dtype=torch.float16).cuda()
-kv_cache = torch.randn(8192, 256, dtype=torch.float16).cuda()
-seq_lens = torch.tensor([1024] * 8, dtype=torch.int32).cuda()
-page_table = torch.arange(8, dtype=torch.int32).cuda()
-workspace = torch.empty(1048576, dtype=torch.uint8).cuda()
+out = torch.zeros(8, 32, 128, dtype=torch.float16).rtriton()
+q_nope = torch.randn(8, 32, 128, dtype=torch.float16).rtriton()
+q_pe = torch.randn(8, 32, 128, dtype=torch.float16).rtriton()
+kv_cache = torch.randn(8192, 256, dtype=torch.float16).rtriton()
+seq_lens = torch.tensor([1024] * 8, dtype=torch.int32).rtriton()
+page_table = torch.arange(8, dtype=torch.int32).rtriton()
+workspace = torch.empty(1048576, dtype=torch.uint8).rtriton()
 
 tilelang_mla_decode(
     out=out,
@@ -683,21 +683,21 @@ hidden_dim = 4096
 intermediate_dim = 11008
 
 # Tensors
-output = torch.zeros(batch_tokens, intermediate_dim, dtype=torch.float16).cuda()
-a = torch.randn(batch_tokens, hidden_dim, dtype=torch.float8_e4m3fn).cuda()
-b = torch.randn(num_experts, hidden_dim, intermediate_dim, dtype=torch.float8_e4m3fn).cuda()
+output = torch.zeros(batch_tokens, intermediate_dim, dtype=torch.float16).rtriton()
+a = torch.randn(batch_tokens, hidden_dim, dtype=torch.float8_e4m3fn).rtriton()
+b = torch.randn(num_experts, hidden_dim, intermediate_dim, dtype=torch.float8_e4m3fn).rtriton()
 
 # Configuration tensors
-scales_a = torch.randn(batch_tokens, dtype=torch.float32).cuda()
-scales_b = torch.randn(num_experts, intermediate_dim, dtype=torch.float32).cuda()
-problem_sizes = torch.tensor([[128, intermediate_dim, hidden_dim]] * num_experts, dtype=torch.int32).cuda()
-expert_offsets = torch.tensor([0, 128, 256, 384, 512, 640, 768, 896], dtype=torch.int32).cuda()
+scales_a = torch.randn(batch_tokens, dtype=torch.float32).rtriton()
+scales_b = torch.randn(num_experts, intermediate_dim, dtype=torch.float32).rtriton()
+problem_sizes = torch.tensor([[128, intermediate_dim, hidden_dim]] * num_experts, dtype=torch.int32).rtriton()
+expert_offsets = torch.tensor([0, 128, 256, 384, 512, 640, 768, 896], dtype=torch.int32).rtriton()
 
 # Strides and workspace
-stride_a = torch.tensor([a.stride(0), a.stride(1)], dtype=torch.int64).cuda()
-stride_b = torch.tensor([b.stride(0), b.stride(1), b.stride(2)], dtype=torch.int64).cuda()
-stride_d = torch.tensor([hidden_dim], dtype=torch.int64).cuda()
-workspace = torch.empty(16777216, dtype=torch.uint8).cuda()
+stride_a = torch.tensor([a.stride(0), a.stride(1)], dtype=torch.int64).rtriton()
+stride_b = torch.tensor([b.stride(0), b.stride(1), b.stride(2)], dtype=torch.int64).rtriton()
+stride_d = torch.tensor([hidden_dim], dtype=torch.int64).rtriton()
+workspace = torch.empty(16777216, dtype=torch.uint8).rtriton()
 
 tilelang_es_fp8_blockwise_scaled_grouped_mm(
     output=output,
@@ -727,7 +727,7 @@ tilelang_es_fp8_blockwise_scaled_grouped_mm(
 | `CHIMERA_MEM_FRACTION` | Memory fraction for model | 0.9 |
 | `SGLANG_TORCH_PROFILER_DIR` | (Legacy) Same as CHIMERA_* | - |
 | `SGLANG_ENABLE_TORCH_COMPILE` | (Legacy) Same as CHIMERA_* | 0 |
-| `CUDA_VISIBLE_DEVICES` | GPU device selection | All |
+| `RTRITON_VISIBLE_DEVICES` | GPU device selection | All |
 | `NCCL_DEBUG` | NCCL logging level | WARN |
 | `FLASHINFER_VERSION` | FlashInfer version to use | Latest |
 

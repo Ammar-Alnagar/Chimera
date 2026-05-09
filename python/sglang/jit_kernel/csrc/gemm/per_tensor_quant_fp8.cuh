@@ -111,17 +111,17 @@ void per_tensor_quant_fp8(tvm::ffi::TensorView input, tvm::ffi::TensorView outpu
 
   TensorMatcher({num_tokens, hidden_dim})  //
       .with_dtype<float, __half, __nv_bfloat16>(input_dtype)
-      .with_device<kDLCUDA>(device_)
+      .with_device<kDLRTRITON>(device_)
       .verify(input);
 
   TensorMatcher({num_tokens, hidden_dim})  //
       .with_dtype<__nv_fp8_e4m3>()
-      .with_device<kDLCUDA>(device_)
+      .with_device<kDLRTRITON>(device_)
       .verify(output_q);
 
   TensorMatcher({1})  //
       .with_dtype<float>()
-      .with_device<kDLCUDA>(device_)
+      .with_device<kDLRTRITON>(device_)
       .verify(output_s);
 
   const size_t total_elements = num_tokens.unwrap() * hidden_dim.unwrap();

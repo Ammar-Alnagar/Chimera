@@ -127,7 +127,7 @@ class Gemma3nMultimodalEmbedder(nn.Module):
         if inputs_embeds is not None:
             emb_norm = self.soft_embedding_norm(inputs_embeds)
         else:
-            # Handle out of vocab ids to prevent CUDA assertion failures
+            # Handle out of vocab ids to prevent RTRITON assertion failures
             out_of_vocab_id = self.vocab_size - 1
             adjusted_ids = input_ids - self.vocab_offset
             adjusted_ids = torch.where(adjusted_ids < 0, out_of_vocab_id, adjusted_ids)

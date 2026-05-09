@@ -53,7 +53,7 @@ def calculate_diff(
     kernel: str, dtype: torch.dtype, batch_size: int, seq_len: int, dim: int
 ) -> bool:
     """Compare vLLM with SGLang for one shape."""
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
 
     if not VLLM_AVAILABLE:
         print(
@@ -130,7 +130,7 @@ else:
     )
 )
 def benchmark(kernel, dtype, batch_size, seq_len, dim, provider):
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
     in_mult = 1 if kernel == "gelu_quick" else 2
     x = torch.randn(batch_size, seq_len, in_mult * dim, dtype=dtype, device=device)
     y0 = torch.zeros(batch_size, seq_len, dim, dtype=dtype, device=device)
@@ -161,8 +161,8 @@ def benchmark(kernel, dtype, batch_size, seq_len, dim, provider):
     def timed(fn):
         for _ in range(5):
             fn()
-        torch.cuda.synchronize()
-        ms, qmin, qmax = triton.testing.do_bench_cudagraph(
+        torch.rtriton.synchronize()
+        ms, qmin, qmax = triton.testing.do_bench_rtritongraph(
             fn, quantiles=[0.5, 0.2, 0.8]
         )
         return 1000 * ms, 1000 * qmax, 1000 * qmin

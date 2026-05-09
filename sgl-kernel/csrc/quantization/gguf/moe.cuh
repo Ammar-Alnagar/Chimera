@@ -14,10 +14,10 @@ template <
     int mmq_x,
     int mmq_y,
     int nwarps,
-    allocate_tiles_cuda_t allocate_tiles,
-    load_tiles_cuda_t load_tiles,
+    allocate_tiles_rtriton_t allocate_tiles,
+    load_tiles_rtriton_t load_tiles,
     int vdr,
-    vec_dot_q_mul_mat_cuda_t vec_dot>
+    vec_dot_q_mul_mat_rtriton_t vec_dot>
 static __device__ __forceinline__ void moe_q(
     const void* __restrict__ vx,
     const void* __restrict__ vy,
@@ -211,7 +211,7 @@ __launch_bounds__(WARP_SIZE_GGUF* NWARPS_Q4_0, 2)
 }
 
 template <typename scalar_t>
-static void ggml_moe_q4_0_q8_1_cuda(
+static void ggml_moe_q4_0_q8_1_rtriton(
     const void* inp,
     const void* w,
     scalar_t* dst,
@@ -226,7 +226,7 @@ static void ggml_moe_q4_0_q8_1_cuda(
     const int nrows_dst,
     const int top_k,
     const int tokens_post_padded,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   int mmq_x = MOE_X_Q4_0;
   int mmq_y = MOE_Y_Q4_0;
   int nwarps = NWARPS_Q4_0;
@@ -334,7 +334,7 @@ __launch_bounds__(WARP_SIZE_GGUF* NWARPS_Q4_1, 2)
 }
 
 template <typename scalar_t>
-static void ggml_moe_q4_1_q8_1_cuda(
+static void ggml_moe_q4_1_q8_1_rtriton(
     const void* inp,
     const void* w,
     scalar_t* dst,
@@ -349,7 +349,7 @@ static void ggml_moe_q4_1_q8_1_cuda(
     const int nrows_dst,
     const int top_k,
     const int tokens_post_padded,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   int mmq_x = MOE_X_Q4_1;
   int mmq_y = MOE_Y_Q4_1;
   int nwarps = NWARPS_Q4_1;
@@ -457,7 +457,7 @@ __launch_bounds__(WARP_SIZE_GGUF* NWARPS_Q5_0, 2)
 }
 
 template <typename scalar_t>
-static void ggml_moe_q5_0_q8_1_cuda(
+static void ggml_moe_q5_0_q8_1_rtriton(
     const void* inp,
     const void* w,
     scalar_t* dst,
@@ -472,7 +472,7 @@ static void ggml_moe_q5_0_q8_1_cuda(
     const int nrows_dst,
     const int top_k,
     const int tokens_post_padded,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   const int mmq_x = MOE_X_Q5_0;
   const int mmq_y = MOE_Y_Q5_0;
   const int nwarps = NWARPS_Q5_0;
@@ -580,7 +580,7 @@ __launch_bounds__(WARP_SIZE_GGUF* NWARPS_Q5_1, 2)
 }
 
 template <typename scalar_t>
-static void ggml_moe_q5_1_q8_1_cuda(
+static void ggml_moe_q5_1_q8_1_rtriton(
     const void* inp,
     const void* w,
     scalar_t* dst,
@@ -595,7 +595,7 @@ static void ggml_moe_q5_1_q8_1_cuda(
     const int nrows_dst,
     const int top_k,
     const int tokens_post_padded,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   const int mmq_x = MOE_X_Q5_1;
   const int mmq_y = MOE_Y_Q5_1;
   const int nwarps = NWARPS_Q5_1;
@@ -703,7 +703,7 @@ __launch_bounds__(WARP_SIZE_GGUF* NWARPS_Q8_0, 2)
 }
 
 template <typename scalar_t>
-static void ggml_moe_q8_0_q8_1_cuda(
+static void ggml_moe_q8_0_q8_1_rtriton(
     const void* inp,
     const void* w,
     scalar_t* dst,
@@ -718,7 +718,7 @@ static void ggml_moe_q8_0_q8_1_cuda(
     const int nrows_dst,
     const int top_k,
     const int tokens_post_padded,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   const int mmq_x = MOE_X_Q8_0;
   const int mmq_y = MOE_Y_Q8_0;
   const int nwarps = NWARPS_Q8_0;
@@ -826,7 +826,7 @@ __launch_bounds__(WARP_SIZE_GGUF* NWARPS_Q2_K, 2)
 }
 
 template <typename scalar_t>
-static void ggml_moe_q2_K_q8_1_cuda(
+static void ggml_moe_q2_K_q8_1_rtriton(
     const void* inp,
     const void* w,
     scalar_t* dst,
@@ -841,7 +841,7 @@ static void ggml_moe_q2_K_q8_1_cuda(
     const int nrows_dst,
     const int top_k,
     const int tokens_post_padded,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   const int mmq_x = MOE_X_Q2_K;
   const int mmq_y = MOE_Y_Q2_K;
   const int nwarps = NWARPS_Q2_K;
@@ -949,7 +949,7 @@ __launch_bounds__(WARP_SIZE_GGUF* NWARPS_Q3_K, 2)
       top_k);
 }
 template <typename scalar_t>
-static void ggml_moe_q3_K_q8_1_cuda(
+static void ggml_moe_q3_K_q8_1_rtriton(
     const void* inp,
     const void* w,
     scalar_t* dst,
@@ -964,7 +964,7 @@ static void ggml_moe_q3_K_q8_1_cuda(
     const int nrows_dst,
     const int top_k,
     const int tokens_post_padded,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   const int mmq_x = MOE_X_Q3_K;
   const int mmq_y = MOE_Y_Q3_K;
   const int nwarps = NWARPS_Q3_K;
@@ -1072,7 +1072,7 @@ __launch_bounds__(WARP_SIZE_GGUF* NWARPS_Q4_K, 2)
 }
 
 template <typename scalar_t>
-static void ggml_moe_q4_K_q8_1_cuda(
+static void ggml_moe_q4_K_q8_1_rtriton(
     const void* inp,
     const void* w,
     scalar_t* dst,
@@ -1087,7 +1087,7 @@ static void ggml_moe_q4_K_q8_1_cuda(
     const int nrows_dst,
     const int top_k,
     const int tokens_post_padded,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   const int mmq_x = MOE_X_Q4_K;
   const int mmq_y = MOE_Y_Q4_K;
   const int nwarps = NWARPS_Q4_K;
@@ -1195,7 +1195,7 @@ __launch_bounds__(WARP_SIZE_GGUF* NWARPS_Q5_K, 2)
 }
 
 template <typename scalar_t>
-static void ggml_moe_q5_K_q8_1_cuda(
+static void ggml_moe_q5_K_q8_1_rtriton(
     const void* inp,
     const void* w,
     scalar_t* dst,
@@ -1210,7 +1210,7 @@ static void ggml_moe_q5_K_q8_1_cuda(
     const int nrows_dst,
     const int top_k,
     const int tokens_post_padded,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   const int mmq_x = MOE_X_Q5_K;
   const int mmq_y = MOE_Y_Q5_K;
   const int nwarps = NWARPS_Q5_K;
@@ -1318,7 +1318,7 @@ __launch_bounds__(WARP_SIZE_GGUF* NWARPS_Q6_K, 2)
 }
 
 template <typename scalar_t>
-static void ggml_moe_q6_K_q8_1_cuda(
+static void ggml_moe_q6_K_q8_1_rtriton(
     const void* inp,
     const void* w,
     scalar_t* dst,
@@ -1333,7 +1333,7 @@ static void ggml_moe_q6_K_q8_1_cuda(
     const int nrows_dst,
     const int top_k,
     const int tokens_post_padded,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   const int mmq_x = MOE_X_Q6_K;
   const int mmq_y = MOE_Y_Q6_K;
   const int nwarps = NWARPS_Q6_K;

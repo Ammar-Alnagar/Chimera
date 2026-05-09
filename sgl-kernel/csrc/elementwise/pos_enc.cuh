@@ -104,7 +104,7 @@ __global__ void BatchQKApplyRotaryPosIdsCosSinCacheEnhancedHeadParallelismKernel
   uint32_t by = blockIdx.y;
   const uint32_t bdy = blockDim.y;
 
-#if (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 900))
+#if (defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 900))
   asm volatile("griddepcontrol.wait;");
 #endif
 
@@ -183,7 +183,7 @@ __global__ void BatchQKApplyRotaryPosIdsCosSinCacheEnhancedHeadParallelismKernel
     }
   }
 
-#if (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 900))
+#if (defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 900))
   asm volatile("griddepcontrol.launch_dependents;");
 #endif
 }
@@ -228,7 +228,7 @@ __global__ void BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel(
   uint32_t bx = blockIdx.x, tx = threadIdx.x, ty = threadIdx.y;
   const uint32_t bdy = blockDim.y;
 
-#if (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 900))
+#if (defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 900))
   asm volatile("griddepcontrol.wait;");
 #endif
 
@@ -309,7 +309,7 @@ __global__ void BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel(
     }
   }
 
-#if (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 900))
+#if (defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 900))
   asm volatile("griddepcontrol.launch_dependents;");
 #endif
 }
@@ -324,7 +324,7 @@ __global__ void BatchQKApplyRotaryPosIdsCosSinCacheEnhancedKernel(
   }
 
 template <typename DType, typename IdType>
-cudaError_t BatchQKApplyRotaryPosIdsCosSinCacheEnhanced(
+rtritonError_t BatchQKApplyRotaryPosIdsCosSinCacheEnhanced(
     DType* q,
     DType* k,
     DType* v,
@@ -357,26 +357,26 @@ cudaError_t BatchQKApplyRotaryPosIdsCosSinCacheEnhanced(
     bool interleave,
     bool save_kv_cache,
     bool enable_pdl,
-    cudaStream_t stream = nullptr) {
+    rtritonStream_t stream = nullptr) {
   int dev_id = 0;
   int num_sms = 0;
-  FLASHINFER_CUDA_CALL(cudaGetDevice(&dev_id));
-  FLASHINFER_CUDA_CALL(cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id));
+  FLASHINFER_RTRITON_CALL(rtritonGetDevice(&dev_id));
+  FLASHINFER_RTRITON_CALL(rtritonDeviceGetAttribute(&num_sms, rtritonDevAttrMultiProcessorCount, dev_id));
 
 #define LAUNCH_KERNEL_RAW(kernel_name)                                \
   do {                                                                \
-    cudaLaunchConfig_t config = {};                                   \
+    rtritonLaunchConfig_t config = {};                                   \
     config.gridDim = nblks;                                           \
     config.blockDim = nthrs;                                          \
     config.dynamicSmemBytes = 0;                                      \
     config.stream = stream;                                           \
-    cudaLaunchAttribute attrs[1] = {};                                \
-    attrs[0].id = cudaLaunchAttributeProgrammaticStreamSerialization; \
+    rtritonLaunchAttribute attrs[1] = {};                                \
+    attrs[0].id = rtritonLaunchAttributeProgrammaticStreamSerialization; \
     attrs[0].val.programmaticStreamSerializationAllowed = enable_pdl; \
     config.numAttrs = 1;                                              \
     config.attrs = attrs;                                             \
                                                                       \
-    FLASHINFER_CUDA_CALL(cudaLaunchKernelEx(                          \
+    FLASHINFER_RTRITON_CALL(rtritonLaunchKernelEx(                          \
         &config,                                                      \
         kernel_name,                                                  \
         q,                                                            \
@@ -433,7 +433,7 @@ cudaError_t BatchQKApplyRotaryPosIdsCosSinCacheEnhanced(
             IdType>;
 
         int num_blocks_per_sm_0 = 0;
-        FLASHINFER_CUDA_CALL(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+        FLASHINFER_RTRITON_CALL(rtritonOccupancyMaxActiveBlocksPerMultiprocessor(
             &num_blocks_per_sm_0, kernel_0, num_threads, /*smem_size=*/0));
         uint32_t num_ctas_0 = num_blocks_per_sm_0 * num_sms;
 
@@ -459,7 +459,7 @@ cudaError_t BatchQKApplyRotaryPosIdsCosSinCacheEnhanced(
   });
 #undef LAUNCH_KERNEL_RAW
 
-  return cudaSuccess;
+  return rtritonSuccess;
 }
 
 }  // namespace flashinfer

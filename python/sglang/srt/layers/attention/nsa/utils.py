@@ -325,13 +325,13 @@ def prepare_input_dp_with_cp_dsa(
     kv_len_next = prefix_sum_list[cp_size * 2 - cp_rank - 1]
     actual_seq_q_prev = split_list[cp_rank]
     actual_seq_q_next = split_list[cp_size * 2 - cp_rank - 1]
-    kv_len_prev_tensor = torch.tensor(kv_len_prev).to(device="cuda", dtype=torch.int32)
-    kv_len_next_tensor = torch.tensor(kv_len_next).to(device="cuda", dtype=torch.int32)
+    kv_len_prev_tensor = torch.tensor(kv_len_prev).to(device="rtriton", dtype=torch.int32)
+    kv_len_next_tensor = torch.tensor(kv_len_next).to(device="rtriton", dtype=torch.int32)
     actual_seq_q_prev_tensor = torch.tensor(actual_seq_q_prev).to(
-        device="cuda", dtype=torch.int32
+        device="rtriton", dtype=torch.int32
     )
     actual_seq_q_next_tensor = torch.tensor(actual_seq_q_next).to(
-        device="cuda", dtype=torch.int32
+        device="rtriton", dtype=torch.int32
     )
 
     nsa_cp_metadata = NSAContextParallelMetadata(

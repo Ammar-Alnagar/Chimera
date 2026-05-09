@@ -66,7 +66,7 @@ class TestModelOptExport(unittest.TestCase):
 
         # Mock model
         self.mock_model = Mock(spec=torch.nn.Module)
-        self.mock_model.device = torch.device("cuda:0")
+        self.mock_model.device = torch.device("rtriton:0")
 
         # Mock tokenizer
         self.mock_tokenizer = Mock()

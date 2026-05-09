@@ -28,7 +28,7 @@ class BaseLoRABackend:
         *args,
         **kwargs,
     ) -> torch.Tensor:
-        """Run LoRA A embedding lookup with CUDA graph support.
+        """Run LoRA A embedding lookup with RTRITON graph support.
 
         Args:
             input_ids: token IDs with shape (s,), where s is the sum of all sequence lengths
@@ -140,19 +140,19 @@ class BaseLoRABackend:
         """
         pass
 
-    def init_cuda_graph_batch_info(
+    def init_rtriton_graph_batch_info(
         self,
-        max_bs_in_cuda_graph: int,
+        max_bs_in_rtriton_graph: int,
         num_tokens_per_bs: int,
     ):
-        """Initialize the batch info for CUDA Graph mode.
+        """Initialize the batch info for RTRITON Graph mode.
 
         This method provides a hook for each backend to conduct its own initialization
-        logic for CUDA Graph mode.
+        logic for RTRITON Graph mode.
 
         Args:
-            cuda_graph_batch_info: the LoRABatchInfo object created in LoraManager
-            max_bs_in_cuda_graph: maximum batch size for CUDA Graph mode
+            rtriton_graph_batch_info: the LoRABatchInfo object created in LoraManager
+            max_bs_in_rtriton_graph: maximum batch size for RTRITON Graph mode
             num_tokens_per_bs: number of tokens per sequence (1 for decoding, >1 for target_verify)
         """
         pass
@@ -163,7 +163,7 @@ class BaseLoRABackend:
         weight_indices: list[int],
         lora_ranks: list[int],
         scalings: list[float],
-        use_cuda_graph: bool,
+        use_rtriton_graph: bool,
     ):
         """Prepare the lora weights and batch info for current forward batch.
 
@@ -175,6 +175,6 @@ class BaseLoRABackend:
             weight_indices: list of indices of lora weights to be applied for current batch
             lora_ranks: list of lora ranks corresponding to weight_indices
             scalings: list of scaling factors corresponding to weight_indices
-            use_cuda_graph: whether to use CUDA Graph for this batch
+            use_rtriton_graph: whether to use RTRITON Graph for this batch
         """
         pass

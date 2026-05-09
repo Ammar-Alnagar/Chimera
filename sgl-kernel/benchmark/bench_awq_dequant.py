@@ -41,7 +41,7 @@ def sglang_awq_dequantize(
 
 def calculate_diff(qweight_row: int, qweight_col: int):
     """Calculate difference between VLLM and SGLang implementations."""
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
     qweight = torch.randint(
         0,
         torch.iinfo(torch.int32).max,
@@ -104,7 +104,7 @@ configs = list(itertools.product(qweight_row_range, qweight_cols_range))
 )
 def benchmark(qweight_row, qweight_col, provider):
     dtype = torch.float16
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
     qweight = torch.randint(
         0,
         torch.iinfo(torch.int32).max,
@@ -137,7 +137,7 @@ def benchmark(qweight_row, qweight_col, provider):
             qweight.clone(), scales.clone(), qzeros.clone()
         )
 
-    ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(fn, quantiles=quantiles)
+    ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(fn, quantiles=quantiles)
 
     return 1000 * ms, 1000 * max_ms, 1000 * min_ms
 

@@ -13,12 +13,12 @@ _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
 
 
 _CASES = [
-    (64, 64, 32, 8000, True, torch.bfloat16, "cuda", 32, 32, 1, 1),
-    (256, 128, 4096, 10000, True, torch.bfloat16, "cuda", 2, 512, 4, 2),
-    (512, 128, 311, 10000, True, torch.bfloat16, "cuda", 3, 39, 4, 2),
-    (128, 128, 2048, 10000, False, torch.bfloat16, "cuda", 2, 512, 32, 8),
-    (128, 128, 2048, 10000, False, torch.bfloat16, "cuda", 2, 512, 16, 4),
-    (512, 128, 311, 10000, False, torch.bfloat16, "cuda", 3, 39, 4, 2),
+    (64, 64, 32, 8000, True, torch.bfloat16, "rtriton", 32, 32, 1, 1),
+    (256, 128, 4096, 10000, True, torch.bfloat16, "rtriton", 2, 512, 4, 2),
+    (512, 128, 311, 10000, True, torch.bfloat16, "rtriton", 3, 39, 4, 2),
+    (128, 128, 2048, 10000, False, torch.bfloat16, "rtriton", 2, 512, 32, 8),
+    (128, 128, 2048, 10000, False, torch.bfloat16, "rtriton", 2, 512, 16, 4),
+    (512, 128, 311, 10000, False, torch.bfloat16, "rtriton", 3, 39, 4, 2),
 ]
 
 

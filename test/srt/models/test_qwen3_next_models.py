@@ -290,7 +290,7 @@ class TestQwen3NextMTPTopk(CustomTestCase):
         print("test_prefix_cache_branching passed")
 
 
-class TestQwen3NextPiecewiseCudaGraph(CustomTestCase):
+class TestQwen3NextPiecewiseRtritonGraph(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -303,8 +303,8 @@ class TestQwen3NextPiecewiseCudaGraph(CustomTestCase):
             other_args=[
                 "--tp",
                 "4",
-                "--enable-piecewise-cuda-graph",
-                "--piecewise-cuda-graph-compiler",
+                "--enable-piecewise-rtriton-graph",
+                "--piecewise-rtriton-graph-compiler",
                 "eager",
             ],
         )

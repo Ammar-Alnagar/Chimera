@@ -235,10 +235,10 @@ AMD_DEEPSEEK_V3_TC_MODELS = [
             "131072",
             "--mem-fraction-static",
             "0.70",  # Reduced further for torch compile
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             "8",  # Reduced from 16 to reduce memory
             "--enable-torch-compile",
-            "--disable-cuda-graph",  # Disable cuda graph to avoid memory issues
+            "--disable-rtriton-graph",  # Disable rtriton graph to avoid memory issues
             "--trust-remote-code",
         ],
         env_vars={

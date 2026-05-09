@@ -281,9 +281,9 @@ def compute_split_token_index(
         raise NotImplementedError
 
 
-def compute_split_indices_for_cuda_graph_replay(
+def compute_split_indices_for_rtriton_graph_replay(
     forward_mode: ForwardMode,
-    cuda_graph_num_tokens: int,
+    rtriton_graph_num_tokens: int,
     spec_info: Optional[SpecInput],
 ):
     forward_mode_for_tbo_split = (
@@ -294,7 +294,7 @@ def compute_split_indices_for_cuda_graph_replay(
     )
     tbo_split_seq_index = compute_split_seq_index(
         forward_mode=forward_mode_for_tbo_split,
-        num_tokens=cuda_graph_num_tokens,
+        num_tokens=rtriton_graph_num_tokens,
         extend_lens=None,
         token_num_per_seq=token_num_per_seq,
     )
@@ -310,7 +310,7 @@ def compute_split_indices_for_cuda_graph_replay(
 # -------------------------------- Preparation ---------------------------------------
 
 
-class TboCudaGraphRunnerPlugin:
+class TboRtritonGraphRunnerPlugin:
     def __init__(self):
         self._tbo_children_num_token_non_padded = torch.zeros((2,), dtype=torch.int32)
 
@@ -327,7 +327,7 @@ class TboCudaGraphRunnerPlugin:
             extend_lens=None,
             token_num_per_seq=token_num_per_seq,
         )
-        # For simplicity, when two_batch_overlap is enabled, we only capture CUDA Graph for tbo=true
+        # For simplicity, when two_batch_overlap is enabled, we only capture RTRITON Graph for tbo=true
         assert batch.tbo_split_seq_index is not None, f"{num_tokens=}"
 
         self._tbo_children_num_token_non_padded[...] = (
@@ -350,9 +350,9 @@ class TboCudaGraphRunnerPlugin:
             forward_mode=forward_mode, spec_info=spec_info
         )
         tbo_split_seq_index, tbo_split_token_index = (
-            compute_split_indices_for_cuda_graph_replay(
+            compute_split_indices_for_rtriton_graph_replay(
                 forward_mode=forward_mode,
-                cuda_graph_num_tokens=bs * token_num_per_seq,
+                rtriton_graph_num_tokens=bs * token_num_per_seq,
                 spec_info=spec_info,
             )
         )
@@ -681,7 +681,7 @@ class TboForwardBatchPreparer:
             "return_logprob",
             "req_to_token_pool",
             "token_to_kv_pool",
-            "can_run_dp_cuda_graph",
+            "can_run_dp_rtriton_graph",
             "dp_padding_mode",
             "global_forward_mode",
             "is_prefill_only",

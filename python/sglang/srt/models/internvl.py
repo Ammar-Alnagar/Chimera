@@ -38,10 +38,10 @@ from sglang.srt.models.qwen3 import Qwen3ForCausalLM
 from sglang.srt.models.qwen3_moe import Qwen3MoeForCausalLM
 from sglang.srt.multimodal.mm_utils import run_dp_sharded_vision_model
 from sglang.srt.server_args import get_global_server_args
-from sglang.srt.utils import is_cuda
+from sglang.srt.utils import is_rtriton
 from sglang.utils import logger
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
 
 class InternAttention(nn.Module):
@@ -50,7 +50,7 @@ class InternAttention(nn.Module):
         config,
         quant_config: QuantizationConfig = None,
         use_data_parallel: bool = False,
-        aux_stream: Optional[torch.cuda.Stream] = None,
+        aux_stream: Optional[torch.rtriton.Stream] = None,
     ):
         super().__init__()
         self.config = config
@@ -227,7 +227,7 @@ class InternVisionEncoderLayer(nn.Module):
         drop_path_rate: float,
         quant_config: QuantizationConfig = None,
         use_data_parallel: bool = False,
-        aux_stream: Optional[torch.cuda.Stream] = None,
+        aux_stream: Optional[torch.rtriton.Stream] = None,
     ):
         super().__init__()
         self.embed_dim = config.hidden_size
@@ -303,7 +303,7 @@ class InternVisionEncoder(nn.Module):
             x.item()
             for x in torch.linspace(0, config.drop_path_rate, config.num_hidden_layers)
         ]
-        aux_stream = torch.cuda.Stream() if _is_cuda else None
+        aux_stream = torch.rtriton.Stream() if _is_rtriton else None
         self.layers = nn.ModuleList(
             [
                 InternVisionEncoderLayer(

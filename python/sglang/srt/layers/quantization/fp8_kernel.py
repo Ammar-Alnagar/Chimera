@@ -30,7 +30,7 @@ from sglang.srt.utils import (
     get_device_core_count,
     get_device_name,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
     log_info_on_rank0,
 )
@@ -38,11 +38,11 @@ from sglang.srt.utils.custom_op import register_custom_op
 from sglang.srt.utils.patch_torch import register_fake_if_exists
 
 _is_hip = is_hip()
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_cpu = is_cpu()
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import sgl_per_tensor_quant_fp8, sgl_per_token_quant_fp8
 
     # Temporary
@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 def is_fp8_fnuz() -> bool:
     if _is_hip:
         # only device 0 is checked, this assumes MI300 platforms are homogeneous
-        return "gfx94" in torch.cuda.get_device_properties(0).gcnArchName
+        return "gfx94" in torch.rtriton.get_device_properties(0).gcnArchName
     return False
 
 
@@ -428,7 +428,7 @@ def create_per_token_group_quant_fp8_output_scale(
         x_s_mn, x_s_k = x_q_mn, x_q_k // 128
         aligned_mn = ceil_align(x_s_mn, 4)
         aligned_k = ceil_align(x_s_k, 4)
-        # TODO(FIXME): Fix cuda kernel and recover here to empty.
+        # TODO(FIXME): Fix rtriton kernel and recover here to empty.
         return torch.empty(
             (*x_batch, aligned_k // 4, aligned_mn),
             device=device,
@@ -1841,7 +1841,7 @@ def triton_scaled_mm(
     return result.to(out_dtype)
 
 
-if _is_cuda:
+if _is_rtriton:
     if enable_sgl_per_token_group_quant_8bit:
 
         @register_fake_if_exists("sgl_kernel::sgl_per_token_group_quant_8bit")

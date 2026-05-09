@@ -30,23 +30,23 @@ def calculate_accuracy_metrics(
 
 def run_benchmark(m, n, k, num_runs=100) -> dict[str, dict[str, float]]:
     """Run FP8 vs KVFP4 quantization benchmark and return metrics."""
-    tensor_bf16 = torch.randn(m, n, k, dtype=torch.bfloat16, device="cuda")
+    tensor_bf16 = torch.randn(m, n, k, dtype=torch.bfloat16, device="rtriton")
 
     # --- FP8 ---
     for _ in range(3):  # warmup
         _ = tensor_bf16 * 2
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     start = time.time()
     for _ in range(num_runs):
         tensor_fp8 = tensor_bf16.to(torch.float8_e4m3fn)
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     fp8_quant_time = (time.time() - start) / num_runs
 
     start = time.time()
     for _ in range(num_runs):
         tensor_fp8_dequant = tensor_fp8.to(torch.bfloat16)
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     fp8_dequant_time = (time.time() - start) / num_runs
 
     fp8_metrics = calculate_accuracy_metrics(tensor_bf16, tensor_fp8_dequant)
@@ -58,7 +58,7 @@ def run_benchmark(m, n, k, num_runs=100) -> dict[str, dict[str, float]]:
     start = time.time()
     for _ in range(num_runs):
         tensor_fp4, scale_factors = KVFP4QuantizeUtil.batched_quantize(tensor_bf16)
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     fp4_quant_time = (time.time() - start) / num_runs
 
     start = time.time()
@@ -66,7 +66,7 @@ def run_benchmark(m, n, k, num_runs=100) -> dict[str, dict[str, float]]:
         tensor_fp4_dequant = KVFP4QuantizeUtil.batched_dequantize(
             tensor_fp4, scale_factors
         )
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     fp4_dequant_time = (time.time() - start) / num_runs
 
     fp4_metrics = calculate_accuracy_metrics(tensor_bf16, tensor_fp4_dequant)

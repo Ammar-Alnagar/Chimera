@@ -35,7 +35,7 @@ class TestC4AI(CustomTestCase):
             "0.8",
             "--attention-backend",
             "ascend",
-            "--disable-cuda-graph",
+            "--disable-rtriton-graph",
             "--chat-template",
             chat_template_path,
             "--tp-size",

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import torch
 
-from sglang.srt.compilation.piecewise_context_manager import is_in_piecewise_cuda_graph
+from sglang.srt.compilation.piecewise_context_manager import is_in_piecewise_rtriton_graph
 from sglang.srt.environ import envs
 from sglang.srt.hardware_backend.npu.quantization.fused_moe_method_npu import (
     NPUW4A16Int4DynamicMoEMethod,
@@ -19,7 +19,7 @@ from sglang.srt.layers.moe import (
 from sglang.srt.layers.moe.fused_moe_triton.layer import (
     FlashInferFusedMoE,
     FusedMoE,
-    moe_forward_piecewise_cuda_graph_impl,
+    moe_forward_piecewise_rtriton_graph_impl,
 )
 from sglang.srt.layers.moe.token_dispatcher.deepep import (
     DeepEPLLCombineInput,
@@ -145,7 +145,7 @@ class DeepEPMoE(FusedMoE):
             # idx from 0-3 is valid and will be processed, while idx == 4 will be masked out
             self.expert_mask = torch.zeros(
                 (self.num_local_experts + 1),
-                device=torch.cuda.current_device(),
+                device=torch.rtriton.current_device(),
                 dtype=torch.int,
             )
             # the last one is invalid rank_id
@@ -156,11 +156,11 @@ class DeepEPMoE(FusedMoE):
         hidden_states: torch.Tensor,
         topk_output: TopKOutput,
     ):
-        if is_in_piecewise_cuda_graph():
+        if is_in_piecewise_rtriton_graph():
             assert TopKOutputChecker.format_is_standard(
                 topk_output
-            ), "Only standard topk output is supported for piecewise cuda graph"
-            return moe_forward_piecewise_cuda_graph_impl(
+            ), "Only standard topk output is supported for piecewise rtriton graph"
+            return moe_forward_piecewise_rtriton_graph_impl(
                 hidden_states,
                 topk_output.topk_weights,
                 topk_output.topk_ids,

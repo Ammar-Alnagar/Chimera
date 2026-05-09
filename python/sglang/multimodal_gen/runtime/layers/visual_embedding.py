@@ -16,7 +16,7 @@ from diffusers.models.embeddings import PixArtAlphaTextProjection, TimestepEmbed
 from diffusers.models.embeddings import Timesteps as _Timesteps
 
 try:
-    from sgl_kernel.elementwise import timestep_embedding as timestep_embedding_cuda
+    from sgl_kernel.elementwise import timestep_embedding as timestep_embedding_rtriton
 except Exception as _e:
     pass
 
@@ -81,7 +81,7 @@ class PatchEmbed(nn.Module):
 
 class Timesteps(_Timesteps):
     def forward(self, timesteps: torch.Tensor) -> torch.Tensor:
-        t_emb = timestep_embedding_cuda(
+        t_emb = timestep_embedding_rtriton(
             timesteps,
             self.num_channels,
             flip_sin_to_cos=self.flip_sin_to_cos,

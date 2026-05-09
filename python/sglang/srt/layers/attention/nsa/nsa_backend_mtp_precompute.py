@@ -62,7 +62,7 @@ class NativeSparseAttnBackendMTPPrecomputeMixin:
     """Mixin class providing metadata precomputation for multi-step speculative decoding.
 
     This mixin provides the _precompute_replay_metadata method and its helpers,
-    which are used to optimize CUDA graph replay in multi-step scenarios.
+    which are used to optimize RTRITON graph replay in multi-step scenarios.
     """
 
     def _precompute_replay_metadata(

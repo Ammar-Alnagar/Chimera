@@ -15,7 +15,7 @@ class TestTorchNativeLoRABackend(CustomTestCase):
     lora_ranks = [1, 1]
     scalings = [1.0, 0.5]
     seq_lens = [1, 1]
-    use_cuda_graph = False
+    use_rtriton_graph = False
 
     forward_batch = ForwardBatch(
         forward_mode=ForwardMode.EXTEND,
@@ -37,7 +37,7 @@ class TestTorchNativeLoRABackend(CustomTestCase):
             weight_indices=cls.weight_indices,
             lora_ranks=cls.lora_ranks,
             scalings=cls.scalings,
-            use_cuda_graph=cls.use_cuda_graph,
+            use_rtriton_graph=cls.use_rtriton_graph,
         )
 
     def test_run_lora_a_sgemm(self):

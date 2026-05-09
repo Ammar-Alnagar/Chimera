@@ -13,7 +13,7 @@ apply_rotary_emb = None
 
 def is_hopper():
     #  Only Hopper supports different V headdim
-    return torch.cuda.get_device_properties(0).major == 9
+    return torch.rtriton.get_device_properties(0).major == 9
 
 
 def is_fa3_supported(device=None) -> bool:
@@ -22,12 +22,12 @@ def is_fa3_supported(device=None) -> bool:
     #  hidden_dim or some special cases.
     #  Right now, fa3 is supported for sm80/sm87 and sm86/sm89. The main different
     #  Between sm80/sm87 and sm86/sm89 is the shared memory size. you can follow the link below for more information
-    #  https://docs.nvidia.com/cuda/cuda-c-programming-guide/#shared-memory-8-x
+    #  https://docs.nvidia.com/rtriton/rtriton-c-programming-guide/#shared-memory-8-x
     #  And for sgl-kernel right now, we can build fa3 on sm80/sm86/sm89/sm90a.
     #  That means if you use A100/A*0/L20/L40/L40s/4090 you can use fa3.
-    return (torch.version.cuda >= "12.3") and (
-        torch.cuda.get_device_capability(device)[0] == 9
-        or torch.cuda.get_device_capability(device)[0] == 8
+    return (torch.version.rtriton >= "12.3") and (
+        torch.rtriton.get_device_capability(device)[0] == 9
+        or torch.rtriton.get_device_capability(device)[0] == 8
     )
 
 
@@ -42,7 +42,7 @@ DISABLE_BACKWARD = True
 # DISABLE_FP16 = os.getenv("FLASH_ATTENTION_DISABLE_FP16", "FALSE") == "TRUE"
 # DISABLE_FP8 = (
 #     os.getenv("FLASH_ATTENTION_DISABLE_FP8", "FALSE") == "TRUE"
-#     or torch.cuda.get_device_capability("cuda")[0] < 9
+#     or torch.rtriton.get_device_capability("rtriton")[0] < 9
 # )
 
 DISABLE_SPLIT = False
@@ -566,7 +566,7 @@ def test_flash_attn_kvcache(
         pytest.skip()
     if rotary_fraction == 0.0 and has_rotary_seqlens:
         pytest.skip()
-    device = "cuda"
+    device = "rtriton"
     # set seed
     torch.random.manual_seed(0)
     batch_size = 5
@@ -1108,7 +1108,7 @@ def test_flash_attn_varlen_output(
 ):
     from sgl_kernel.flash_attn import flash_attn_varlen_func
 
-    device = "cuda"
+    device = "rtriton"
     # set seed
     torch.random.manual_seed(seqlen_q + seqlen_k + d + int(causal) * 2 + int(local))
     # batch_size = 40

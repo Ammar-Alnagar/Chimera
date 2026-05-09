@@ -7,7 +7,7 @@ For Ubuntu/Debian, you can download clangd from [apt.llvm.org](https://apt.llvm.
 If you are using VS Code, we recommend installing the `clangd` extension for better IDE integration.
 
 All JIT-related files are located in `python/sglang/jit_kernel`.
-Unlike `sgl-kernel`, which compiles CUDA/C++ binaries ahead of time (AOT), just-in-time (JIT) kernels are compiled at runtime.
+Unlike `sgl-kernel`, which compiles RTRITON/C++ binaries ahead of time (AOT), just-in-time (JIT) kernels are compiled at runtime.
 Consequently, a static `compile_commands.json` cannot be generated.
 To enable code completion with `clangd`, run `python -m sglang.jit_kernel` to generate a `.clangd` configuration file in your current directory.
 After generating the file, restart the clangd language server. It should now recognize all JIT kernel files.
@@ -27,7 +27,7 @@ Typically, `tvm::ffi::TensorView` is sufficient for passing PyTorch Tensors from
 
 Python interfaces are defined in `python/sglang/jit_kernel`.
 The `load_jit` utility function in `python/sglang/jit_kernel/utils.py` loads and returns the compiled module.
-To export a C++ function (e.g., `cpp_func`), pass `cuda_wrappers=[("func", "cpp_func")]` to `load_jit`.
+To export a C++ function (e.g., `cpp_func`), pass `rtriton_wrappers=[("func", "cpp_func")]` to `load_jit`.
 The function can then be called in Python as `module.func`.
 
 ### C++ Utilities
@@ -65,8 +65,8 @@ If the check fails, these arguments are output to aid debugging.
 void test() {
   host::RuntimeCheck(1 + 1 == 2, 1 + 1, " != ", 2);
   host::RuntimeDeviceCheck();
-  // check the provided `cudaError_t`
-  host::RuntimeDeviceCheck(cudaGetLastError());
+  // check the provided `rtritonError_t`
+  host::RuntimeDeviceCheck(rtritonGetLastError());
 }
 
 ```
@@ -89,7 +89,7 @@ void test(const tvm::ffi::TensorView k_cache, const tvm::ffi::TensorView v_cache
   TensorMatcher({-1, D})  //
       .with_strides({N, 1})
       .with_dtype<int32_t, int64_t>(dtype)
-      .with_device<kDLCUDA, kDLCPU>(device)
+      .with_device<kDLRTRITON, kDLCPU>(device)
       .verify(k_cache)
       .verify(v_cache);
 }
@@ -111,7 +111,7 @@ Use `.unwrap()` to retrieve the matched value after verification.
 
 #### Kernel Launching
 
-`LaunchKernel::resolve_device` retrieves the current `cudaStream` from PyTorch.
+`LaunchKernel::resolve_device` retrieves the current `rtritonStream` from PyTorch.
 Kernels can also be launched directly using `LaunchKernel`.
 
 ```cpp
@@ -129,7 +129,7 @@ void test() {
   DLDevice dev;  // suppose this is initialized properly
   host::LaunchKernel(num_blocks, num_threads, dev)(kernel);
 
-  cudaStream_t stream = host::LaunchKernel::resolve_device(dev);
+  rtritonStream_t stream = host::LaunchKernel::resolve_device(dev);
   host::LaunchKernel(num_blocks, num_threads, stream, dynamic_smem)(kernel);
 }
 
@@ -149,7 +149,7 @@ def add_constant(src: torch.Tensor, c: int):
 
 ### STEP 1: Write the C++ kernel
 
-Write your CUDA kernel in [jit_kernel/csrc/add_constant.cuh](../../python/sglang/jit_kernel/csrc/add_constant.cuh). For demonstration purposes, we pass the constant value as a template parameter.
+Write your RTRITON kernel in [jit_kernel/csrc/add_constant.cuh](../../python/sglang/jit_kernel/csrc/add_constant.cuh). For demonstration purposes, we pass the constant value as a template parameter.
 
 ```cpp
 #include <sgl_kernel/tensor.h>   // For TensorMatcher, SymbolicSize, SymbolicDevice
@@ -184,7 +184,7 @@ void add_constant(tvm::ffi::TensorView dst, tvm::ffi::TensorView src) {
   SymbolicDevice device_;
   TensorMatcher({N})                  // 1D tensor, must be contiguous
       .with_dtype<int32_t>()          // must be int32
-      .with_device<kDLCUDA>(device_)  // must be on CUDA device
+      .with_device<kDLRTRITON>(device_)  // must be on RTRITON device
       .verify(dst)                    // check tensor dst
       .verify(src);                   // check tensor src
 
@@ -234,8 +234,8 @@ def _jit_add_constant_module(constant: int) -> Module:
     return load_jit(
         "add_constant",
         *args,
-        cuda_files=["add_constant.cuh"],
-        cuda_wrappers=[("add_constant", f"add_constant<{args}>")],
+        rtriton_files=["add_constant.cuh"],
+        rtriton_wrappers=[("add_constant", f"add_constant<{args}>")],
     )
 
 

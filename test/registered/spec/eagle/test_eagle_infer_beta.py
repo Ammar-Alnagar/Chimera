@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from sglang.srt.environ import envs
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval
 from sglang.test.kits.matched_stop_kit import MatchedStopMixin
 from sglang.test.kits.radix_cache_server_kit import run_radix_attention_test
@@ -16,7 +16,7 @@ from sglang.test.test_utils import (
     popen_launch_server,
 )
 
-register_cuda_ci(est_time=194, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=194, suite="stage-b-test-small-1-gpu")
 
 
 class TestEagleServerBase(CustomTestCase, MatchedStopMixin):
@@ -53,7 +53,7 @@ class TestEagleServerBase(CustomTestCase, MatchedStopMixin):
             "0.75",
             "--max-running-requests",
             str(cls.max_running_requests),
-            "--cuda-graph-bs",
+            "--rtriton-graph-bs",
             *[str(i) for i in range(1, cls.max_running_requests + 1)],
         ]
         launch_args.extend(cls.other_launch_args)

@@ -150,7 +150,7 @@ class ServerContext:
             pass
 
         # ROCm/AMD: Extra cleanup to ensure GPU memory is released between tests
-        # This is needed because ROCm memory release can be slower than CUDA
+        # This is needed because ROCm memory release can be slower than RTRITON
         if current_platform.is_hip():
             self._cleanup_rocm_gpu_memory()
             # Clean up downloaded models if HF cache is not persistent
@@ -229,14 +229,14 @@ class ServerContext:
         try:
             import torch
 
-            for i in range(torch.cuda.device_count()):
-                with torch.cuda.device(i):
-                    torch.cuda.empty_cache()
-                    torch.cuda.synchronize()
+            for i in range(torch.rtriton.device_count()):
+                with torch.rtriton.device(i):
+                    torch.rtriton.empty_cache()
+                    torch.rtriton.synchronize()
         except Exception:
             pass
 
-        # Wait for GPU memory to be released (ROCm can be much slower than CUDA)
+        # Wait for GPU memory to be released (ROCm can be much slower than RTRITON)
         # The GPU driver needs time to reclaim memory from killed processes
         time.sleep(15)
 
@@ -262,12 +262,12 @@ class ServerManager:
         """ROCm-specific: Wait for GPU memory to be mostly free before starting.
 
         ROCm GPU memory release from killed processes can be significantly slower
-        than CUDA, so we need to wait longer and be more patient.
+        than RTRITON, so we need to wait longer and be more patient.
         """
         try:
             import torch
 
-            if not torch.cuda.is_available():
+            if not torch.rtriton.is_available():
                 return
 
             start_time = time.time()
@@ -276,8 +276,8 @@ class ServerManager:
             while time.time() - start_time < max_wait:
                 # Check GPU memory usage
                 total_used = 0
-                for i in range(torch.cuda.device_count()):
-                    mem_info = torch.cuda.mem_get_info(i)
+                for i in range(torch.rtriton.device_count()):
+                    mem_info = torch.rtriton.mem_get_info(i)
                     free, total = mem_info
                     used = total - free
                     total_used += used

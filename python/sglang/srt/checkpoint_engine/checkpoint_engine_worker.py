@@ -101,15 +101,15 @@ class SGLangCheckpointEngineWorkerExtensionImpl(SGLangCheckpointEngineWorkerExte
     def get_device_uuid(self) -> str:
         """Get the UUID of current device."""
         # Get device UUID for current device
-        device_id = torch.cuda.current_device()
+        device_id = torch.rtriton.current_device()
         try:
-            return f"GPU-{torch.cuda.get_device_properties(device_id).uuid!s}"
+            return f"GPU-{torch.rtriton.get_device_properties(device_id).uuid!s}"
         except AssertionError as e:
             raise ValueError(f"Failed to get GPU UUID for device {device_id}") from e
 
     def get_device_id(self) -> int:
         """Get the device ID."""
-        return torch.cuda.current_device()
+        return torch.rtriton.current_device()
 
     def get_model_loader(self) -> Callable:
         """Get the model weight loader function."""
@@ -129,7 +129,7 @@ class SGLangCheckpointEngineWorkerExtensionImpl(SGLangCheckpointEngineWorkerExte
                     if quant_method is not None:
                         # Move parameters to device if needed for quantization processing
                         target_device = torch.device(
-                            "cuda", torch.cuda.current_device()
+                            "rtriton", torch.rtriton.current_device()
                         )
                         with device_loading_context(module, target_device):
                             quant_method.process_weights_after_loading(module)

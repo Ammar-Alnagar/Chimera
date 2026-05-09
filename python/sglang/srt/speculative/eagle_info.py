@@ -39,9 +39,9 @@ from sglang.srt.speculative.spec_utils import (
     get_src_tgt_cache_loc,
     get_target_cache_loc,
 )
-from sglang.srt.utils import is_cuda, next_power_of_2
+from sglang.srt.utils import is_rtriton, next_power_of_2
 
-if is_cuda():
+if is_rtriton():
     from sgl_kernel import (
         top_k_renorm_prob,
         top_p_renorm_prob,
@@ -80,17 +80,17 @@ class EagleVerifyInput(SpecInput, EagleVerifyInputV2Mixin):
     @classmethod
     def create_idle_input(cls, topk: int, spec_steps: int, num_verify_tokens: int):
         return cls(
-            draft_token=torch.empty((0,), dtype=torch.long, device="cuda"),
-            custom_mask=torch.full((0,), True, dtype=torch.bool, device="cuda"),
-            positions=torch.empty((0,), dtype=torch.int64, device="cuda"),
+            draft_token=torch.empty((0,), dtype=torch.long, device="rtriton"),
+            custom_mask=torch.full((0,), True, dtype=torch.bool, device="rtriton"),
+            positions=torch.empty((0,), dtype=torch.int64, device="rtriton"),
             retrive_index=torch.full(
-                (0, num_verify_tokens), -1, dtype=torch.long, device="cuda"
+                (0, num_verify_tokens), -1, dtype=torch.long, device="rtriton"
             ),
             retrive_next_token=torch.full(
-                (0, num_verify_tokens), -1, dtype=torch.long, device="cuda"
+                (0, num_verify_tokens), -1, dtype=torch.long, device="rtriton"
             ),
             retrive_next_sibling=torch.full(
-                (0, num_verify_tokens), -1, dtype=torch.long, device="cuda"
+                (0, num_verify_tokens), -1, dtype=torch.long, device="rtriton"
             ),
             retrive_cum_len=None,
             topk=topk,
@@ -197,7 +197,7 @@ class EagleVerifyInput(SpecInput, EagleVerifyInputV2Mixin):
             + (self.draft_token_num**2) * batch_size
         )
         if self.custom_mask.numel() < mask_numel:
-            # FIXME(attn): temporary fix for custom mask padding with cuda graph
+            # FIXME(attn): temporary fix for custom mask padding with rtriton graph
             self.custom_mask = torch.cat(
                 [
                     self.custom_mask,
@@ -650,7 +650,7 @@ class EagleDraftInput(SpecInput, EagleDraftInputV2Mixin):
     # Inputs for V2 overlap worker
     future_indices: Optional[FutureIndices] = None
     new_seq_lens: Optional[torch.Tensor] = None
-    verify_done: Optional[torch.cuda.Event] = None
+    verify_done: Optional[torch.rtriton.Event] = None
 
     def __post_init__(self):
         super().__init__(SpecInputType.EAGLE_DRAFT)

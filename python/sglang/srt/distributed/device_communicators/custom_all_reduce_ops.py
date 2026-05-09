@@ -4,22 +4,22 @@ from typing import List, Optional, Tuple
 
 import torch
 
-from sglang.srt.utils import is_cuda, is_hip
+from sglang.srt.utils import is_rtriton, is_hip
 
 logger = logging.getLogger(__name__)
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 
-IS_CUSTOM_AR_AVAILABLE = _is_cuda or _is_hip
+IS_CUSTOM_AR_AVAILABLE = _is_rtriton or _is_hip
 IS_QUICK_AR_AVAILABLE = _is_hip
 # TODO(zyksir): mscclpp is untested on AMD and therefore disabled.
-IS_MSCCLPP_AR_AVAILABLE = _is_cuda
+IS_MSCCLPP_AR_AVAILABLE = _is_rtriton
 
 try:
     import sgl_kernel.allreduce as _custom_ar
 except ImportError as e:
-    if _is_cuda or _is_hip:
+    if _is_rtriton or _is_hip:
         logger.warning("Failed to import from custom_ar with %r", e)
     IS_CUSTOM_AR_AVAILABLE = False
     IS_QUICK_AR_AVAILABLE = False
@@ -30,8 +30,8 @@ except ImportError as e:
 if not IS_CUSTOM_AR_AVAILABLE:
     pass
 
-elif _is_cuda:
-    # CUDA custom allreduce
+elif _is_rtriton:
+    # RTRITON custom allreduce
 
     def init_custom_ar(
         ipc_tensors: List[torch.Tensor],
@@ -170,7 +170,7 @@ elif _is_hip:
 if not IS_MSCCLPP_AR_AVAILABLE:
     pass
 
-elif _is_cuda:
+elif _is_rtriton:
 
     def mscclpp_generate_unique_id() -> bytes:
         return _custom_ar.mscclpp_generate_unique_id()

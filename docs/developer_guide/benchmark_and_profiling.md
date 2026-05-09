@@ -274,11 +274,11 @@ python -m sglang.bench_serving --backend sglang --model meta-llama/Llama-3.1-8B-
 
 This command sets the number of prompts to 2 with `--num-prompts` argument and limits the length of output sequences to 100 with `--sharegpt-output-len` argument, which can generate a small trace file for browser to open smoothly.
 
-Additionally, if you want to locate the SGLang Python source code through the cuda kernel in Trace, you need to disable CUDA Graph when starting the service. This can be done by using the `--disable-cuda-graph` parameter in the command to start the service.
+Additionally, if you want to locate the SGLang Python source code through the rtriton kernel in Trace, you need to disable RTRITON Graph when starting the service. This can be done by using the `--disable-rtriton-graph` parameter in the command to start the service.
 
 ## Profile with Nsight
 
-[Nsight systems](https://docs.nvidia.com/nsight-systems/) is an advanced tool that exposes more profiling details, such as register and shared memory usage, annotated code regions and low-level CUDA APIs and events.
+[Nsight systems](https://docs.nvidia.com/nsight-systems/) is an advanced tool that exposes more profiling details, such as register and shared memory usage, annotated code regions and low-level RTRITON APIs and events.
 
 1. Prerequisite:
 
@@ -290,7 +290,7 @@ Additionally, if you want to locate the SGLang Python source code through the cu
    apt update
    apt install -y --no-install-recommends gnupg
    echo "deb http://developer.download.nvidia.com/devtools/repos/ubuntu$(source /etc/lsb-release; echo "$DISTRIB_RELEASE" | tr -d .)/$(dpkg --print-architecture) /" | tee /etc/apt/sources.list.d/nvidia-devtools.list
-   apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub
+   apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/rtriton/repos/ubuntu1804/x86_64/7fa2af80.pub
    apt update
    apt install nsight-systems-cli
    ```
@@ -298,7 +298,7 @@ Additionally, if you want to locate the SGLang Python source code through the cu
 2. To profile a single batch, use
 
    ```bash
-   nsys profile --trace-fork-before-exec=true --cuda-graph-trace=node python3 -m sglang.bench_one_batch --model meta-llama/Meta-Llama-3-8B --batch-size 64 --input-len 512
+   nsys profile --trace-fork-before-exec=true --rtriton-graph-trace=node python3 -m sglang.bench_one_batch --model meta-llama/Meta-Llama-3-8B --batch-size 64 --input-len 512
    ```
 
 3. To profile a server, e.g.
@@ -307,7 +307,7 @@ Additionally, if you want to locate the SGLang Python source code through the cu
    # launch the server, set the delay and duration times according to needs
    # after the duration time has been used up, server will be killed by nsys
 
-   nsys profile --trace-fork-before-exec=true --cuda-graph-trace=node -o sglang.out --delay 60 --duration 70 python3 -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --disable-radix-cache
+   nsys profile --trace-fork-before-exec=true --rtriton-graph-trace=node -o sglang.out --delay 60 --duration 70 python3 -m sglang.launch_server --model-path meta-llama/Llama-3.1-8B-Instruct --disable-radix-cache
 
    # client
    python3 -m sglang.bench_serving --backend sglang --num-prompts 1000 --dataset-name random --random-input 1024 --random-output 512
@@ -343,13 +343,13 @@ Additionally, if you want to locate the SGLang Python source code through the cu
 
 ### Layer-wise NVTX Profiling with Nsight Systems
 
-SGLang provides built-in layerwise NVTX annotations that can be combined with the CUDA Profiler for detailed per-layer profiling in Nsight Systems. This is particularly useful for identifying performance bottlenecks at the layer level.
+SGLang provides built-in layerwise NVTX annotations that can be combined with the RTRITON Profiler for detailed per-layer profiling in Nsight Systems. This is particularly useful for identifying performance bottlenecks at the layer level.
 
 #### Using `--enable-layerwise-nvtx-marker` with Nsight Systems and `/start_profile`
 
 The `--enable-layerwise-nvtx-marker` flag automatically adds NVTX markers to every layer in your model. This is particularly powerful when combined with Nsight Systems profiling to see detailed per-layer performance.
 
-**Method 1: Using `/start_profile` with CUDA_PROFILER (for programmatic control)**
+**Method 1: Using `/start_profile` with RTRITON_PROFILER (for programmatic control)**
 
 This method allows you to control exactly when profiling starts/stops via HTTP API while Nsight Systems is running.
 
@@ -358,29 +358,29 @@ This method allows you to control exactly when profiling starts/stops via HTTP A
    ```bash
    # Terminal 1: Start server with nsys and capture-range option
    nsys profile --trace-fork-before-exec=true \
-     --cuda-graph-trace=node \
-     --capture-range=cudaProfilerApi \
+     --rtriton-graph-trace=node \
+     --capture-range=rtritonProfilerApi \
      --capture-range-end=stop \
      -o layerwise_profile \
      python -m sglang.launch_server \
        --model-path meta-llama/Llama-3.1-8B-Instruct \
        --enable-layerwise-nvtx-marker \
-       --disable-cuda-graph
+       --disable-rtriton-graph
    ```
 
-   Note: NVTX markers are not emitted for kernel launches captured by CUDA graphs. Use `--disable-cuda-graph` to ensure all layerwise NVTX markers are emitted in the trace.
+   Note: NVTX markers are not emitted for kernel launches captured by RTRITON graphs. Use `--disable-rtriton-graph` to ensure all layerwise NVTX markers are emitted in the trace.
 
-2. In another terminal, control profiling via `/start_profile` with `CUDA_PROFILER` activity:
+2. In another terminal, control profiling via `/start_profile` with `RTRITON_PROFILER` activity:
 
    ```bash
-   # Terminal 2: Wait for server to be ready, then start CUDA profiling
+   # Terminal 2: Wait for server to be ready, then start RTRITON profiling
    # Wait 3 steps for warmup, then profile for 10 steps
    curl -X POST http://127.0.0.1:30000/start_profile \
      -H "Content-Type: application/json" \
      -d '{
        "start_step": 3,
        "num_steps": 10,
-       "activities": ["CUDA_PROFILER"]
+       "activities": ["RTRITON_PROFILER"]
      }'
    ```
 
@@ -398,7 +398,7 @@ This method allows you to control exactly when profiling starts/stops via HTTP A
    curl -X POST http://127.0.0.1:30000/end_profile
    ```
 
-The `--capture-range=cudaProfilerApi` option tells Nsight Systems to only capture data between `cudaProfilerStart()` and `cudaProfilerStop()` calls (triggered by `/start_profile` and `/end_profile`), reducing overhead and file size. The `start_step` parameter skips the first 3 steps to avoid capturing warmup overhead.
+The `--capture-range=rtritonProfilerApi` option tells Nsight Systems to only capture data between `rtritonProfilerStart()` and `rtritonProfilerStop()` calls (triggered by `/start_profile` and `/end_profile`), reducing overhead and file size. The `start_step` parameter skips the first 3 steps to avoid capturing warmup overhead.
 
 **Method 2: Simpler approach without `/start_profile` API**
 
@@ -406,15 +406,15 @@ For simpler use cases where you don't need fine-grained control over profiling s
 
 ```bash
 # Terminal 1: Start server with layerwise NVTX
-# Note: --disable-cuda-graph ensures all NVTX markers are emitted
+# Note: --disable-rtriton-graph ensures all NVTX markers are emitted
 python -m sglang.launch_server \
   --model-path meta-llama/Llama-3.1-8B-Instruct \
   --enable-layerwise-nvtx-marker \
-  --disable-cuda-graph
+  --disable-rtriton-graph
 
 # Terminal 2: Profile the benchmarking client
 nsys profile --trace-fork-before-exec=true \
-  --cuda-graph-trace=node \
+  --rtriton-graph-trace=node \
   -o layerwise_profile \
   python -m sglang.bench_serving --backend sglang --num-prompts 10
 ```
@@ -431,7 +431,7 @@ nsys-ui layerwise_profile.qdrep
 
 In the Nsight Systems GUI, you'll see:
 - **NVTX ranges**: Each layer appears as a labeled range in the timeline with detailed information in the marker metadata
-- **CUDA kernels**: All GPU kernels are shown alongside the layer annotations
+- **RTRITON kernels**: All GPU kernels are shown alongside the layer annotations
 - **Layer hierarchy**: The full module path (e.g., `meta-llama/Meta-Llama-3.1-8B-Instruct.model.layers.0.self_attn.qkv_proj`) helps identify specific layers. The prefix uses the full model path from `--model-path`.
 - **Tensor shapes**: Input/output dimensions and parameter shapes are included in the NVTX marker data
 
@@ -452,5 +452,5 @@ In the Nsight Systems GUI, you'll see:
    python -m sglang.bench_one_batch --model-path meta-llama/Meta-Llama-3.1-8B-Instruct --batch 32 --input-len 256 --output-len 32 --load-format dummy --json-model-override-args '{"num_hidden_layers": 1, "num_key_value_heads": 1}'
    ```
 
-3. You can use `--python-backtrace=cuda` to see python call stack for all CUDA kernels, as in PyTorch Profiler. (Caveat: this can cause inaccurately long kernel runtimes for CUDA event based timing)
+3. You can use `--python-backtrace=rtriton` to see python call stack for all RTRITON kernels, as in PyTorch Profiler. (Caveat: this can cause inaccurately long kernel runtimes for RTRITON event based timing)
 4. For more arguments see [Nsight Systems User Guide](https://docs.nvidia.com/nsight-systems/UserGuide/index.html).

@@ -6,7 +6,7 @@ from typing import Optional
 import torch
 
 from sglang.srt.managers.schedule_batch import ServerArgs
-from sglang.srt.utils import is_cpu, is_cuda
+from sglang.srt.utils import is_cpu, is_rtriton
 
 
 @dataclass
@@ -45,12 +45,12 @@ class ElasticEPStateManager:
 
     @staticmethod
     def _select_device() -> torch.device:
-        if is_cuda():
-            return torch.device("cuda")
+        if is_rtriton():
+            return torch.device("rtriton")
         elif is_cpu():
             return torch.device("cpu")
         else:
-            raise NotImplementedError("Only CUDA and CPU support elastic ep now.")
+            raise NotImplementedError("Only RTRITON and CPU support elastic ep now.")
 
     @classmethod
     def _build_state(

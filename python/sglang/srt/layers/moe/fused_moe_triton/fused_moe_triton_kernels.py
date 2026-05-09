@@ -21,7 +21,7 @@ from sglang.srt.utils import (
     cpu_has_amx_support,
     get_bool_env_var,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
 )
 
@@ -33,12 +33,12 @@ except:
     _support_tensor_descriptor = False
 
 _is_hip = is_hip()
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_cpu_amx_available = cpu_has_amx_support()
 _is_cpu = is_cpu()
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
 
-if _is_cuda:
+if _is_rtriton:
     pass
 elif _is_cpu and _is_cpu_amx_available:
     pass
@@ -629,7 +629,7 @@ def invoke_fused_moe_kernel(
             # activation block-wise fp8 quantization
             assert len(block_shape) == 2
             block_n, block_k = block_shape[0], block_shape[1]
-            if _is_cuda:
+            if _is_rtriton:
                 A, A_scale = sglang_per_token_group_quant_fp8(A, block_k)
             else:
                 A, A_scale = per_token_group_quant_fp8(A, block_k)
@@ -648,7 +648,7 @@ def invoke_fused_moe_kernel(
             # activation block-wise int8 quantization
             assert len(block_shape) == 2
             block_n, block_k = block_shape[0], block_shape[1]
-            if _is_cuda:
+            if _is_rtriton:
                 A, A_scale = sglang_per_token_group_quant_int8(A, block_k)
             else:
                 A, A_scale = per_token_group_quant_int8(A, block_k)
@@ -724,7 +724,7 @@ def invoke_fused_moe_kernel(
         if a_use_tma or b_use_tma:
             # TMA descriptors require a global memory allocation
             def alloc_fn(size: int, alignment: int, stream: Optional[int]):
-                return torch.empty(size, device="cuda", dtype=torch.int8)
+                return torch.empty(size, device="rtriton", dtype=torch.int8)
 
             triton.set_allocator(alloc_fn)
         if a_use_tma:

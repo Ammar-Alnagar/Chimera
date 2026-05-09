@@ -1,7 +1,7 @@
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <cuda_runtime.h>
-#include <cuda_runtime_api.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <rtriton_runtime.h>
+#include <rtriton_runtime_api.h>
 #include <torch/all.h>
 
 #include "nvfp4_quant.cuh"
@@ -10,7 +10,7 @@
 // Quantizes the provided PackedVec into the uint32_t output
 template <class Type, bool UE8M0_SF = false>
 __device__ uint32_t cvt_warp_fp16_to_fp4(PackedVec<Type>& vec, float SFScaleVal, uint8_t* SFout) {
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
   // Get absolute maximum values among the local 8 values.
   auto localMax = __habs2(vec.elts[0]);
 
@@ -111,7 +111,7 @@ inline __device__ void silu_and_mul(PackedVec<Type>& x_vec, const PackedVec<Type
 // Use UE4M3 by default.
 template <class Type, bool UE8M0_SF = false, bool SMALL_NUM_EXPERTS = false>
 __global__ void
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
 __launch_bounds__(512, 4) cvt_fp16_to_fp4(
 #else
 cvt_fp16_to_fp4(
@@ -127,7 +127,7 @@ cvt_fp16_to_fp4(
     int32_t* mask,
     int n_experts,
     bool low_latency) {
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
   using PackedVec = PackedVec<Type>;
   static constexpr int CVT_FP4_NUM_THREADS_PER_SF = (CVT_FP4_SF_VEC_SIZE / CVT_FP4_ELTS_PER_THREAD);
   static_assert(sizeof(PackedVec) == sizeof(Type) * CVT_FP4_ELTS_PER_THREAD, "Vec size is not matched.");
@@ -228,7 +228,7 @@ cvt_fp16_to_fp4(
 // Use UE4M3 by default.
 template <class Type, bool UE8M0_SF = false>
 __global__ void
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
 __launch_bounds__(512, 4) cvt_fp16_to_fp4_expert(
 #else
 cvt_fp16_to_fp4_expert(
@@ -242,7 +242,7 @@ cvt_fp16_to_fp4_expert(
     int32_t* mask,
     bool use_silu_and_mul,
     int n_experts) {
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
   using PackedVec = PackedVec<Type>;
   static constexpr int CVT_FP4_NUM_THREADS_PER_SF = (CVT_FP4_SF_VEC_SIZE / CVT_FP4_ELTS_PER_THREAD);
   static_assert(sizeof(PackedVec) == sizeof(Type) * CVT_FP4_ELTS_PER_THREAD, "Vec size is not matched.");
@@ -329,7 +329,7 @@ cvt_fp16_to_fp4_expert(
 // Kernel for LARGE_M_TOPK = true (large m_topk optimized version)
 template <class Type, bool UE8M0_SF = false, bool SMALL_NUM_EXPERTS = false>
 __global__ void
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
 __launch_bounds__(1024, 4) cvt_fp16_to_fp4(
 #else
 cvt_fp16_to_fp4(
@@ -344,7 +344,7 @@ cvt_fp16_to_fp4(
     uint32_t* output_scale_offset_by_experts,
     int32_t* mask,
     int n_experts) {
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
   using PackedVec = PackedVec<Type>;
   static constexpr int CVT_FP4_NUM_THREADS_PER_SF = (CVT_FP4_SF_VEC_SIZE / CVT_FP4_ELTS_PER_THREAD);
   static_assert(sizeof(PackedVec) == sizeof(Type) * CVT_FP4_ELTS_PER_THREAD, "Vec size is not matched.");
@@ -446,12 +446,12 @@ void quant_impl(
     int m_topk,
     int k,
     int n_experts,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   // TODO: this multiProcessorCount should be cached.
   int device;
-  cudaGetDevice(&device);
+  rtritonGetDevice(&device);
   int multiProcessorCount;
-  cudaDeviceGetAttribute(&multiProcessorCount, cudaDevAttrMultiProcessorCount, device);
+  rtritonDeviceGetAttribute(&multiProcessorCount, rtritonDevAttrMultiProcessorCount, device);
 
   // Grid, Block size.
   // Each thread converts 8 values.
@@ -543,14 +543,14 @@ void quant_impl(
 
 // Avoid redefinition warnings
 #undef CHECK_CONTIGUOUS
-#undef CHECK_TH_CUDA
+#undef CHECK_TH_RTRITON
 #undef CHECK_INPUT
 
 /*Quantization entry for fp4 experts quantization*/
-#define CHECK_TH_CUDA(x, m) TORCH_CHECK(x.is_cuda(), m, "must be a CUDA tensor")
+#define CHECK_TH_RTRITON(x, m) TORCH_CHECK(x.is_rtriton(), m, "must be a RTRITON tensor")
 #define CHECK_CONTIGUOUS(x, m) TORCH_CHECK(x.is_contiguous(), m, "must be contiguous")
 #define CHECK_INPUT(x, m) \
-  CHECK_TH_CUDA(x, m);    \
+  CHECK_TH_RTRITON(x, m);    \
   CHECK_CONTIGUOUS(x, m);
 
 // constexpr auto FP8 = at::ScalarType::Float8_e4m3fn;
@@ -570,12 +570,12 @@ void scaled_fp4_experts_quant_sm100a(
   auto sm_version = getSMVersion();
   TORCH_CHECK(sm_version >= 100, "fp4_quant is only supported on sm100+");
 
-  CHECK_INPUT(output, "output must be a CUDA tensor");
-  CHECK_INPUT(output_scale, "output_scale must be a CUDA tensor");
-  CHECK_INPUT(input, "input must be a CUDA tensor");
-  CHECK_INPUT(input_global_scale, "input_global_scale must be a CUDA tensor");
-  CHECK_INPUT(input_offset_by_experts, "input_offset_by_experts must be a CUDA tensor");
-  CHECK_INPUT(output_scale_offset_by_experts, "output_scale_offset_by_experts must be a CUDA tensor");
+  CHECK_INPUT(output, "output must be a RTRITON tensor");
+  CHECK_INPUT(output_scale, "output_scale must be a RTRITON tensor");
+  CHECK_INPUT(input, "input must be a RTRITON tensor");
+  CHECK_INPUT(input_global_scale, "input_global_scale must be a RTRITON tensor");
+  CHECK_INPUT(input_offset_by_experts, "input_offset_by_experts must be a RTRITON tensor");
+  CHECK_INPUT(output_scale_offset_by_experts, "output_scale_offset_by_experts must be a RTRITON tensor");
 
   TORCH_CHECK(output.dim() == 2);
   TORCH_CHECK(output_scale.dim() == 2);
@@ -609,8 +609,8 @@ void scaled_fp4_experts_quant_sm100a(
   TORCH_CHECK(output_scale.size(1) * 4 == padded_k);
 
   auto in_dtype = input.dtype();
-  at::cuda::CUDAGuard device_guard{(char)input.get_device()};
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream(input.get_device());
+  at::rtriton::RTRITONGuard device_guard{(char)input.get_device()};
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream(input.get_device());
   if (in_dtype == at::ScalarType::Half) {
     quant_impl<half>(
         output.data_ptr(),
@@ -654,11 +654,11 @@ void silu_and_mul_scaled_fp4_experts_quant_sm100a(
   auto sm_version = getSMVersion();
   TORCH_CHECK(sm_version >= 100, "fp4_quant is only supported on sm100+");
 
-  CHECK_INPUT(output, "output must be a CUDA tensor");
-  CHECK_INPUT(output_scale, "output_scale must be a CUDA tensor");
-  CHECK_INPUT(input, "input must be a CUDA tensor");
-  CHECK_INPUT(input_global_scale, "input_global_scale must be a CUDA tensor");
-  CHECK_INPUT(mask, "mask must be a CUDA tensor");
+  CHECK_INPUT(output, "output must be a RTRITON tensor");
+  CHECK_INPUT(output_scale, "output_scale must be a RTRITON tensor");
+  CHECK_INPUT(input, "input must be a RTRITON tensor");
+  CHECK_INPUT(input_global_scale, "input_global_scale must be a RTRITON tensor");
+  CHECK_INPUT(mask, "mask must be a RTRITON tensor");
 
   TORCH_CHECK(output.dim() == 2);
   TORCH_CHECK(output_scale.dim() == 2);
@@ -692,8 +692,8 @@ void silu_and_mul_scaled_fp4_experts_quant_sm100a(
   TORCH_CHECK(output_scale.size(1) * 4 == padded_k);
 
   auto in_dtype = input.dtype();
-  at::cuda::CUDAGuard device_guard{(char)input.get_device()};
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream(input.get_device());
+  at::rtriton::RTRITONGuard device_guard{(char)input.get_device()};
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream(input.get_device());
   if (in_dtype == at::ScalarType::Half) {
     quant_impl<half>(
         output.data_ptr(),

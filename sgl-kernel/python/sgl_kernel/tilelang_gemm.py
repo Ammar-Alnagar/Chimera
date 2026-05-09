@@ -2,7 +2,7 @@
 
 Replaces the former TileLang GEMM implementation with TileLang's Pythonic
 DSL for high-performance GPU kernel generation. Uses @tilelang.jit to
-compile tile-level GEMM descriptions into optimized CUDA kernels for
+compile tile-level GEMM descriptions into optimized RTRITON kernels for
 Hopper/Blackwell architectures.
 
 When TileLang is not available (e.g., CPU-only environments), a pure-PyTorch
@@ -131,7 +131,7 @@ def tilelang_fp8_blockwise_scaled_mm(
 ) -> torch.Tensor:
     """Execute FP8 blockwise scaled GEMM using TileLang.
 
-    When TileLang is available and the inputs are on a CUDA device, the kernel
+    When TileLang is available and the inputs are on a RTRITON device, the kernel
     is JIT-compiled and executed on the GPU.  Otherwise, a pure-PyTorch
     fallback is used.
 
@@ -145,7 +145,7 @@ def tilelang_fp8_blockwise_scaled_mm(
     Returns:
         Output tensor of shape (M, N) in *out_dtype*.
     """
-    if not _TILELANG_AVAILABLE or not mat_a.is_cuda:
+    if not _TILELANG_AVAILABLE or not mat_a.is_rtriton:
         return _blockwise_gemm_fallback(mat_a, mat_b, scales_a, scales_b, out_dtype)
 
     # Dequant + scale first, then run the TileLang GEMM on FP16 tensors

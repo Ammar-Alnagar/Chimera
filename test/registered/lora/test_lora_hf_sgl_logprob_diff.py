@@ -34,10 +34,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import torch
 
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.runners import HFRunner, SRTRunner
 
-register_cuda_ci(
+register_rtriton_ci(
     est_time=150,
     suite="stage-b-test-small-1-gpu",
 )
@@ -46,7 +46,7 @@ from sglang.test.test_utils import DEFAULT_PORT_FOR_SRT_TEST_RUNNER, CustomTestC
 
 # Test configuration constants
 LORA_BACKEND = "triton"
-DISABLE_CUDA_GRAPH = False
+DISABLE_RTRITON_GRAPH = False
 LORA_TARGET_MODULES = None
 LOGPROB_THRESHOLD = 1e-01
 
@@ -198,7 +198,7 @@ def run_sglang_with_lora(
     torch_dtype: torch.dtype,
     lora_backend: str,
     port: int,
-    disable_cuda_graph: bool,
+    disable_rtriton_graph: bool,
     lora_target_modules: Optional[List[str]],
     tp_size: int,
 ) -> Dict[str, Any]:
@@ -207,7 +207,7 @@ def run_sglang_with_lora(
         "Model": model_path,
         "LoRA paths": lora_paths,
         "LoRA backend": lora_backend,
-        "Disable CUDA graph": disable_cuda_graph,
+        "Disable RTRITON graph": disable_rtriton_graph,
         "Port": port,
         "Number of prompts": len(prompts),
         "Tensor parallel size": tp_size,
@@ -224,7 +224,7 @@ def run_sglang_with_lora(
         lora_paths=lora_paths,
         max_loras_per_batch=len(lora_paths) if lora_paths else 1,
         lora_backend=lora_backend,
-        disable_cuda_graph=disable_cuda_graph,
+        disable_rtriton_graph=disable_rtriton_graph,
         disable_radix_cache=True,
         port=port,
         mem_fraction_static=0.88,
@@ -444,7 +444,7 @@ class TestLoRAHFSGLLogprobDifference(CustomTestCase):
         torch_dtype: torch.dtype = torch.float16,
         lora_backend: str = LORA_BACKEND,
         port: int = DEFAULT_PORT_FOR_SRT_TEST_RUNNER,
-        disable_cuda_graph: bool = DISABLE_CUDA_GRAPH,
+        disable_rtriton_graph: bool = DISABLE_RTRITON_GRAPH,
         lora_target_modules: Optional[List[str]] = LORA_TARGET_MODULES,
         tp_size: int = 1,
     ):
@@ -462,14 +462,14 @@ class TestLoRAHFSGLLogprobDifference(CustomTestCase):
             torch_dtype=torch_dtype,
             lora_backend=lora_backend,
             port=port,
-            disable_cuda_graph=disable_cuda_graph,
+            disable_rtriton_graph=disable_rtriton_graph,
             lora_target_modules=lora_target_modules,
             tp_size=tp_size,
         )
 
         # Clear GPU memory
         print("\nClearing GPU memory...")
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
         # Step 2: Run HuggingFace with LoRA
         hf_logprobs = run_hf_with_lora(
@@ -541,6 +541,6 @@ if __name__ == "__main__":
         unittest.main(warnings="ignore", verbosity=2)
     finally:
         # Final cleanup
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
+        if torch.rtriton.is_available():
+            torch.rtriton.empty_cache()
+            torch.rtriton.synchronize()

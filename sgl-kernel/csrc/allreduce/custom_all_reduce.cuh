@@ -1,10 +1,10 @@
 // Adapted from https://github.com/vllm-project/vllm/blob/v0.8.2/csrc/custom_all_reduce.cuh
 #pragma once
 
-#include <cuda.h>
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
-#include <cuda_runtime.h>
+#include <rtriton.h>
+#include <rtriton_bf16.h>
+#include <rtriton_fp16.h>
+#include <rtriton_runtime.h>
 
 #include <array>
 #include <iostream>
@@ -82,7 +82,7 @@ DINLINE float& assign_add(float& a, float b) {
   return a += b;
 }
 
-#if (__CUDA_ARCH__ >= 800 || !defined(__CUDA_ARCH__))
+#if (__RTRITON_ARCH__ >= 800 || !defined(__RTRITON_ARCH__))
 DINLINE float upcast_s(nv_bfloat16 val) {
   return __bfloat162float(val);
 }
@@ -134,7 +134,7 @@ DINLINE O downcast(array_t<float, O::size> val) {
 }
 
 static DINLINE void st_flag_release(FlagType* flag_addr, FlagType flag) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 700
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 700
   asm volatile("st.release.sys.global.u32 [%1], %0;" ::"r"(flag), "l"(flag_addr));
 #else
   asm volatile("membar.sys; st.volatile.global.u32 [%1], %0;" ::"r"(flag), "l"(flag_addr));
@@ -143,7 +143,7 @@ static DINLINE void st_flag_release(FlagType* flag_addr, FlagType flag) {
 
 static DINLINE FlagType ld_flag_acquire(FlagType* flag_addr) {
   FlagType flag;
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 700
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 700
   asm volatile("ld.acquire.sys.global.u32 %0, [%1];" : "=r"(flag) : "l"(flag_addr));
 #else
   asm volatile("ld.volatile.global.u32 %0, [%1]; membar.gl;" : "=r"(flag) : "l"(flag_addr));
@@ -265,9 +265,9 @@ __global__ void __launch_bounds__(512, 1) cross_device_reduce_2stage(
   }
 }
 
-using IPC_KEY = std::array<uint8_t, sizeof(cudaIpcMemHandle_t)>;
-static_assert(sizeof(IPC_KEY) == sizeof(cudaIpcMemHandle_t));
-static_assert(alignof(IPC_KEY) == alignof(cudaIpcMemHandle_t));
+using IPC_KEY = std::array<uint8_t, sizeof(rtritonIpcMemHandle_t)>;
+static_assert(sizeof(IPC_KEY) == sizeof(rtritonIpcMemHandle_t));
+static_assert(alignof(IPC_KEY) == alignof(rtritonIpcMemHandle_t));
 
 class CustomAllreduce {
  public:
@@ -280,8 +280,8 @@ class CustomAllreduce {
   std::unordered_map<void*, RankData*> buffers_;
   Signal* self_sg_;
 
-  // Stores rank data from all ranks. This is mainly for cuda graph purposes.
-  // For cuda graph to work, all kernel arguments must be fixed during graph
+  // Stores rank data from all ranks. This is mainly for rtriton graph purposes.
+  // For rtriton graph to work, all kernel arguments must be fixed during graph
   // capture time. However, the peer pointers are not known during graph capture
   // time. Therefore, during capture, we increment the rank data pointer and use
   // that as the argument to the kernel. The kernel arguments are stored in
@@ -291,7 +291,7 @@ class CustomAllreduce {
   //
   // The overall process looks like this:
   // 1. Graph capture.
-  // 2. Each rank obtains the IPC handles for each addresses used during cuda
+  // 2. Each rank obtains the IPC handles for each addresses used during rtriton
   // graph capture using get_graph_buffer_ipc_meta.
   // 3. (In Python) all gather the IPC handles.
   // 4. Obtain the peer pointers by opening the IPC handles, and store them in
@@ -328,8 +328,8 @@ class CustomAllreduce {
     auto [it, new_handle] = ipc_handles_.insert({*((IPC_KEY*)ipc_handle), nullptr});
     if (new_handle) {
       char* ipc_ptr;
-      CHECK_CUDA_SUCCESS(cudaIpcOpenMemHandle(
-          (void**)&ipc_ptr, *((const cudaIpcMemHandle_t*)ipc_handle), cudaIpcMemLazyEnablePeerAccess));
+      CHECK_RTRITON_SUCCESS(rtritonIpcOpenMemHandle(
+          (void**)&ipc_ptr, *((const rtritonIpcMemHandle_t*)ipc_handle), rtritonIpcMemLazyEnablePeerAccess));
       it->second = ipc_ptr;
     }
     return it->second;
@@ -337,7 +337,7 @@ class CustomAllreduce {
 
   std::pair<std::string, std::vector<int64_t>> get_graph_buffer_ipc_meta() {
     auto num_buffers = graph_unreg_buffers_.size();
-    auto handle_sz = sizeof(cudaIpcMemHandle_t);
+    auto handle_sz = sizeof(rtritonIpcMemHandle_t);
     std::string handles(handle_sz * num_buffers, static_cast<char>(0));
     std::vector<int64_t> offsets(num_buffers);
     for (int i = 0; i < num_buffers; i++) {
@@ -345,9 +345,9 @@ class CustomAllreduce {
       void* base_ptr;
       // note: must share the base address of each allocation, or we get wrong
       // address
-      if (cuPointerGetAttribute(&base_ptr, CU_POINTER_ATTRIBUTE_RANGE_START_ADDR, (CUdeviceptr)ptr) != CUDA_SUCCESS)
+      if (cuPointerGetAttribute(&base_ptr, CU_POINTER_ATTRIBUTE_RANGE_START_ADDR, (CUdeviceptr)ptr) != RTRITON_SUCCESS)
         throw std::runtime_error("failed to get pointer attr");
-      CHECK_CUDA_SUCCESS(cudaIpcGetMemHandle((cudaIpcMemHandle_t*)&handles[i * handle_sz], base_ptr));
+      CHECK_RTRITON_SUCCESS(rtritonIpcGetMemHandle((rtritonIpcMemHandle_t*)&handles[i * handle_sz], base_ptr));
       offsets[i] = ((char*)ptr) - ((char*)base_ptr);
     }
     return std::make_pair(handles, offsets);
@@ -369,7 +369,7 @@ class CustomAllreduce {
       data.ptrs[i] = ptrs[i];
     }
     auto d_data = d_rank_data_base_++;
-    CHECK_CUDA_SUCCESS(cudaMemcpy(d_data, &data, sizeof(RankData), cudaMemcpyHostToDevice));
+    CHECK_RTRITON_SUCCESS(rtritonMemcpy(d_data, &data, sizeof(RankData), rtritonMemcpyHostToDevice));
     buffers_[ptrs[rank_]] = d_data;
   }
 
@@ -390,7 +390,7 @@ class CustomAllreduce {
       auto& rd = rank_data[i];
       for (int j = 0; j < world_size_; j++) {
         if (j != rank_) {
-          char* handle = open_ipc_handle(&handles[j][i * sizeof(cudaIpcMemHandle_t)]);
+          char* handle = open_ipc_handle(&handles[j][i * sizeof(rtritonIpcMemHandle_t)]);
           handle += offsets[j][i];
           rd.ptrs[j] = handle;
         } else {
@@ -398,8 +398,8 @@ class CustomAllreduce {
         }
       }
     }
-    CHECK_CUDA_SUCCESS(
-        cudaMemcpy(d_rank_data_base_, rank_data.data(), sizeof(RankData) * num_buffers, cudaMemcpyHostToDevice));
+    CHECK_RTRITON_SUCCESS(
+        rtritonMemcpy(d_rank_data_base_, rank_data.data(), sizeof(RankData) * num_buffers, rtritonMemcpyHostToDevice));
     d_rank_data_base_ += num_buffers;
     graph_unreg_buffers_.clear();
   }
@@ -414,7 +414,7 @@ class CustomAllreduce {
    * guess is that too many SMs will cause contention on NVLink bus.
    */
   template <typename T>
-  void allreduce(cudaStream_t stream, T* input, T* output, int size, int threads = 512, int block_limit = 36) {
+  void allreduce(rtritonStream_t stream, T* input, T* output, int size, int threads = 512, int block_limit = 36) {
     auto d = packed_t<T>::P::size;
     if (size % d != 0)
       throw std::runtime_error(
@@ -426,9 +426,9 @@ class CustomAllreduce {
           "max supported block limit is " + std::to_string(kMaxBlocks) + ". Got " + std::to_string(block_limit));
 
     RankData* ptrs;
-    cudaStreamCaptureStatus status;
-    CHECK_CUDA_SUCCESS(cudaStreamIsCapturing(stream, &status));
-    if (status == cudaStreamCaptureStatusActive) {
+    rtritonStreamCaptureStatus status;
+    CHECK_RTRITON_SUCCESS(rtritonStreamIsCapturing(stream, &status));
+    if (status == rtritonStreamCaptureStatusActive) {
       ptrs = d_rank_data_base_ + graph_unreg_buffers_.size();
       graph_unreg_buffers_.push_back(input);
     } else {
@@ -476,14 +476,14 @@ class CustomAllreduce {
 
   ~CustomAllreduce() {
     for (auto [_, ptr] : ipc_handles_) {
-      CHECK_CUDA_SUCCESS(cudaIpcCloseMemHandle(ptr));
+      CHECK_RTRITON_SUCCESS(rtritonIpcCloseMemHandle(ptr));
     }
   }
 };
 /**
  * To inspect PTX/SASS, copy paste this header file to compiler explorer and add
  a template instantiation:
- * template void sglang::CustomAllreduce::allreduce<half>(cudaStream_t, half *,
+ * template void sglang::CustomAllreduce::allreduce<half>(rtritonStream_t, half *,
  half *, int, int, int);
 */
 }  // namespace sglang

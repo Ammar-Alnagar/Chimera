@@ -34,7 +34,7 @@ class TestSRTEngineWithQuantArgs(CustomTestCase):
 
     def test_2_torchao_args(self):
 
-        # we don't test int8dq because currently there is conflict between int8dq and capture cuda graph
+        # we don't test int8dq because currently there is conflict between int8dq and capture rtriton graph
         torchao_args_list = [
             # "int8dq",
             "int8wo",

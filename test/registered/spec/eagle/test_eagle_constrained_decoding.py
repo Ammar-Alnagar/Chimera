@@ -2,7 +2,7 @@ import unittest
 
 from sglang.srt.environ import envs
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.kits.json_constrained_kit import TestJSONConstrainedMixin
 from sglang.test.kits.regex_constrained_kit import TestRegexConstrainedMixin
 from sglang.test.test_utils import (
@@ -14,7 +14,7 @@ from sglang.test.test_utils import (
     popen_launch_server,
 )
 
-register_cuda_ci(est_time=100, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=100, suite="stage-b-test-small-1-gpu")
 
 
 class TestEagleConstrainedDecoding(

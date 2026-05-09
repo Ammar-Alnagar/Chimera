@@ -5,7 +5,7 @@ import requests
 import torch
 
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_eval_few_shot_gsm8k
 from sglang.test.test_utils import (
     DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
@@ -15,7 +15,7 @@ from sglang.test.test_utils import (
 )
 
 # FlashInfer MLA backend tests with MTP speculative decoding
-register_cuda_ci(est_time=302, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=302, suite="stage-b-test-small-1-gpu")
 
 
 class TestFlashinferMLA(CustomTestCase):
@@ -24,11 +24,11 @@ class TestFlashinferMLA(CustomTestCase):
         cls.model = "lmsys/sglang-ci-dsv3-test"
         cls.base_url = DEFAULT_URL_FOR_TEST
         other_args = ["--trust-remote-code"]
-        if torch.cuda.is_available() and torch.version.cuda:
+        if torch.rtriton.is_available() and torch.version.rtriton:
             other_args.extend(
                 [
                     "--enable-torch-compile",
-                    "--cuda-graph-max-bs",
+                    "--rtriton-graph-max-bs",
                     "4",
                     "--attention-backend",
                     "flashinfer",
@@ -67,10 +67,10 @@ class TestFlashinferMLAMTP(CustomTestCase):
         cls.model = "lmsys/sglang-ci-dsv3-test"
         cls.base_url = DEFAULT_URL_FOR_TEST
         other_args = ["--trust-remote-code"]
-        if torch.cuda.is_available() and torch.version.cuda:
+        if torch.rtriton.is_available() and torch.version.rtriton:
             other_args.extend(
                 [
-                    "--cuda-graph-max-bs",
+                    "--rtriton-graph-max-bs",
                     "4",
                     "--enable-torch-compile",
                     "--torch-compile-max-bs",

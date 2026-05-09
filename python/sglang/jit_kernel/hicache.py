@@ -26,8 +26,8 @@ def _jit_hicache_module(*, element_size: int, unroll: int, block_quota: int) -> 
     return load_jit(
         "hicache",
         *args,
-        cuda_files=["hicache.cuh"],
-        cuda_wrappers=[
+        rtriton_files=["hicache.cuh"],
+        rtriton_wrappers=[
             ("launch_one", f"&HiCacheKernel<{args}>::run_one"),
             ("launch_all", f"&HiCacheKernel<{args}>::run_all"),
         ],

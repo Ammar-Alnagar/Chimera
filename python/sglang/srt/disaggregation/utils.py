@@ -87,7 +87,7 @@ class MetadataBuffers:
         hidden_size: int,
         hidden_states_dtype: torch.dtype,
         max_top_logprobs_num: int = 128,
-        custom_mem_pool: torch.cuda.MemPool = None,
+        custom_mem_pool: torch.rtriton.MemPool = None,
     ):
         self.custom_mem_pool = custom_mem_pool
         device = "cpu"
@@ -95,10 +95,10 @@ class MetadataBuffers:
             # For ascend backend, output tokens are placed in the NPU and will be transferred by D2D channel.
             device = "npu"
         elif self.custom_mem_pool:
-            # TODO(shangming): Fix me (use 'cuda') when nvlink_transport of Mooncake is bug-free
+            # TODO(shangming): Fix me (use 'rtriton') when nvlink_transport of Mooncake is bug-free
             device = "cpu"
         with (
-            torch.cuda.use_mem_pool(self.custom_mem_pool)
+            torch.rtriton.use_mem_pool(self.custom_mem_pool)
             if self.custom_mem_pool
             else nullcontext()
         ):

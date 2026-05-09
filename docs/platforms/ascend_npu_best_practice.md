@@ -135,7 +135,7 @@ do
         --port 8001 --trust-remote-code --dist-init-addr DIP1:5000 --nnodes 2 --node-rank $i --tp-size 32 --dp-size 32 \
         --mem-fraction-static 0.815 --max-running-requests 832 --attention-backend ascend --device npu --quantization modelslim \
         --moe-a2a-backend deepep --enable-dp-attention --deepep-mode low_latency --enable-dp-lm-head --moe-dense-tp 1 \
-        --cuda-graph-bs 12 14 16 18 20 22 24 26 --disaggregation-transfer-backend ascend --watchdog-timeout 9000 --context-length 8192 \
+        --rtriton-graph-bs 12 14 16 18 20 22 24 26 --disaggregation-transfer-backend ascend --watchdog-timeout 9000 --context-length 8192 \
         --speculative-algorithm NEXTN --speculative-num-steps 2 --speculative-eagle-topk 1 --speculative-num-draft-tokens 3  \
         --tokenizer-worker-num 4 --prefill-round-robin-balance --disable-shared-experts-fusion --dtype bfloat16 \
         --load-balance-method decode_round_robin
@@ -275,7 +275,7 @@ do
         --port 8001 --trust-remote-code --dist-init-addr DIP1:5000 --nnodes 2 --node-rank $i --tp-size 32 --dp-size 16 \
         --mem-fraction-static 0.75 --max-running-requests 32 --attention-backend ascend --device npu --quantization modelslim \
         --moe-a2a-backend deepep --enable-dp-attention --deepep-mode low_latency --enable-dp-lm-head --moe-dense-tp 1 \
-        --cuda-graph-bs 4 --disaggregation-transfer-backend ascend --watchdog-timeout 9000 --context-length 8192 \
+        --rtriton-graph-bs 4 --disaggregation-transfer-backend ascend --watchdog-timeout 9000 --context-length 8192 \
         --speculative-algorithm NEXTN --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4  \
         --tokenizer-worker-num 4 --prefill-round-robin-balance --disable-shared-experts-fusion --dtype bfloat16 \
         --load-balance-method decode_round_robin
@@ -553,7 +553,7 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
 --quantization modelslim \
 --watchdog-timeout 9000 \
 --host 127.0.0.1 --port 6699 \
---cuda-graph-bs 4 8 16 \
+--rtriton-graph-bs 4 8 16 \
 --mem-fraction-static 0.74 \
 --max-running-requests 256 \
 --disable-radix-cache --chunked-prefill-size -1 --max-prefill-tokens 1500 \
@@ -692,7 +692,7 @@ do
         --port 8001 --trust-remote-code --nnodes 1 --node-rank 0 --tp-size 16 --dp-size 16 \
         --mem-fraction-static 0.8 --max-running-requests 384 --attention-backend ascend --device npu --quantization modelslim \
         --moe-a2a-backend deepep --enable-dp-attention --deepep-mode low_latency --enable-dp-lm-head \
-        --cuda-graph-bs 8 10 12 14 16 18 20 22 24 --disaggregation-transfer-backend ascend --watchdog-timeout 9000 --context-length 8192 \
+        --rtriton-graph-bs 8 10 12 14 16 18 20 22 24 --disaggregation-transfer-backend ascend --watchdog-timeout 9000 --context-length 8192 \
         --speculative-algorithm NEXTN --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4  \
         --prefill-round-robin-balance --disable-shared-experts-fusion --dtype bfloat16 --tokenizer-worker-num 4 \
 		    --load-balance-method decode_round_robin
@@ -807,7 +807,7 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
 --quantization modelslim \
 --watchdog-timeout 9000 \
 --host 127.0.0.1 --port 6699 \
---cuda-graph-bs 8 16 24 28 32 36 \
+--rtriton-graph-bs 8 16 24 28 32 36 \
 --mem-fraction-static 0.71 \
 --max-running-requests 144 \
 --context-length 8188  --disable-radix-cache --chunked-prefill-size -1 --max-prefill-tokens 9000 \
@@ -947,7 +947,7 @@ do
         --port 8001 --trust-remote-code --nnodes 1 --node-rank 0 --tp-size 16 --dp-size 16 \
         --mem-fraction-static 0.8 --max-running-requests 384 --attention-backend ascend --device npu --quantization modelslim \
         --moe-a2a-backend deepep --enable-dp-attention --deepep-mode low_latency --enable-dp-lm-head \
-        --cuda-graph-bs 8 10 12 14 16 18 20 22 24 --disaggregation-transfer-backend ascend --watchdog-timeout 9000 --context-length 8192 \
+        --rtriton-graph-bs 8 10 12 14 16 18 20 22 24 --disaggregation-transfer-backend ascend --watchdog-timeout 9000 --context-length 8192 \
         --speculative-algorithm NEXTN --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4  \
         --prefill-round-robin-balance --disable-shared-experts-fusion --dtype bfloat16 --tokenizer-worker-num 4 \
 		    --load-balance-method decode_round_robin
@@ -1104,7 +1104,7 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
 --quantization modelslim \
 --disaggregation-transfer-backend ascend \
 --disaggregation-mode prefill \
---disable-cuda-graph \
+--disable-rtriton-graph \
 --nnodes $nnodes --node-rank $VC_TASK_INDEX \
 --disaggregation-bootstrap-port 8995 \
 --enable-nsa-prefill-context-parallel  --moe-dense-tp-size 1 \
@@ -1191,7 +1191,7 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
 --disable-radix-cache \
 --chunked-prefill-size -1 --max-prefill-tokens 68000 \
 --max-running-requests 32 \
---cuda-graph-max-bs 4 \
+--rtriton-graph-max-bs 4 \
 --moe-a2a-backend deepep \
 --deepep-mode low_latency \
 --quantization modelslim \
@@ -1351,7 +1351,7 @@ do
         --host ${D_IP[$i]} --port 8001 --trust-remote-code \
         --nnodes 2 --node-rank $i --tp-size 32 --dp-size 32 --mem-fraction-static 0.83 --max-running-requests 768 \
         --attention-backend ascend --device npu --quantization modelslim --enable-dp-attention \
-        --moe-a2a-backend ascend_fuseep --cuda-graph-bs 6 8 12 15 18 20 22 24 \
+        --moe-a2a-backend ascend_fuseep --rtriton-graph-bs 6 8 12 15 18 20 22 24 \
         --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
         --speculative-draft-model-quantization unquant \
         --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 \
@@ -1471,7 +1471,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 \
     --disable-radix-cache --moe-a2a-backend deepep  --deepep-mode auto --speculative-draft-model-quantization unquant \
-    --tp 16 --dp-size 16 --enable-dp-attention --enable-dp-lm-head --mem-fraction-static 0.8 --cuda-graph-bs 3 4 6 8 10 12 13 14 15 16 17
+    --tp 16 --dp-size 16 --enable-dp-attention --enable-dp-lm-head --mem-fraction-static 0.8 --rtriton-graph-bs 3 4 6 8 10 12 13 14 15 16 17
 
 ```
 
@@ -1570,7 +1570,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 \
     --disable-radix-cache --moe-a2a-backend deepep  --deepep-mode auto --speculative-draft-model-quantization unquant  \
-    --tp 16 --dp-size 16 --enable-dp-attention --enable-dp-lm-head --mem-fraction-static 0.81 --cuda-graph-bs 8 16 20 24 32 36
+    --tp 16 --dp-size 16 --enable-dp-attention --enable-dp-lm-head --mem-fraction-static 0.81 --rtriton-graph-bs 8 16 20 24 32 36
 
 ```
 
@@ -1675,7 +1675,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 \
     --disable-radix-cache --moe-a2a-backend deepep  --deepep-mode auto  \
-    --tp 16 --dp-size 16 --enable-dp-attention --enable-dp-lm-head --mem-fraction-static 0.75 --cuda-graph-bs 6 8 10 12 15 18 28 30
+    --tp 16 --dp-size 16 --enable-dp-attention --enable-dp-lm-head --mem-fraction-static 0.75 --rtriton-graph-bs 6 8 10 12 15 18 28 30
 ```
 
 #### Benchmark
@@ -1781,7 +1781,7 @@ do
         --host 127.0.0.1 --port 7439 --trust-remote-code \
         --nnodes 2 --node-rank $i --tp-size 32 --dp-size 32 --mem-fraction-static 0.8 --max-running-requests 768 \
         --attention-backend ascend --device npu --quantization modelslim --enable-dp-attention \
-        --moe-a2a-backend ascend_fuseep --cuda-graph-bs 6 8 10 12 18 24 \
+        --moe-a2a-backend ascend_fuseep --rtriton-graph-bs 6 8 10 12 18 24 \
         --dist-init-addr 141.61.105.131:5000 --chunked-prefill-size 32768 --max-prefill-tokens 458880 \
         --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
         --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 \
@@ -1891,7 +1891,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 4 --speculative-eagle-topk 1 --speculative-num-draft-tokens 5 \
     --disable-radix-cache --enable-dp-lm-head \
-    --tp 16 --mem-fraction-static 0.78 --cuda-graph-bs 1
+    --tp 16 --mem-fraction-static 0.78 --rtriton-graph-bs 1
 
 ```
 
@@ -1988,7 +1988,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --chunked-prefill-size 32768 --max-prefill-tokens 65536 --speculative-draft-model-quantization unquant \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 4 --speculative-eagle-topk 1 --speculative-num-draft-tokens 5 \
-    --tp-size 8 --mem-fraction-static 0.72 --cuda-graph-bs 8 16 24 32  --dtype bfloat16
+    --tp-size 8 --mem-fraction-static 0.72 --rtriton-graph-bs 8 16 24 32  --dtype bfloat16
 
 ```
 
@@ -2092,7 +2092,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 4 --speculative-eagle-topk 1 --speculative-num-draft-tokens 5 \
     --chunked-prefill-size -1 --max-prefill-tokens 65536  \
-    --tp-size 8 --mem-fraction-static 0.72 --cuda-graph-bs 1 4 6 12 18 24 30 32 --dtype bfloat1
+    --tp-size 8 --mem-fraction-static 0.72 --rtriton-graph-bs 1 4 6 12 18 24 30 32 --dtype bfloat1
 
 ```
 
@@ -2193,7 +2193,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 4 --speculative-eagle-topk 1 --speculative-num-draft-tokens 5 \
     --chunked-prefill-size -1 --max-prefill-tokens 65536  \
-    --tp-size 16 --mem-fraction-static 0.72 --cuda-graph-bs 1 --dtype bfloat16
+    --tp-size 16 --mem-fraction-static 0.72 --rtriton-graph-bs 1 --dtype bfloat16
 ```
 
 #### Benchmark
@@ -2288,7 +2288,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --chunked-prefill-size -1 --max-prefill-tokens 65536  \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 \
-    --tp-size 4  --mem-fraction-static 0.72 --cuda-graph-bs 16 32 64 68 72 78 --dtype bfloat16
+    --tp-size 4  --mem-fraction-static 0.72 --rtriton-graph-bs 16 32 64 68 72 78 --dtype bfloat16
 ```
 
 #### Benchmark
@@ -2389,7 +2389,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 \
     --chunked-prefill-size -1 --max-prefill-tokens 49152 \
-    --tp-size 4 --mem-fraction-static 0.7 --cuda-graph-bs 54 60 66 72 78 84 90 108 114 120 --dtype bfloat16
+    --tp-size 4 --mem-fraction-static 0.7 --rtriton-graph-bs 54 60 66 72 78 84 90 108 114 120 --dtype bfloat16
 
 ```
 
@@ -2491,7 +2491,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 \
     --chunked-prefill-size -1 --max-prefill-tokens 32768 \
-    --tp-size 2 --mem-fraction-static 0.86 --cuda-graph-bs 42 88 96 132 144 156 172 178 192 --dtype bfloat16
+    --tp-size 2 --mem-fraction-static 0.86 --rtriton-graph-bs 42 88 96 132 144 156 172 178 192 --dtype bfloat16
 ```
 
 #### Benchmark
@@ -2625,7 +2625,7 @@ do
         --host ${D_IP[$i]} --port 8001 --trust-remote-code \
         --nnodes 2 --node-rank $i --tp-size 32 --dp-size 4 --mem-fraction-static 0.73 --max-running-requests 384 \
         --attention-backend ascend --device npu --quantization modelslim --enable-dp-attention \
-        --moe-a2a-backend ascend_fuseep --cuda-graph-bs 16 32 48 56 64 72 80 88 96 \
+        --moe-a2a-backend ascend_fuseep --rtriton-graph-bs 16 32 48 56 64 72 80 88 96 \
         --dist-init-addr DIP1:5000 \
 	      --disaggregation-transfer-backend ascend --watchdog-timeout 9000 --context-length 8192 \
         --prefill-round-robin-balance --enable-dp-lm-head --dtype bfloat16 --tokenizer-worker-num 4 --load-balance-method decode_round_robin
@@ -2751,7 +2751,7 @@ do
         --max-running-requests 288 --context-length 8192 --dtype bfloat16  \
         --chunked-prefill-size 114688 --max-prefill-tokens 458880  \
         --disable-radix-cache --moe-a2a-backend deepep  --deepep-mode auto  \
-        --tp 32 --dp-size 4 --enable-dp-attention --enable-dp-lm-head --mem-fraction-static 0.7 --cuda-graph-bs 56 64 72
+        --tp 32 --dp-size 4 --enable-dp-attention --enable-dp-lm-head --mem-fraction-static 0.7 --rtriton-graph-bs 56 64 72
         NODE_RANK=$i
         break
     fi
@@ -2848,7 +2848,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
 --max-running-requests 80 --context-length 8192 --dtype bfloat16 \
 --chunked-prefill-size 28672 --max-prefill-tokens 458880  \
 --disable-radix-cache --moe-a2a-backend deepep  --deepep-mode auto --enable-dp-attention --enable-dp-lm-head \
---tp 16 --dp-size 4 --mem-fraction-static 0.7 --cuda-graph-bs  16 20
+--tp 16 --dp-size 4 --mem-fraction-static 0.7 --rtriton-graph-bs  16 20
 ```
 
 #### Benchmark
@@ -2935,7 +2935,7 @@ python -m sglang.launch_server \
         --max-running-requests 80 \
         --watchdog-timeout 3600 \
         --disable-radix-cache \
-        --cuda-graph-bs 80 \
+        --rtriton-graph-bs 80 \
         --max-prefill-tokens 28672  --max-total-tokens 450560 \
         --moe-a2a-backend deepep --deepep-mode auto \
         --quantization modelslim \
@@ -3034,7 +3034,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --chunked-prefill-size -1 --max-prefill-tokens 135168  --speculative-draft-model-quantization unquant \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 4 --speculative-eagle-topk 1 --speculative-num-draft-tokens 5 \
-    --tp-size 8 --mem-fraction-static 0.72 --cuda-graph-bs 1 4 8 16 24 28 32  --dtype bfloat16
+    --tp-size 8 --mem-fraction-static 0.72 --rtriton-graph-bs 1 4 8 16 24 28 32  --dtype bfloat16
 ```
 
 #### Benchmark
@@ -3140,7 +3140,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx  \
     --speculative-num-steps 4 --speculative-eagle-topk 1 --speculative-num-draft-tokens 5 \
     --chunked-prefill-size -1 --max-prefill-tokens 65536  \
-    --tp-size 8 --mem-fraction-static 0.72 --cuda-graph-bs 1 4 6 12 18 24 30 32 --dtype bfloat16
+    --tp-size 8 --mem-fraction-static 0.72 --rtriton-graph-bs 1 4 6 12 18 24 30 32 --dtype bfloat16
 ```
 
 #### Benchmark
@@ -3236,7 +3236,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --chunked-prefill-size -1 --max-prefill-tokens 65536  \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 \
-    --tp-size 4  --mem-fraction-static 0.72 --cuda-graph-bs 1 4 8 16 32 64 68 72 78 --dtype bfloat16 --base-gpu-id 4
+    --tp-size 4  --mem-fraction-static 0.72 --rtriton-graph-bs 1 4 8 16 32 64 68 72 78 --dtype bfloat16 --base-gpu-id 4
 ```
 
 #### Benchmark
@@ -3335,7 +3335,7 @@ python -m sglang.launch_server --model-path $MODEL_PATH \
     --speculative-algorithm EAGLE3 --speculative-draft-model-path xxx \
     --speculative-num-steps 3 --speculative-eagle-topk 1 --speculative-num-draft-tokens 4 --speculative-draft-model-quantization unquant \
     --chunked-prefill-size -1 --max-prefill-tokens 49152 --base-gpu-id 4 \
-    --tp-size 4 --mem-fraction-static 0.7 --cuda-graph-bs 54 60 66 72 78 84 90 108 114 120 --dtype bfloat16
+    --tp-size 4 --mem-fraction-static 0.7 --rtriton-graph-bs 54 60 66 72 78 84 90 108 114 120 --dtype bfloat16
 ```
 
 #### Benchmark

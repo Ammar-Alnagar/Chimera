@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import requests
 
 from sglang.srt.utils import get_device_sm, kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_eval_few_shot_gsm8k
 from sglang.test.test_utils import (
     DEFAULT_MODEL_NAME_FOR_TEST_LOCAL_ATTENTION,
@@ -16,10 +16,10 @@ from sglang.test.test_utils import (
 )
 
 # Local attention with FA3 (requires SM 90+ / H100, tp=4)
-register_cuda_ci(est_time=200, suite="stage-c-test-large-4-gpu")
+register_rtriton_ci(est_time=200, suite="stage-c-test-large-4-gpu")
 
 
-@unittest.skipIf(get_device_sm() < 90, "Test requires CUDA SM 90 or higher")
+@unittest.skipIf(get_device_sm() < 90, "Test requires RTRITON SM 90 or higher")
 class TestFlashAttention3LocalAttn(CustomTestCase):
     model = DEFAULT_MODEL_NAME_FOR_TEST_LOCAL_ATTENTION
     base_url = DEFAULT_URL_FOR_TEST
@@ -28,7 +28,7 @@ class TestFlashAttention3LocalAttn(CustomTestCase):
     @classmethod
     def get_server_args(cls):
         return [
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             "2",
             "--attention-backend",
             "fa3",

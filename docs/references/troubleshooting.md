@@ -20,7 +20,7 @@ This guide helps you diagnose and resolve common issues when using Chimera. It i
 
 ## Installation Issues
 
-### Issue: `pip install` fails with CUDA error
+### Issue: `pip install` fails with RTRITON error
 
 **Symptoms:**
 ```
@@ -29,18 +29,18 @@ ERROR: Could not find a version that satisfies the requirement sgl-kernel
 
 **Solutions:**
 
-1. **Check CUDA version:**
+1. **Check RTRITON version:**
 ```bash
 nvcc --version
-python -c "import torch; print(torch.version.cuda)"
+python -c "import torch; print(torch.version.rtriton)"
 ```
 
-2. **Match CUDA versions:**
+2. **Match RTRITON versions:**
 ```bash
-# For CUDA 12.8/12.9
+# For RTRITON 12.8/12.9
 pip install sgl-kernel
 
-# For CUDA 12.6
+# For RTRITON 12.6
 pip install https://github.com/sgl-project/whl/releases/download/v0.3.20/sgl_kernel-0.3.20+cu124-cp310-abi3-manylinux2014_x86_64.whl
 ```
 
@@ -107,11 +107,11 @@ python -m pip install .
 
 ## Runtime Errors
 
-### Issue: CUDA Out of Memory
+### Issue: RTRITON Out of Memory
 
 **Symptoms:**
 ```
-torch.cuda.OutOfMemoryError: CUDA out of memory.
+torch.rtriton.OutOfMemoryError: RTRITON out of memory.
 ```
 
 **Solutions:**
@@ -145,7 +145,7 @@ python -m sglang.launch_server \
 
 **Symptoms:**
 ```
-RuntimeError: CUDA error: invalid device function
+RuntimeError: RTRITON error: invalid device function
 ```
 
 **Solutions:**
@@ -164,7 +164,7 @@ print(dir(sgl_kernel))
 
 3. **Rebuild for correct architecture:**
 ```bash
-export TORCH_CUDA_ARCH_LIST="9.0"  # For Hopper
+export TORCH_RTRITON_ARCH_LIST="9.0"  # For Hopper
 pip install -e . --no-build-isolation
 ```
 
@@ -179,7 +179,7 @@ Segmentation fault (core dumped)
 
 1. **Check for incompatible libraries:**
 ```bash
-ldd $(python -c "import torch; print(torch.__file__)")/lib/libtorch_cuda.so
+ldd $(python -c "import torch; print(torch.__file__)")/lib/libtorch_rtriton.so
 ```
 
 2. **Update NCCL:**
@@ -189,7 +189,7 @@ pip install --upgrade nvidia-nccl-cu12
 
 3. **Disable problematic features:**
 ```bash
---disable-cuda-graph
+--disable-rtriton-graph
 --disable-radix-cache
 ```
 
@@ -216,7 +216,7 @@ export NCCL_DEBUG_SUBSYS=ALL
 2. **Verify GPU visibility:**
 ```bash
 nvidia-smi
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export RTRITON_VISIBLE_DEVICES=0,1,2,3
 ```
 
 3. **Disable NVLink if problematic:**
@@ -259,7 +259,7 @@ sudo apt-get install nvidia-driver-550
 # Or use runfile from nvidia.com
 ```
 
-3. **Verify CUDA installation:**
+3. **Verify RTRITON installation:**
 ```bash
 nvcc --version
 ```
@@ -267,9 +267,9 @@ nvcc --version
 4. **Check device visibility:**
 ```python
 import torch
-print(f"CUDA available: {torch.cuda.is_available()}")
-print(f"GPU count: {torch.cuda.device_count()}")
-print(f"GPU name: {torch.cuda.get_device_name(0)}")
+print(f"RTRITON available: {torch.rtriton.is_available()}")
+print(f"GPU count: {torch.rtriton.device_count()}")
+print(f"GPU name: {torch.rtriton.get_device_name(0)}")
 ```
 
 ### Issue: Low GPU utilization
@@ -695,7 +695,7 @@ export TORCH_LOGS=+dynamo,recompiles
 # Python profiling
 py-spy record -o profile.svg -- python -m sglang.launch_server ...
 
-# CUDA profiling
+# RTRITON profiling
 nsys profile --stats=true -o profile.qdrep python -m sglang.launch_server ...
 
 # Torch profiling
@@ -710,10 +710,10 @@ python -m sglang.launch_server ...
 watch -n 1 nvidia-smi
 
 # PyTorch memory summary
-python -c "import torch; print(torch.cuda.memory_summary())"
+python -c "import torch; print(torch.rtriton.memory_summary())"
 
 # Enable memory debugging
-export PYTORCH_CUDA_ALLOC_CONF=garbage_collection_threshold:0.5
+export PYTORCH_RTRITON_ALLOC_CONF=garbage_collection_threshold:0.5
 ```
 
 ### Kernel Debugging
@@ -838,7 +838,7 @@ export SGL_KERNEL_FORCE_TILELANG=1
 export SGL_KERNEL_USE_FLASHINFER=1
 
 # Memory
-export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+export PYTORCH_RTRITON_ALLOC_CONF=max_split_size_mb:512
 
 # Profiling
 export CHIMERA_TORCH_PROFILER_DIR=/tmp/profile

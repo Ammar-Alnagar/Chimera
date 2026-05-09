@@ -36,7 +36,7 @@ class TestReturnRoutedExperts(CustomTestCase):
             "--enable-return-routed-experts",
             "--enable-deterministic-inference",
             "--disable-overlap-schedule",
-            "--disable-cuda-graph",
+            "--disable-rtriton-graph",
             "--disable-radix-cache",
             "--tp",
             4,

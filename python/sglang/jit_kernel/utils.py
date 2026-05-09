@@ -38,7 +38,7 @@ def _resolve_kernel_path() -> pathlib.Path:
 KERNEL_PATH = _resolve_kernel_path()
 DEFAULT_INCLUDE = [str(KERNEL_PATH / "include")]
 DEFAULT_CFLAGS = ["-std=c++20", "-O3"]
-DEFAULT_CUDA_CFLAGS = ["-std=c++20", "-O3", "--expt-relaxed-constexpr"]
+DEFAULT_RTRITON_CFLAGS = ["-std=c++20", "-O3", "--expt-relaxed-constexpr"]
 DEFAULT_LDFLAGS = []
 CPP_TEMPLATE_TYPE: TypeAlias = Union[int, float, bool]
 
@@ -62,35 +62,35 @@ def make_cpp_args(*args: CPP_TEMPLATE_TYPE) -> CPPArgList:
 def load_jit(
     *args: str,
     cpp_files: List[str] | None = None,
-    cuda_files: List[str] | None = None,
+    rtriton_files: List[str] | None = None,
     cpp_wrappers: List[Tuple[str, str]] | None = None,
-    cuda_wrappers: List[Tuple[str, str]] | None = None,
+    rtriton_wrappers: List[Tuple[str, str]] | None = None,
     extra_cflags: List[str] | None = None,
-    extra_cuda_cflags: List[str] | None = None,
+    extra_rtriton_cflags: List[str] | None = None,
     extra_ldflags: List[str] | None = None,
     extra_include_paths: List[str] | None = None,
     build_directory: str | None = None,
 ) -> Module:
     """
-    Loading a JIT module from C++/CUDA source files.
+    Loading a JIT module from C++/RTRITON source files.
     We define a wrapper as a tuple of (export_name, kernel_name),
     where `export_name` is the name used to called from Python,
-    and `kernel_name` is the name of the kernel class in C++/CUDA source.
+    and `kernel_name` is the name of the kernel class in C++/RTRITON source.
 
     :param args: Unique marker of the JIT module. Must be distinct for different kernels.
     :type args: str
     :param cpp_files: A list of C++ source files.
     :type cpp_files: List[str] | None
-    :param cuda_files: A list of CUDA source files.
-    :type cuda_files: List[str] | None
+    :param rtriton_files: A list of RTRITON source files.
+    :type rtriton_files: List[str] | None
     :param cpp_wrappers: A list of C++ wrappers, defining the export name and kernel name.
     :type cpp_wrappers: List[Tuple[str, str]] | None
-    :param cuda_wrappers: A list of CUDA wrappers, defining the export name and kernel name.
-    :type cuda_wrappers: List[Tuple[str, str]] | None
+    :param rtriton_wrappers: A list of RTRITON wrappers, defining the export name and kernel name.
+    :type rtriton_wrappers: List[Tuple[str, str]] | None
     :param extra_cflags: Extra C++ compiler flags.
     :type extra_cflags: List[str] | None
-    :param extra_cuda_cflags: Extra CUDA compiler flags.
-    :type extra_cuda_cflags: List[str] | None
+    :param extra_rtriton_cflags: Extra RTRITON compiler flags.
+    :type extra_rtriton_cflags: List[str] | None
     :param extra_ldflags: Extra linker flags.
     :type extra_ldflags: List[str] | None
     :param extra_include_paths: Extra include paths.
@@ -104,11 +104,11 @@ def load_jit(
     from tvm_ffi.cpp import load_inline
 
     cpp_files = cpp_files or []
-    cuda_files = cuda_files or []
+    rtriton_files = rtriton_files or []
     cpp_wrappers = cpp_wrappers or []
-    cuda_wrappers = cuda_wrappers or []
+    rtriton_wrappers = rtriton_wrappers or []
     extra_cflags = extra_cflags or []
-    extra_cuda_cflags = extra_cuda_cflags or []
+    extra_rtriton_cflags = extra_rtriton_cflags or []
     extra_ldflags = extra_ldflags or []
     extra_include_paths = extra_include_paths or []
 
@@ -117,17 +117,17 @@ def load_jit(
     cpp_sources = [f'#include "{path}"' for path in cpp_paths]
     cpp_sources += [_make_wrapper(tup) for tup in cpp_wrappers]
 
-    # include cuda files
-    cuda_paths = [(KERNEL_PATH / "csrc" / f).resolve() for f in cuda_files]
-    cuda_sources = [f'#include "{path}"' for path in cuda_paths]
-    cuda_sources += [_make_wrapper(tup) for tup in cuda_wrappers]
+    # include rtriton files
+    rtriton_paths = [(KERNEL_PATH / "csrc" / f).resolve() for f in rtriton_files]
+    rtriton_sources = [f'#include "{path}"' for path in rtriton_paths]
+    rtriton_sources += [_make_wrapper(tup) for tup in rtriton_wrappers]
 
     return load_inline(
         "sgl_kernel_jit_" + "_".join(str(arg) for arg in args),
         cpp_sources=cpp_sources,
-        cuda_sources=cuda_sources,
+        rtriton_sources=rtriton_sources,
         extra_cflags=DEFAULT_CFLAGS + extra_cflags,
-        extra_cuda_cflags=DEFAULT_CUDA_CFLAGS + extra_cuda_cflags,
+        extra_rtriton_cflags=DEFAULT_RTRITON_CFLAGS + extra_rtriton_cflags,
         extra_ldflags=DEFAULT_LDFLAGS + extra_ldflags,
         extra_include_paths=DEFAULT_INCLUDE + extra_include_paths,
         build_directory=build_directory,
@@ -158,5 +158,5 @@ def cache_once(fn: F) -> F:
 def is_arch_support_pdl() -> bool:
     import torch
 
-    device = torch.cuda.current_device()
-    return torch.cuda.get_device_capability(device)[0] >= 9
+    device = torch.rtriton.current_device()
+    return torch.rtriton.get_device_capability(device)[0] >= 9

@@ -79,10 +79,10 @@ def ssd_minimal_discrete(X, A, B, C, block_len, initial_states=None):
     return Y, final_state
 
 
-def generate_random_inputs(batch_size, seqlen, n_heads, d_head, itype, device="cuda"):
+def generate_random_inputs(batch_size, seqlen, n_heads, d_head, itype, device="rtriton"):
 
-    if not torch.cuda.is_available():
-        pytest.skip("CUDA device not available")
+    if not torch.rtriton.is_available():
+        pytest.skip("RTRITON device not available")
 
     torch.manual_seed(0)
     A = -torch.exp(torch.rand(n_heads, dtype=itype, device=device))
@@ -105,7 +105,7 @@ def generate_continuous_batched_examples(
     n_heads,
     d_head,
     itype,
-    device="cuda",
+    device="rtriton",
     return_naive_ref=True,
 ):
 
@@ -207,8 +207,8 @@ if is_in_ci():
 @pytest.mark.parametrize("d_head", SINGLE_DHEAD)
 @pytest.mark.parametrize("seq_len_chunk_size", SINGLE_SEQ_LEN_CHUNK_SIZE)
 def test_mamba_chunk_scan_single_example(d_head, n_heads, seq_len_chunk_size, itype):
-    if not torch.cuda.is_available():
-        pytest.skip("CUDA device not available")
+    if not torch.rtriton.is_available():
+        pytest.skip("RTRITON device not available")
 
     # this tests the kernels on a single example (no batching)
 
@@ -299,8 +299,8 @@ if is_in_ci():
     ],
 )
 def test_mamba_chunk_scan_cont_batch(d_head, n_heads, seq_len_chunk_size_cases, itype):
-    if not torch.cuda.is_available():
-        pytest.skip("CUDA device not available")
+    if not torch.rtriton.is_available():
+        pytest.skip("RTRITON device not available")
 
     # this test with multiple examples in a continuous batch
     # (i.e. chunked prefill)
@@ -378,8 +378,8 @@ def test_mamba_chunk_scan_cont_batch(d_head, n_heads, seq_len_chunk_size_cases, 
     ],
 )
 def test_mamba_chunk_scan_cont_batch_prefill_chunking(chunk_size, seqlens):
-    if not torch.cuda.is_available():
-        pytest.skip("CUDA device not available")
+    if not torch.rtriton.is_available():
+        pytest.skip("RTRITON device not available")
 
     # This test verifies the correctness of the chunked prefill implementation
     # in the mamba2 ssd kernels, by comparing concatenation (in the sequence

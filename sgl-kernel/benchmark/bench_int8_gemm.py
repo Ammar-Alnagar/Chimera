@@ -110,22 +110,22 @@ else:
 )
 def benchmark(batch_size, provider, N, K):
     M = batch_size
-    a = to_int8(torch.randn((M, K), device="cuda") * 5)
-    b = to_int8(torch.randn((N, K), device="cuda").t() * 5)
-    scale_a = torch.randn((M,), device="cuda", dtype=torch.float32)
-    scale_b = torch.randn((N,), device="cuda", dtype=torch.float32)
-    bias = torch.randn((N,), device="cuda", dtype=torch.float16)
+    a = to_int8(torch.randn((M, K), device="rtriton") * 5)
+    b = to_int8(torch.randn((N, K), device="rtriton").t() * 5)
+    scale_a = torch.randn((M,), device="rtriton", dtype=torch.float32)
+    scale_b = torch.randn((N,), device="rtriton", dtype=torch.float32)
+    bias = torch.randn((N,), device="rtriton", dtype=torch.float16)
 
     quantiles = [0.5, 0.2, 0.8]
     if provider == "sgl-kernel":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: int8_scaled_mm(a, b, scale_a, scale_b, torch.float16, bias),
             quantiles=quantiles,
         )
     elif provider == "vllm":
         if not VLLM_AVAILABLE:
             return (0, 0, 0)
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: vllm_scaled_mm(a, b, scale_a, scale_b, torch.float16, bias),
             quantiles=quantiles,
         )

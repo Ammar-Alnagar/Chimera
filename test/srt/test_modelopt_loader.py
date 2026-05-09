@@ -15,12 +15,12 @@ import torch.nn as nn
 # Constants for calibration parameters to avoid hard-coded values
 CALIBRATION_BATCH_SIZE = 36
 CALIBRATION_NUM_SAMPLES = 512
-DEFAULT_DEVICE = "cuda:0"
+DEFAULT_DEVICE = "rtriton:0"
 
 # Constants for calibration parameters to avoid hard-coded values
 CALIBRATION_BATCH_SIZE = 36
 CALIBRATION_NUM_SAMPLES = 512
-DEFAULT_DEVICE = "cuda:0"
+DEFAULT_DEVICE = "rtriton:0"
 
 from sglang.srt.configs.device_config import DeviceConfig
 from sglang.srt.configs.load_config import LoadConfig
@@ -64,7 +64,7 @@ class TestModelOptModelLoader(CustomTestCase):
 
         self.model_path = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
         self.load_config = LoadConfig()
-        self.device_config = DeviceConfig(device="cuda")
+        self.device_config = DeviceConfig(device="rtriton")
 
         # Create a basic model config with unified quantization flag
         self.model_config = ModelConfig(

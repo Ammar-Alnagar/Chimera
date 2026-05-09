@@ -12,7 +12,7 @@
 # limitations under the License.
 # ==============================================================================
 
-"""ViT CUDA Graph Runner class."""
+"""ViT RTRITON Graph Runner class."""
 from __future__ import annotations
 
 import inspect
@@ -25,11 +25,11 @@ from sglang.srt.layers.attention.vision import VisionAttention
 from sglang.srt.server_args import get_global_server_args
 
 
-class ViTCudaGraphRunner:
-    """Generic ViT CUDA Graph Runner.
+class ViTRtritonGraphRunner:
+    """Generic ViT RTRITON Graph Runner.
 
     This runner captures the "blocks + merger + deepstack merger (optional)" part
-    of a vision transformer into a CUDA graph and replays it for identical shapes.
+    of a vision transformer into a RTRITON graph and replays it for identical shapes.
 
     Optional for Qwen2.5 windowed attention:
       - vit.fullatt_block_indexes: Sequence[int]
@@ -49,10 +49,10 @@ class ViTCudaGraphRunner:
         # graph_key -> buffers / graphs
         self.block_input: Dict[Hashable, torch.Tensor] = {}
         self.block_ws: Dict[Hashable, torch.Tensor] = {}
-        self.block_graphs: Dict[Hashable, torch.cuda.CUDAGraph] = {}
+        self.block_graphs: Dict[Hashable, torch.rtriton.RTRITONGraph] = {}
         self.block_output: Dict[Hashable, torch.Tensor] = {}
 
-        # captured seqlens buffers (addresses must be stable for cuda-graph replay)
+        # captured seqlens buffers (addresses must be stable for rtriton-graph replay)
         self.cu_full_len: Dict[Hashable, torch.Tensor] = {}
         self.cu_window_len: Dict[Hashable, torch.Tensor] = {}
         self.cu_full_len_kk: Dict[Hashable, torch.Tensor] = {}
@@ -123,7 +123,7 @@ class ViTCudaGraphRunner:
         rotary_pos_emb_sin: Optional[torch.Tensor] = None,
     ):
 
-        graph = torch.cuda.CUDAGraph()
+        graph = torch.rtriton.RTRITONGraph()
         vit = self.vit
 
         # Qwen2.5-VL
@@ -138,7 +138,7 @@ class ViTCudaGraphRunner:
 
         override_backend = get_global_server_args().mm_attention_backend
 
-        with torch.cuda.graph(graph):
+        with torch.rtriton.graph(graph):
             y = None
             deepstack_outs: List[torch.Tensor] = []
             deepstack_capture_idx = 0

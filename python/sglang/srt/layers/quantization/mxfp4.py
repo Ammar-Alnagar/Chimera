@@ -38,7 +38,7 @@ from sglang.srt.layers.quantization.base_config import (
 from sglang.srt.layers.quantization.utils import is_layer_skipped
 from sglang.srt.server_args import get_global_server_args
 from sglang.srt.utils import (
-    is_cuda,
+    is_rtriton,
     is_flashinfer_available,
     is_gfx95_supported,
     is_hip,
@@ -52,7 +52,7 @@ from sglang.srt.utils import (
 )
 from sglang.srt.utils.custom_op import register_custom_op
 
-_is_sm100_supported = is_cuda() and is_sm100_supported()
+_is_sm100_supported = is_rtriton() and is_sm100_supported()
 has_triton_kernels = is_triton_kernels_available()
 
 
@@ -182,7 +182,7 @@ class Mxfp4Config(QuantizationConfig):
                 )
             else:
 
-                platform = torch.cuda.get_device_properties(0).gcnArchName
+                platform = torch.rtriton.get_device_properties(0).gcnArchName
                 raise ValueError(
                     f"Current platform {platform} not support mxfp4 computation"
                 )
@@ -372,15 +372,15 @@ class Mxfp4MoEMethod(FusedMoEMethodBase):
             )
             # TODO: these values are hardcoded for now, we need to get them from the model
             layer.gemm1_alpha = Parameter(
-                torch.tensor([1.702] * self.num_experts, dtype=torch.float32).cuda(),
+                torch.tensor([1.702] * self.num_experts, dtype=torch.float32).rtriton(),
                 requires_grad=False,
             )
             layer.gemm1_beta = Parameter(
-                torch.tensor([1.0] * self.num_experts, dtype=torch.float32).cuda(),
+                torch.tensor([1.0] * self.num_experts, dtype=torch.float32).rtriton(),
                 requires_grad=False,
             )
             layer.gemm1_clamp_limit = Parameter(
-                torch.tensor([7.0] * self.num_experts, dtype=torch.float32).cuda(),
+                torch.tensor([7.0] * self.num_experts, dtype=torch.float32).rtriton(),
                 requires_grad=False,
             )
             sf_block_size = 32  # mxfp4 block size
@@ -569,7 +569,7 @@ class Mxfp4MoEMethod(FusedMoEMethodBase):
             del layer.w2_weight_scale
             layer.w13_weight = Parameter(w13_weight.data, requires_grad=False)
             layer.w2_weight = Parameter(w2_weight.data, requires_grad=False)
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
     def create_moe_runner(
         self, layer: torch.nn.Module, moe_runner_config: MoeRunnerConfig

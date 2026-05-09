@@ -220,12 +220,12 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase, MultiPlatformOp):
                 shuffle_weight(layer.w13_weight.data, (16, 16)),
                 requires_grad=False,
             )
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
             layer.w2_weight = torch.nn.Parameter(
                 shuffle_weight(layer.w2_weight.data, (16, 16)),
                 requires_grad=False,
             )
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
         # Pack weight for get better performance on CPU
         if _is_cpu and _is_cpu_amx_available:
@@ -324,7 +324,7 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase, MultiPlatformOp):
             dispatch_output=dispatch_output,
         )
 
-    def forward_cuda(
+    def forward_rtriton(
         self,
         layer: torch.nn.Module,
         dispatch_output: StandardDispatchOutput,

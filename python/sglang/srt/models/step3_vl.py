@@ -821,7 +821,7 @@ class Step3VLForConditionalGeneration(nn.Module):
             patch_pixel_values = patch_pixel_values.type(self.vision_model.dtype)
 
         if patch_pixel_values is not None:
-            patch_pixel_values = patch_pixel_values.to("cuda")
+            patch_pixel_values = patch_pixel_values.to("rtriton")
 
         image_features = self._get_vision_model_output(pixel_values)
         patch_image_features = (

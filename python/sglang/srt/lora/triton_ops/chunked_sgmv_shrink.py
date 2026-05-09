@@ -151,7 +151,7 @@ def chunked_sgmv_lora_shrink_forward(
     num_segments = batch_info.num_segments
     grid = (
         triton.cdiv(N, BLOCK_N),
-        batch_info.bs if batch_info.use_cuda_graph else num_segments,
+        batch_info.bs if batch_info.use_rtriton_graph else num_segments,
     )
 
     output = torch.empty((S, N), device=x.device, dtype=x.dtype)

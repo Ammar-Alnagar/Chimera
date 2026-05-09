@@ -94,7 +94,7 @@ class WaveAttnBackend(AttentionBackend):
         skip_prefill: bool = False,
         kv_indptr_buf: Optional[torch.Tensor] = None,
     ):
-        # Lazy import to avoid the initialization of cuda context
+        # Lazy import to avoid the initialization of rtriton context
         from sglang.srt.layers.attention.wave_ops.decode_attention import (
             decode_attention_fwd,
         )
@@ -341,7 +341,7 @@ class WaveAttnBackend(AttentionBackend):
             mask_indptr,
         )
 
-    def init_cuda_graph_state(
+    def init_rtriton_graph_state(
         self,
         max_bs: int,
         max_num_tokens: int,
@@ -356,36 +356,36 @@ class WaveAttnBackend(AttentionBackend):
                 max_bs, self.v_head_dim, self.num_head, self.max_kv_splits
             )
         )
-        self.cuda_graph_attn_logits = torch.zeros(
+        self.rtriton_graph_attn_logits = torch.zeros(
             attn_logits_shape,
             dtype=torch.float32,
             device=self.device,
         )
-        self.cuda_graph_attn_lse = torch.zeros(
+        self.rtriton_graph_attn_lse = torch.zeros(
             attn_logits_max_shape,
             dtype=torch.float32,
             device=self.device,
         )
-        self.cuda_graph_num_kv_splits = torch.full(
+        self.rtriton_graph_num_kv_splits = torch.full(
             (max_bs,), self.max_kv_splits, dtype=torch.int32, device=self.device
         )
         if kv_indices_buf is None:
-            self.cuda_graph_kv_indices = torch.zeros(
+            self.rtriton_graph_kv_indices = torch.zeros(
                 (max_bs * self.max_context_len),
                 dtype=torch.int32,
                 device=self.device,
             )
         else:
-            self.cuda_graph_kv_indices = kv_indices_buf
+            self.rtriton_graph_kv_indices = kv_indices_buf
 
         if not self.skip_prefill:
-            self.cuda_graph_custom_mask = torch.zeros(
+            self.rtriton_graph_custom_mask = torch.zeros(
                 (max_bs * self.max_context_len),
                 dtype=torch.uint8,
                 device=self.device,
             )
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -402,7 +402,7 @@ class WaveAttnBackend(AttentionBackend):
                 kv_indptr = self.kv_indptr
                 kv_indptr[1 : bs + 1] = torch.cumsum(seq_lens, dim=0)
                 kv_indptr = kv_indptr[: bs + 1]
-                kv_indices = self.cuda_graph_kv_indices
+                kv_indices = self.rtriton_graph_kv_indices
                 create_flashinfer_kv_indices_triton[(bs,)](
                     self.req_to_token,
                     req_pool_indices,
@@ -415,10 +415,10 @@ class WaveAttnBackend(AttentionBackend):
             else:
                 kv_indptr, kv_indices = spec_info.kv_indptr, spec_info.kv_indices
 
-            attn_logits = self.cuda_graph_attn_logits
-            attn_lse = self.cuda_graph_attn_lse
+            attn_logits = self.rtriton_graph_attn_logits
+            attn_lse = self.rtriton_graph_attn_lse
             max_extend_len = None
-            num_kv_splits = self.cuda_graph_num_kv_splits
+            num_kv_splits = self.rtriton_graph_num_kv_splits
             qo_indptr = None
             custom_mask = None
             mask_indptr = None
@@ -433,7 +433,7 @@ class WaveAttnBackend(AttentionBackend):
             )
             kv_indptr = self.kv_indptr[: bs + 1]
             kv_indptr[1 : bs + 1] = torch.cumsum(seq_lens, dim=0)
-            kv_indices = self.cuda_graph_kv_indices
+            kv_indices = self.rtriton_graph_kv_indices
             create_flashinfer_kv_indices_triton[(bs,)](
                 self.req_to_token,
                 req_pool_indices,
@@ -444,7 +444,7 @@ class WaveAttnBackend(AttentionBackend):
                 self.req_to_token.stride(0),
             )
 
-            custom_mask = self.cuda_graph_custom_mask
+            custom_mask = self.rtriton_graph_custom_mask
             seq_mask_len = self.num_draft_tokens * (seq_lens + self.num_draft_tokens)
             mask_indptr = self.mask_indptr[: bs + 1]
             mask_indptr[1 : bs + 1] = torch.cumsum(seq_mask_len, dim=0)
@@ -454,7 +454,7 @@ class WaveAttnBackend(AttentionBackend):
             attn_lse = None
         else:
             raise ValueError(
-                f"Invalid forward mode: {forward_mode=} for CUDA Graph capture."
+                f"Invalid forward mode: {forward_mode=} for RTRITON Graph capture."
             )
 
         self.forward_metadata = ForwardMetadata(
@@ -469,7 +469,7 @@ class WaveAttnBackend(AttentionBackend):
             mask_indptr,
         )
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -484,8 +484,8 @@ class WaveAttnBackend(AttentionBackend):
         if forward_mode.is_decode_or_idle():
             # Update kv_indptr, kv_indices
             kv_indptr = self.kv_indptr
-            kv_indices = self.cuda_graph_kv_indices
-            num_kv_splits = self.cuda_graph_num_kv_splits
+            kv_indices = self.rtriton_graph_kv_indices
+            num_kv_splits = self.rtriton_graph_num_kv_splits
             if spec_info is None:
                 kv_indptr[1 : bs + 1] = torch.cumsum(seq_lens[:bs], dim=0)
                 kv_indptr = kv_indptr[: bs + 1]
@@ -517,7 +517,7 @@ class WaveAttnBackend(AttentionBackend):
             )
             kv_indptr = self.kv_indptr[: bs + 1]
             kv_indptr[1 : bs + 1] = torch.cumsum(seq_lens, dim=0)
-            kv_indices = self.cuda_graph_kv_indices
+            kv_indices = self.rtriton_graph_kv_indices
             create_flashinfer_kv_indices_triton[(bs,)](
                 self.req_to_token,
                 req_pool_indices,
@@ -527,17 +527,17 @@ class WaveAttnBackend(AttentionBackend):
                 kv_indices,
                 self.req_to_token.stride(0),
             )
-            custom_mask = self.cuda_graph_custom_mask
+            custom_mask = self.rtriton_graph_custom_mask
             custom_mask[: spec_info.custom_mask.shape[0]] = spec_info.custom_mask
             seq_mask_len = self.num_draft_tokens * (seq_lens + self.num_draft_tokens)
             mask_indptr = self.mask_indptr[: bs + 1]
             mask_indptr[1 : bs + 1] = torch.cumsum(seq_mask_len, dim=0)
         else:
             raise ValueError(
-                f"Invalid forward mode: {forward_mode=} for CUDA Graph replay."
+                f"Invalid forward mode: {forward_mode=} for RTRITON Graph replay."
             )
 
-    def get_cuda_graph_seq_len_fill_value(self):
+    def get_rtriton_graph_seq_len_fill_value(self):
         return 1
 
     def forward_extend(

@@ -16,24 +16,24 @@
 // Adapted from
 // https://github.com/NVIDIA/TensorRT-LLM/blob/main/cpp/tensorrt_llm/kernels/fusedQKNormRopeKernel.cu
 
-#include <ATen/cuda/Exceptions.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <c10/cuda/CUDAStream.h>
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
-#include <cuda_fp8.h>
-#include <cuda_runtime.h>
+#include <ATen/rtriton/Exceptions.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <c10/rtriton/RTRITONStream.h>
+#include <rtriton_bf16.h>
+#include <rtriton_fp16.h>
+#include <rtriton_fp8.h>
+#include <rtriton_runtime.h>
 #include <torch/all.h>
-#include <torch/cuda.h>
+#include <torch/rtriton.h>
 
 #include <cmath>
 
 #define CHECK_TYPE(x, st) \
   TORCH_CHECK(x.scalar_type() == st, #x " dtype is ", x.scalar_type(), ", while ", st, " is expected")
-#define CHECK_TH_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_TH_RTRITON(x) TORCH_CHECK(x.is_rtriton(), #x " must be a RTRITON tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
 #define CHECK_INPUT(x, st) \
-  CHECK_TH_CUDA(x);        \
+  CHECK_TH_RTRITON(x);        \
   CHECK_CONTIGUOUS(x);     \
   CHECK_TYPE(x, st)
 
@@ -279,7 +279,7 @@ void launchFusedQKNormRope(
     float high,
     float attention_factor,
     int const rotary_dim,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   constexpr int blockSize = 256;
   int const warpsPerBlock = blockSize / 32;
   int const totalQKHeads = num_heads_q + num_heads_k;
@@ -357,7 +357,7 @@ void launchFusedQKNormRope(
 }  // namespace tensorrt_llm::kernels
 
 // Function for fused QK Norm and RoPE
-// This operator applies RMS normalization and RoPE to Q and K tensors in a single CUDA kernel.
+// This operator applies RMS normalization and RoPE to Q and K tensors in a single RTRITON kernel.
 // The OP performs operations in-place on the input qkv tensor.
 void fused_qk_norm_rope(
     torch::Tensor& qkv,           // Combined QKV tensor [num_tokens, (num_heads_q+num_heads_k+num_heads_v)*head_dim]
@@ -404,7 +404,7 @@ void fused_qk_norm_rope(
   TORCH_CHECK(
       qkv.size(1) == total_heads * head_dim, "QKV tensor size must match total number of heads and head dimension");
 
-  auto stream = at::cuda::getCurrentCUDAStream(qkv.get_device());
+  auto stream = at::rtriton::getCurrentRTRITONStream(qkv.get_device());
 
   tensorrt_llm::kernels::launchFusedQKNormRope(
       reinterpret_cast<__nv_bfloat16*>(qkv.data_ptr()),

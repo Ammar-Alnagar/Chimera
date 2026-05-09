@@ -100,7 +100,7 @@ class Gemma3nTextMLP(nn.Module):
             "target_sparsity_tensor",
             torch.tensor(self.activation_sparsity, dtype=torch.float32),
             persistent=False,
-        )  # moved from _gaussian_topk for cuda graph
+        )  # moved from _gaussian_topk for rtriton graph
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         gate_up, _ = self.gate_up_proj(x)

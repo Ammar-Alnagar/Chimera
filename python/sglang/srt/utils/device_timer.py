@@ -32,18 +32,18 @@ class DeviceTimer:
 
 @dataclass
 class _TimingInterval:
-    start_event: torch.cuda.Event
-    end_event: Optional[torch.cuda.Event] = None
+    start_event: torch.rtriton.Event
+    end_event: Optional[torch.rtriton.Event] = None
     metadata: Optional[Dict] = None
 
     @staticmethod
     def create():
-        start_event = torch.cuda.Event(enable_timing=True)
+        start_event = torch.rtriton.Event(enable_timing=True)
         start_event.record()
         return _TimingInterval(start_event=start_event)
 
     def end(self, metadata: Dict):
-        end_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.rtriton.Event(enable_timing=True)
         end_event.record()
 
         assert self.end_event is None

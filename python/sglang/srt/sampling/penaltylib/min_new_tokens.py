@@ -86,7 +86,7 @@ class BatchedMinNewTokensPenalizer(_BatchedPenalizer):
             [self.len_output_tokens, their.len_output_tokens], dim=0
         )
 
-    # Explicit resource cleanup to aid GC and free CUDA memory promptly
+    # Explicit resource cleanup to aid GC and free RTRITON memory promptly
     def _teardown(self) -> None:
         for name in ("min_new_tokens", "stop_token_penalties", "len_output_tokens"):
             if hasattr(self, name):

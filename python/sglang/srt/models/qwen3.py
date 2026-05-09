@@ -30,12 +30,12 @@ from sglang.srt.models.qwen2 import Qwen2MLP as Qwen3MLP
 from sglang.srt.models.qwen2 import Qwen2Model
 from sglang.srt.models.utils import apply_qk_norm
 from sglang.srt.server_args import get_global_server_args
-from sglang.srt.utils import add_prefix, is_cuda, is_npu
+from sglang.srt.utils import add_prefix, is_rtriton, is_npu
 
 Qwen3Config = None
 
 logger = logging.getLogger(__name__)
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_npu = is_npu()
 
 if _is_npu:
@@ -59,7 +59,7 @@ class Qwen3Attention(nn.Module):
         rms_norm_eps: float = None,
         attention_bias: bool = False,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.hidden_size = hidden_size
@@ -209,7 +209,7 @@ class Qwen3DecoderLayer(nn.Module):
         layer_id: int = 0,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.hidden_size = config.hidden_size
@@ -315,7 +315,7 @@ class Qwen3Model(Qwen2Model):
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
     ) -> None:
-        alt_stream = torch.cuda.Stream() if _is_cuda else None
+        alt_stream = torch.rtriton.Stream() if _is_rtriton else None
         super().__init__(
             config=config,
             quant_config=quant_config,
@@ -562,8 +562,8 @@ class Qwen3ForCausalLM(nn.Module):
         del self.lm_head.weight
         self.model.embed_tokens.weight = embed
         self.lm_head.weight = head
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        torch.rtriton.empty_cache()
+        torch.rtriton.synchronize()
 
     def load_kv_cache_scales(self, quantization_param_path: str) -> None:
         self.model.load_kv_cache_scales(quantization_param_path)

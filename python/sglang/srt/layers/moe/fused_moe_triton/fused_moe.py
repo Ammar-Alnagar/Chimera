@@ -18,7 +18,7 @@ from sglang.srt.utils import (
     cpu_has_amx_support,
     get_bool_env_var,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
 )
 from sglang.srt.utils.custom_op import register_custom_op
@@ -36,12 +36,12 @@ if TYPE_CHECKING:
     from sglang.srt.layers.moe.topk import StandardTopKOutput
 
 _is_hip = is_hip()
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_cpu_amx_available = cpu_has_amx_support()
 _is_cpu = is_cpu()
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import gelu_and_mul, moe_sum_reduce, silu_and_mul
 elif _is_cpu and _is_cpu_amx_available:
     pass
@@ -478,7 +478,7 @@ def fused_experts_impl(
                     gemm1_alpha,
                     gemm1_limit,
                 )
-            elif _is_cuda or _is_hip:
+            elif _is_rtriton or _is_hip:
                 if not filter_expert:
                     silu_and_mul(intermediate_cache1.view(-1, N), intermediate_cache2)
                 else:
@@ -498,7 +498,7 @@ def fused_experts_impl(
         elif activation == "gelu" and is_gated:
             assert gemm1_alpha is None, "gemm1_alpha is not supported for gelu"
             assert gemm1_limit is None, "gemm1_limit is not supported for gelu"
-            if _is_cuda or _is_hip:
+            if _is_rtriton or _is_hip:
                 if not filter_expert:
                     gelu_and_mul(intermediate_cache1.view(-1, N), intermediate_cache2)
                 else:
@@ -562,7 +562,7 @@ def fused_experts_impl(
 
         if no_combine:
             pass
-        elif _is_cuda:
+        elif _is_rtriton:
             if topk_ids.shape[1] == 1 and routed_scaling_factor == 1.0:
                 pass  # we write directly into out_hidden_states
             elif topk_ids.shape[1] == 2 and routed_scaling_factor == 1.0:

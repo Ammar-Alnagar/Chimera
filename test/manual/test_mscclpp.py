@@ -104,9 +104,9 @@ class TestMSCCLAllReduce(CustomTestCase):
 
     @ray.remote(num_gpus=1, max_calls=1)
     def graph_allreduce(self, world_size, master_addr, rank, distributed_init_port):
-        del os.environ["CUDA_VISIBLE_DEVICES"]
-        device = torch.device(f"cuda:{rank % torch.cuda.device_count()}")
-        torch.cuda.set_device(device)
+        del os.environ["RTRITON_VISIBLE_DEVICES"]
+        device = torch.device(f"rtriton:{rank % torch.rtriton.device_count()}")
+        torch.rtriton.set_device(device)
         distributed_init_method = f"tcp://{master_addr}:{distributed_init_port}"
         set_mscclpp_all_reduce(True)
         set_custom_all_reduce(False)
@@ -114,7 +114,7 @@ class TestMSCCLAllReduce(CustomTestCase):
             world_size=world_size,
             rank=rank,
             distributed_init_method=distributed_init_method,
-            local_rank=rank % torch.cuda.device_count(),
+            local_rank=rank % torch.rtriton.device_count(),
         )
         initialize_model_parallel(tensor_model_parallel_size=world_size)
         group = get_tensor_model_parallel_group().device_group
@@ -127,7 +127,7 @@ class TestMSCCLAllReduce(CustomTestCase):
         data = torch.zeros(1)
         data = data.to(device=device)
         torch.distributed.all_reduce(data, group=group)
-        torch.cuda.synchronize()
+        torch.rtriton.synchronize()
         del data
 
         for sz in self.test_sizes:
@@ -140,18 +140,18 @@ class TestMSCCLAllReduce(CustomTestCase):
                             16,
                             (sz,),
                             dtype=dtype,
-                            device=torch.cuda.current_device(),
+                            device=torch.rtriton.current_device(),
                         )
                         inp2 = torch.randint(
                             1,
                             16,
                             (sz,),
                             dtype=dtype,
-                            device=torch.cuda.current_device(),
+                            device=torch.rtriton.current_device(),
                         )
-                        torch.cuda.synchronize()
-                        graph = torch.cuda.CUDAGraph()
-                        with torch.cuda.graph(
+                        torch.rtriton.synchronize()
+                        graph = torch.rtriton.RTRITONGraph()
+                        with torch.rtriton.graph(
                             graph, stream=graph_capture_context.stream
                         ):
                             out1 = tensor_model_parallel_all_reduce(inp1)
@@ -166,9 +166,9 @@ class TestMSCCLAllReduce(CustomTestCase):
 
     @ray.remote(num_gpus=1, max_calls=1)
     def eager_allreduce(self, world_size, master_addr, rank, distributed_init_port):
-        del os.environ["CUDA_VISIBLE_DEVICES"]
-        device = torch.device(f"cuda:{rank % torch.cuda.device_count()}")
-        torch.cuda.set_device(device)
+        del os.environ["RTRITON_VISIBLE_DEVICES"]
+        device = torch.device(f"rtriton:{rank % torch.rtriton.device_count()}")
+        torch.rtriton.set_device(device)
         distributed_init_method = f"tcp://{master_addr}:{distributed_init_port}"
         set_mscclpp_all_reduce(True)
         set_custom_all_reduce(False)
@@ -185,7 +185,7 @@ class TestMSCCLAllReduce(CustomTestCase):
             for dtype in [torch.float32, torch.float16, torch.bfloat16]:
                 for _ in range(self.test_loop):
                     inp1 = torch.randint(
-                        1, 16, (sz,), dtype=dtype, device=torch.cuda.current_device()
+                        1, 16, (sz,), dtype=dtype, device=torch.rtriton.current_device()
                     )
                     out1 = tensor_model_parallel_all_reduce(inp1)
                     dist.all_reduce(inp1, group=group)

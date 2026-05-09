@@ -64,7 +64,7 @@ def flashinfer_tilelang_moe_masked(
     masked_m: torch.Tensor,
     down_sm_count: Optional[int] = None,
     down_signals: Optional[torch.Tensor] = None,
-    down_start_event: Optional[torch.cuda.Event] = None,
+    down_start_event: Optional[torch.rtriton.Event] = None,
 ):
     """
     Perform masked Mixture-of-Experts computation with TileLang kernels.

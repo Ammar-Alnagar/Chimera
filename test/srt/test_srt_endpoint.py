@@ -40,7 +40,7 @@ class TestSRTEndpoint(CustomTestCase):
                 "--enable-custom-logit-processor",
                 "--mem-fraction-static",
                 "0.7",
-                "--cuda-graph-max-bs",
+                "--rtriton-graph-max-bs",
                 "8",
             ),
         )

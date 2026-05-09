@@ -2263,7 +2263,7 @@ def _determine_tensor_transport_mode(server_args: ServerArgs) -> TensorTransport
         # Fallback to default CPU transport for multi-node
         return "default"
     else:
-        return "cuda_ipc"
+        return "rtriton_ipc"
 
 
 class SignalHandler:

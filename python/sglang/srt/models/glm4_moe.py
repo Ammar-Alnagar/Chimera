@@ -72,7 +72,7 @@ from sglang.srt.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
 )
-from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
+from sglang.srt.model_executor.rtriton_graph_runner import get_is_capture_mode
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch, PPProxyTensors
 from sglang.srt.model_loader.weight_utils import default_weight_loader
 from sglang.srt.models.utils import apply_qk_norm
@@ -83,7 +83,7 @@ from sglang.srt.utils import (
     get_bool_env_var,
     get_device_sm,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
     is_non_idle_and_non_empty,
     log_info_on_rank0,
@@ -91,7 +91,7 @@ from sglang.srt.utils import (
 )
 
 _is_hip = is_hip()
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_fp8_fnuz = is_fp8_fnuz()
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
 _is_cpu_amx_available = cpu_has_amx_support()
@@ -176,7 +176,7 @@ class Glm4MoeAttention(nn.Module):
         quant_config: Optional[QuantizationConfig] = None,
         use_qk_norm: bool = False,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.hidden_size = hidden_size
@@ -334,7 +334,7 @@ class Glm4MoeSparseMoeBlock(nn.Module):
         layer_id: int,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ):
         nn.Module.__init__(self)
         self.top_k = config.num_experts_per_tok
@@ -471,17 +471,17 @@ class Glm4MoeSparseMoeBlock(nn.Module):
         should_allreduce_fusion: bool = False,
         use_reduce_scatter: bool = False,
     ) -> torch.Tensor:
-        current_stream = torch.cuda.current_stream()
+        current_stream = torch.rtriton.current_stream()
         self.alt_stream.wait_stream(current_stream)
         shared_output = self._forward_shared_experts(hidden_states)
 
-        with torch.cuda.stream(self.alt_stream):
+        with torch.rtriton.stream(self.alt_stream):
             # router_logits: (num_tokens, n_experts)
             router_logits = self.gate(hidden_states)
             topk_output = self.topk(hidden_states, router_logits)
 
             final_hidden_states = self.experts(hidden_states, topk_output)
-            if not _is_cuda and not _use_aiter:
+            if not _is_rtriton and not _use_aiter:
                 # fused in biased_grouped_topk so we can skip here
                 final_hidden_states *= self.routed_scaling_factor
 
@@ -518,7 +518,7 @@ class Glm4MoeSparseMoeBlock(nn.Module):
             topk_output = self.topk.empty_topk_output(hidden_states.device)
 
         final_hidden_states = self.experts(hidden_states, topk_output)
-        if not _is_cuda and not _use_aiter:
+        if not _is_rtriton and not _use_aiter:
             final_hidden_states *= self.routed_scaling_factor
         if shared_output is not None:
             with use_symmetric_memory(
@@ -663,7 +663,7 @@ class Glm4MoeDecoderLayer(nn.Module):
         quant_config: Optional[QuantizationConfig] = None,
         is_nextn: bool = False,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         nn.Module.__init__(self)
         self.hidden_size = config.hidden_size
@@ -890,7 +890,7 @@ class Glm4MoeModel(nn.Module):
         else:
             self.embed_tokens = PPMissingLayer()
 
-        self.alt_stream = torch.cuda.Stream() if _is_cuda else None
+        self.alt_stream = torch.rtriton.Stream() if _is_rtriton else None
         self.layers, self.start_layer, self.end_layer = make_layers(
             config.num_hidden_layers,
             lambda idx, prefix: Glm4MoeDecoderLayer(
@@ -1027,9 +1027,9 @@ class Glm4MoeForCausalLM(nn.Module):
         disable_reason = None
         if not getattr(self.config, "n_shared_experts", None):
             disable_reason = "No shared experts are defined in the config."
-        elif not _is_cuda:
-            disable_reason = "Shared experts fusion currently requires CUDA devices."
-        elif _is_cuda and (_device_sm is not None) and (_device_sm < 80):
+        elif not _is_rtriton:
+            disable_reason = "Shared experts fusion currently requires RTRITON devices."
+        elif _is_rtriton and (_device_sm is not None) and (_device_sm < 80):
             disable_reason = "Shared experts fusion requires SM80 or newer GPUs."
         elif get_moe_expert_parallel_world_size() > 1:
             disable_reason = "Shared experts fusion is not supported together with expert parallelism yet."
@@ -1242,8 +1242,8 @@ class Glm4MoeForCausalLM(nn.Module):
         del self.lm_head.weight
         self.model.embed_tokens.weight = embed
         self.lm_head.weight = head
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        torch.rtriton.empty_cache()
+        torch.rtriton.synchronize()
 
     @classmethod
     def get_model_config_for_expert_location(cls, config):

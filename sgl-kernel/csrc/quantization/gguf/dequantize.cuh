@@ -1,6 +1,6 @@
 // copied from
 // https://github.com/vllm-project/vllm/blob/4492e3a55428e161ca8db381edc28263e5da4c8d/csrc/quantization/gguf/dequantize.cuh
-// copied and adapted from https://github.com/ggerganov/llama.cpp/blob/b2899/ggml-cuda/convert.cu
+// copied and adapted from https://github.com/ggerganov/llama.cpp/blob/b2899/ggml-rtriton/convert.cu
 // Dequant functions
 static __device__ __forceinline__ void dequantize_q4_0(const void* vx, const int ib, const int iqs, dfloat2& v) {
   const block_q4_0* x = (const block_q4_0*)vx;
@@ -447,136 +447,136 @@ static __global__ void dequantize_block_iq4_xs(const void* __restrict__ vx, dst_
 
 template <int qk, int qr, dequantize_kernel_t dequantize_kernel, typename dst_t>
 static void
-dequantize_block_cuda(const void* __restrict__ vx, dst_t* __restrict__ y, const int k, cudaStream_t stream) {
-  const int num_blocks = (k + 2 * CUDA_DEQUANTIZE_BLOCK_SIZE - 1) / (2 * CUDA_DEQUANTIZE_BLOCK_SIZE);
-  dequantize_block<qk, qr, dequantize_kernel><<<num_blocks, CUDA_DEQUANTIZE_BLOCK_SIZE, 0, stream>>>(vx, y, k);
+dequantize_block_rtriton(const void* __restrict__ vx, dst_t* __restrict__ y, const int k, rtritonStream_t stream) {
+  const int num_blocks = (k + 2 * RTRITON_DEQUANTIZE_BLOCK_SIZE - 1) / (2 * RTRITON_DEQUANTIZE_BLOCK_SIZE);
+  dequantize_block<qk, qr, dequantize_kernel><<<num_blocks, RTRITON_DEQUANTIZE_BLOCK_SIZE, 0, stream>>>(vx, y, k);
 }
 
 template <typename dst_t>
-static void dequantize_row_q2_K_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_q2_K_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_q2_K<<<nb, 64, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_q3_K_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_q3_K_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_q3_K<<<nb, 64, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_q4_K_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_q4_K_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_q4_K<<<nb, 32, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_q5_K_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_q5_K_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_q5_K<<<nb, 64, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_q6_K_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_q6_K_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_q6_K<<<nb, 64, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_iq2_xxs_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_iq2_xxs_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_iq2_xxs<<<nb, 32, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_iq2_xs_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_iq2_xs_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_iq2_xs<<<nb, 32, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_iq2_s_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_iq2_s_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_iq2_s<<<nb, 32, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_iq3_xxs_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_iq3_xxs_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_iq3_xxs<<<nb, 32, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_iq3_s_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_iq3_s_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_iq3_s<<<nb, 32, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_iq1_s_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_iq1_s_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_iq1_s<<<nb, 32, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_iq1_m_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_iq1_m_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = k / QK_K;
   dequantize_block_iq1_m<<<nb, 32, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_iq4_nl_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_iq4_nl_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = (k + QK_K - 1) / QK_K;
   dequantize_block_iq4_nl<<<nb, 32, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static void dequantize_row_iq4_xs_cuda(const void* vx, dst_t* y, const int k, cudaStream_t stream) {
+static void dequantize_row_iq4_xs_rtriton(const void* vx, dst_t* y, const int k, rtritonStream_t stream) {
   const int nb = (k + QK_K - 1) / QK_K;
   dequantize_block_iq4_xs<<<nb, 32, 0, stream>>>(vx, y);
 }
 
 template <typename dst_t>
-static to_cuda_ggml_t<dst_t> ggml_get_to_cuda(int64_t type) {
+static to_rtriton_ggml_t<dst_t> ggml_get_to_rtriton(int64_t type) {
   switch (type) {
     case 2:
-      return dequantize_block_cuda<QK4_0, QR4_0, dequantize_q4_0>;
+      return dequantize_block_rtriton<QK4_0, QR4_0, dequantize_q4_0>;
     case 3:
-      return dequantize_block_cuda<QK4_1, QR4_1, dequantize_q4_1>;
+      return dequantize_block_rtriton<QK4_1, QR4_1, dequantize_q4_1>;
     case 6:
-      return dequantize_block_cuda<QK5_0, QR5_0, dequantize_q5_0>;
+      return dequantize_block_rtriton<QK5_0, QR5_0, dequantize_q5_0>;
     case 7:
-      return dequantize_block_cuda<QK5_1, QR5_1, dequantize_q5_1>;
+      return dequantize_block_rtriton<QK5_1, QR5_1, dequantize_q5_1>;
     case 8:
-      return dequantize_block_cuda<QK8_0, QR8_0, dequantize_q8_0>;
+      return dequantize_block_rtriton<QK8_0, QR8_0, dequantize_q8_0>;
     case 10:
-      return dequantize_row_q2_K_cuda;
+      return dequantize_row_q2_K_rtriton;
     case 11:
-      return dequantize_row_q3_K_cuda;
+      return dequantize_row_q3_K_rtriton;
     case 12:
-      return dequantize_row_q4_K_cuda;
+      return dequantize_row_q4_K_rtriton;
     case 13:
-      return dequantize_row_q5_K_cuda;
+      return dequantize_row_q5_K_rtriton;
     case 14:
-      return dequantize_row_q6_K_cuda;
+      return dequantize_row_q6_K_rtriton;
     case 16:
-      return dequantize_row_iq2_xxs_cuda;
+      return dequantize_row_iq2_xxs_rtriton;
     case 17:
-      return dequantize_row_iq2_xs_cuda;
+      return dequantize_row_iq2_xs_rtriton;
     case 18:
-      return dequantize_row_iq3_xxs_cuda;
+      return dequantize_row_iq3_xxs_rtriton;
     case 19:
-      return dequantize_row_iq1_s_cuda;
+      return dequantize_row_iq1_s_rtriton;
     case 20:
-      return dequantize_row_iq4_nl_cuda;
+      return dequantize_row_iq4_nl_rtriton;
     case 21:
-      return dequantize_row_iq3_s_cuda;
+      return dequantize_row_iq3_s_rtriton;
     case 22:
-      return dequantize_row_iq2_s_cuda;
+      return dequantize_row_iq2_s_rtriton;
     case 23:
-      return dequantize_row_iq4_xs_cuda;
+      return dequantize_row_iq4_xs_rtriton;
     case 29:
-      return dequantize_row_iq1_m_cuda;
+      return dequantize_row_iq1_m_rtriton;
     default:
       return nullptr;
   }

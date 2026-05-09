@@ -3,6 +3,8 @@ from typing import Optional, Tuple
 import torch
 
 
+from sgl_kernel.tilelang_cascade import tilelang_merge_state
+
 def merge_state(
     v_a: torch.Tensor,
     s_a: torch.Tensor,
@@ -18,7 +20,7 @@ def merge_state(
         v_merged = torch.empty_like(v_a)
     if s_merged is None:
         s_merged = torch.empty_like(s_a)
-    torch.ops.sgl_kernel.merge_state.default(v_a, s_a, v_b, s_b, v_merged, s_merged)
+    tilelang_merge_state(v_a, s_a, v_b, s_b, v_merged, s_merged)
     return v_merged, s_merged
 
 
@@ -32,16 +34,13 @@ def merge_state_v2(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     s_a = s_a.to(torch.float32)
     s_b = s_b.to(torch.float32)
-    # TODO(DefTruth): Currently, the custom merge_attn_states kernel
-    # does not support the FP8 data type and non - CUDA devices.
-    # It may be necessary to fall back to using the Triton kernel.
 
     # Avoid creating new tensors if they are already provided
     if v_merged is None:
         v_merged = torch.empty_like(v_a)
     if s_merged is None:
         s_merged = torch.empty_like(s_a)
-    torch.ops.sgl_kernel.merge_state_v2.default(v_a, s_a, v_b, s_b, v_merged, s_merged)
+    tilelang_merge_state(v_a, s_a, v_b, s_b, v_merged, s_merged)
     return v_merged, s_merged
 
 
@@ -53,7 +52,7 @@ def tilelang_mla_decode(
     page_table: torch.Tensor,
     workspace: torch.Tensor,
     sm_scale: float,
-    num_kv_splits: int = 1,  # Set to 1 to avoid cuda_graph issue by default.
+    num_kv_splits: int = 1,  # Set to 1 to avoid rtriton_graph issue by default.
 ) -> torch.Tensor:
     assert q_nope.ndim == 3, f"q_nope must be a 3D tensor, but got {q_nope.ndim}"
     assert q_pe.ndim == 3, f"q_pe must be a 3D tensor, but got {q_pe.ndim}"
@@ -125,7 +124,7 @@ def tilelang_mla_get_workspace_size(
     max_seq_len: int,
     num_batches: int,
     sm_count: int = 0,
-    num_kv_splits: int = 1,  # Set to 1 to avoid cuda_graph issue by default.
+    num_kv_splits: int = 1,  # Set to 1 to avoid rtriton_graph issue by default.
 ) -> int:
     assert max_seq_len > 0, f"max_seq_len must be greater than 0, got {max_seq_len}"
     assert num_batches > 0, f"num_batches must be greater than 0, got {num_batches}"

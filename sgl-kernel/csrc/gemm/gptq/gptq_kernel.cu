@@ -3,10 +3,10 @@ Adapted from https://github.com/turboderp/exllamav2 and
 https://github.com/qwopqwop200/GPTQ-for-LLaMa
 */
 
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
-#include <cuda_fp16.h>
-#include <cuda_runtime.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <rtriton_fp16.h>
+#include <rtriton_runtime.h>
 #include <torch/all.h>
 
 #include <cstdint>
@@ -729,7 +729,7 @@ fp_gemm_half_q_half_gptq_kernel pick_gemm_half_q_half_gptq_kernel(bool first_blo
   return NULL;
 }
 
-void gemm_half_q_half_cuda_part(
+void gemm_half_q_half_rtriton_part(
     const half* a,
     const uint32_t* b_q_weight,
     const uint32_t* b_gptq_qzeros,
@@ -752,7 +752,7 @@ void gemm_half_q_half_cuda_part(
 
   fp_gemm_half_q_half_gptq_kernel kernel = pick_gemm_half_q_half_gptq_kernel(true, m_count, bit);
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   kernel<<<gridDim, blockDim, 0, stream>>>(
       a, b_q_weight, b_gptq_qzeros, b_gptq_scales, c, size_m, size_n, size_k, groups, b_q_perm);
 }
@@ -1237,7 +1237,7 @@ void reconstruct_exllama(
     reconstruct_exllama_kernel = reconstruct_exllama_8bit_kernel;
   }
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   reconstruct_exllama_kernel<<<gridDim, blockDim, 0, stream>>>(
       b_q_weight, b_q_perm, b_gptq_qzeros, b_gptq_scales, height, width, groups, out);
 }
@@ -1437,7 +1437,7 @@ void gemm_half_q_half_alt(
     kernel = gemm_half_q_half_alt_8bit_kernel;
   }
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   kernel<<<gridDim, blockDim, 0, stream>>>(
       (const half2*)a, b_q_weight, c, b_gptq_scales, b_gptq_qzeros, b_g_idx, size_m, size_k / 32 * bit, size_n);
 }
@@ -1551,12 +1551,12 @@ void reconstruct_gptq(
     gridDim.y = DIVIDE(height, 32);
   }
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   kernel<<<gridDim, blockDim, 0, stream>>>(
       b_q_weight, b_gptq_scales, b_gptq_qzeros, b_g_idx, height, width, groups, out);
 }
 
-void gemm_half_q_half_cuda(
+void gemm_half_q_half_rtriton(
     cublasHandle_t cublas_handle,
     const half* a,
     const uint32_t* b_q_weight,
@@ -1611,7 +1611,7 @@ void gemm_half_q_half_cuda(
     int last_chunk_size = size_m - last_chunk;
 
     if (max_chunks) {
-      gemm_half_q_half_cuda_part(
+      gemm_half_q_half_rtriton_part(
           a,
           b_q_weight,
           b_gptq_qzeros,
@@ -1627,7 +1627,7 @@ void gemm_half_q_half_cuda(
     }
 
     if (last_chunk_size) {
-      gemm_half_q_half_cuda_part(
+      gemm_half_q_half_rtriton_part(
           a + last_chunk * size_k,
           b_q_weight,
           b_gptq_qzeros,
@@ -1863,7 +1863,7 @@ __global__ void make_sequential_8bit_kernel(
 void shuffle_exllama_weight(uint32_t* q_weight, int* q_perm, int height, int width, int bit) {
   if (q_perm) {
     uint32_t* new_qweight = NULL;
-    cudaMalloc(&new_qweight, height / 32 * bit * width * sizeof(uint32_t));
+    rtritonMalloc(&new_qweight, height / 32 * bit * width * sizeof(uint32_t));
 
     dim3 blockDim, gridDim;
     blockDim.x = THREADS_X;
@@ -1880,13 +1880,13 @@ void shuffle_exllama_weight(uint32_t* q_weight, int* q_perm, int height, int wid
     } else if (bit == 8) {
       kernel = make_sequential_8bit_kernel;
     }
-    const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+    const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
     kernel<<<gridDim, blockDim, 0, stream>>>(q_weight, new_qweight, q_perm, width);
     // Replace qweights
-    cudaMemcpyAsync(q_weight, new_qweight, height / 32 * bit * width * sizeof(uint32_t), cudaMemcpyDeviceToDevice);
+    rtritonMemcpyAsync(q_weight, new_qweight, height / 32 * bit * width * sizeof(uint32_t), rtritonMemcpyDeviceToDevice);
     // Cleanup
-    cudaDeviceSynchronize();
-    cudaFree(new_qweight);
+    rtritonDeviceSynchronize();
+    rtritonFree(new_qweight);
   }
   dim3 blockDim, gridDim;
   blockDim.x = THREADS_X;
@@ -1901,7 +1901,7 @@ void shuffle_exllama_weight(uint32_t* q_weight, int* q_perm, int height, int wid
   } else if (bit == 8) {
     shuffle_kernel = shuffle_8bit_kernel;
   }
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   shuffle_kernel<<<gridDim, blockDim, 0, stream>>>(q_weight, height, width);
 }
 
@@ -1916,13 +1916,13 @@ torch::Tensor gptq_gemm(
     torch::Tensor b_g_idx,
     bool use_shuffle,
     int64_t bit) {
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(a));
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(a));
   auto options = torch::TensorOptions().dtype(a.dtype()).device(a.device());
   at::Tensor c = torch::empty({a.size(0), b_q_weight.size(1)}, options);
   at::Tensor temp_dq = torch::empty({b_q_weight.size(0) * 32 / bit, b_q_weight.size(1)}, options);
 
-  sglang::gptq::gemm_half_q_half_cuda(
-      at::cuda::getCurrentCUDABlasHandle(),
+  sglang::gptq::gemm_half_q_half_rtriton(
+      at::rtriton::getCurrentRTRITONBlasHandle(),
       (const half*)a.data_ptr(),
       (const uint32_t*)b_q_weight.data_ptr(),
       (const uint32_t*)b_gptq_qzeros.data_ptr(),
@@ -1940,7 +1940,7 @@ torch::Tensor gptq_gemm(
 }
 
 void gptq_shuffle(torch::Tensor q_weight, torch::Tensor q_perm, int64_t bit) {
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(q_weight));
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(q_weight));
   sglang::gptq::shuffle_exllama_weight(
       (uint32_t*)q_weight.data_ptr(),
       q_perm.device().is_meta() || q_perm.numel() == 0 ? NULL : (int*)q_perm.data_ptr(),

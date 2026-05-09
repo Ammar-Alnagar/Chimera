@@ -58,8 +58,8 @@ def test_gptq_marlin_gemm(
     if size_k % group_size != 0:
         return
 
-    a_input = torch.randn((size_m, size_k), dtype=torch.float16, device="cuda")
-    b_weight = torch.randn((size_k, size_n), dtype=torch.float16, device="cuda")
+    a_input = torch.randn((size_m, size_k), dtype=torch.float16, device="rtriton")
+    b_weight = torch.randn((size_k, size_n), dtype=torch.float16, device="rtriton")
 
     if has_zp:
         # AWQ style, unsigned + runtime zero-point
@@ -106,7 +106,7 @@ def test_gptq_marlin_gemm(
     # ref gemm
     output_ref = torch.matmul(a_input, w_ref)
 
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     max_diff = torch.mean(torch.abs(output - output_ref)) / torch.mean(
         torch.abs(output_ref)

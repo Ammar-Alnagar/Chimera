@@ -18,7 +18,7 @@ class MockModelRunner:
         qk_rope_head_dim,
     ):
         attention_arch = AttentionArch.MLA
-        self.device = "cuda"
+        self.device = "rtriton"
         self.dtype = torch.float16
         self.is_hybrid_swa = False
         context_len = 2048
@@ -50,7 +50,7 @@ class MockModelRunner:
             "TokenPool",
             (),
             {
-                # A typical max_bs * max_context_len for cuda graph decode
+                # A typical max_bs * max_context_len for rtriton graph decode
                 "size": batch_size,
                 # Add req_to_token attribute
                 "req_to_token": torch.zeros(
@@ -81,12 +81,12 @@ class MockReqToTokenPool:
         )
 
 
-@unittest.skipIf(not torch.cuda.is_available(), "Test requires CUDA")
+@unittest.skipIf(not torch.rtriton.is_available(), "Test requires RTRITON")
 class TestFlashAttentionMLABackend(CustomTestCase):
     def setUp(self):
         # MLA with different V headdim requires Hopper architecture (compute capability >= 9.0)
-        if torch.cuda.is_available():
-            compute_capability = torch.cuda.get_device_capability()
+        if torch.rtriton.is_available():
+            compute_capability = torch.rtriton.get_device_capability()
             if compute_capability[0] < 9:
                 self.skipTest(
                     f"MLA requires Hopper GPU (compute capability >= 9.0), "
@@ -97,7 +97,7 @@ class TestFlashAttentionMLABackend(CustomTestCase):
         self.batch_size = 2
         self.seq_len = 360
         self.num_heads = 2
-        self.device = "cuda"
+        self.device = "rtriton"
         self.dtype = torch.float16
         self.kv_lora_rank = 512
         self.q_lora_rank = 128
@@ -148,7 +148,7 @@ class TestFlashAttentionMLABackend(CustomTestCase):
             f"Expected shape {expected_shape}, got {output.shape}",
         )
         self.assertEqual(output.dtype, self.dtype)
-        self.assertEqual(output.device.type, "cuda")
+        self.assertEqual(output.device.type, "rtriton")
         self.assertEqual(
             torch.isnan(output).sum().item(), 0, "Output contains NaN values"
         )

@@ -20,7 +20,7 @@ def benchmark_kernel(
     scale_fmt,
     warmup: int = 10,
     repeat: int = 100,
-    use_cuda_graph: bool = True,
+    use_rtriton_graph: bool = True,
 ) -> Tuple[float, torch.Tensor, torch.Tensor]:
     """
     Benchmark a kernel function.
@@ -32,7 +32,7 @@ def benchmark_kernel(
         scale_fmt: Scale format
         warmup: Number of warmup iterations
         repeat: Number of repeat iterations
-        use_cuda_graph: Whether to use CUDA graphs for more accurate timing
+        use_rtriton_graph: Whether to use RTRITON graphs for more accurate timing
 
     Returns:
         Tuple of (avg_time_ms, quantized_output, scales)
@@ -41,52 +41,52 @@ def benchmark_kernel(
     for _ in range(warmup):
         y, s = fn(x, block_size=block_size, scale_fmt=scale_fmt)
 
-    if not x.is_cuda or not use_cuda_graph:
+    if not x.is_rtriton or not use_rtriton_graph:
         # Fallback to regular timing
-        if x.is_cuda:
-            torch.cuda.synchronize()
+        if x.is_rtriton:
+            torch.rtriton.synchronize()
 
         start = time.perf_counter()
         for _ in range(repeat):
             y, s = fn(x, block_size=block_size, scale_fmt=scale_fmt)
 
-        if x.is_cuda:
-            torch.cuda.synchronize()
+        if x.is_rtriton:
+            torch.rtriton.synchronize()
 
         end = time.perf_counter()
         avg_time_ms = (end - start) / repeat * 1000
 
         return avg_time_ms, y, s
 
-    # Use CUDA graph for more accurate timing
-    torch.cuda.synchronize()
+    # Use RTRITON graph for more accurate timing
+    torch.rtriton.synchronize()
 
     # Allocate output buffers
     N = x.size(-1)
     y = torch.empty_like(x, dtype=torch.float8_e4m3fn)
     s = x.new_empty(*x.size()[:-1], N // block_size, dtype=torch.float32)
 
-    # Capture CUDA graph
-    graph = torch.cuda.CUDAGraph()
-    with torch.cuda.graph(graph):
+    # Capture RTRITON graph
+    graph = torch.rtriton.RTRITONGraph()
+    with torch.rtriton.graph(graph):
         y_cap, s_cap = fn(x, block_size=block_size, scale_fmt=scale_fmt)
 
     # Warmup with graph
     for _ in range(warmup):
         graph.replay()
 
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
-    # Timing with CUDA graph
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
+    # Timing with RTRITON graph
+    start_event = torch.rtriton.Event(enable_timing=True)
+    end_event = torch.rtriton.Event(enable_timing=True)
 
     start_event.record()
     for _ in range(repeat):
         graph.replay()
     end_event.record()
 
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     avg_time_ms = start_event.elapsed_time(end_event) / repeat
 
@@ -151,10 +151,10 @@ def check_accuracy(
     return passed, metrics
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+@pytest.mark.skipif(not torch.rtriton.is_available(), reason="RTRITON not available")
 def test_act_quant_comprehensive_benchmark(scale_fmt=None):
-    """Comprehensive benchmark across multiple sizes with CUDA graphs."""
-    device = torch.device("cuda")
+    """Comprehensive benchmark across multiple sizes with RTRITON graphs."""
+    device = torch.device("rtriton")
     dtype = torch.bfloat16
     block_size = 128
 
@@ -168,7 +168,7 @@ def test_act_quant_comprehensive_benchmark(scale_fmt=None):
     ]
 
     print("\n" + "=" * 100)
-    print("Comprehensive Performance Benchmark with CUDA Graphs")
+    print("Comprehensive Performance Benchmark with RTRITON Graphs")
     print("=" * 100)
     print(
         f"{'Shape':<20} {'TileLang (ms)':<15} {'Triton (ms)':<15} {'Speedup':<10} {'Status'}"
@@ -180,7 +180,7 @@ def test_act_quant_comprehensive_benchmark(scale_fmt=None):
         x = torch.randn(shape, dtype=dtype, device=device)
 
         try:
-            # Benchmark both with CUDA graphs
+            # Benchmark both with RTRITON graphs
             time_tilelang, y_ref, s_ref = benchmark_kernel(
                 act_quant,
                 x,
@@ -188,7 +188,7 @@ def test_act_quant_comprehensive_benchmark(scale_fmt=None):
                 scale_fmt,
                 warmup=5,
                 repeat=50,
-                use_cuda_graph=True,
+                use_rtriton_graph=True,
             )
             time_triton, y_triton, s_triton = benchmark_kernel(
                 act_quant_triton,
@@ -197,7 +197,7 @@ def test_act_quant_comprehensive_benchmark(scale_fmt=None):
                 scale_fmt,
                 warmup=5,
                 repeat=50,
-                use_cuda_graph=True,
+                use_rtriton_graph=True,
             )
 
             # Check accuracy
@@ -215,9 +215,9 @@ def test_act_quant_comprehensive_benchmark(scale_fmt=None):
 
     print("=" * 100)
 
-    # Also run without CUDA graphs for comparison
+    # Also run without RTRITON graphs for comparison
     print("\n" + "=" * 100)
-    print("Performance Benchmark WITHOUT CUDA Graphs (for comparison)")
+    print("Performance Benchmark WITHOUT RTRITON Graphs (for comparison)")
     print("=" * 100)
     print(
         f"{'Shape':<20} {'TileLang (ms)':<15} {'Triton (ms)':<15} {'Speedup':<10} {'Status'}"
@@ -229,7 +229,7 @@ def test_act_quant_comprehensive_benchmark(scale_fmt=None):
         x = torch.randn(shape, dtype=dtype, device=device)
 
         try:
-            # Benchmark both without CUDA graphs
+            # Benchmark both without RTRITON graphs
             time_tilelang, y_ref, s_ref = benchmark_kernel(
                 act_quant,
                 x,
@@ -237,7 +237,7 @@ def test_act_quant_comprehensive_benchmark(scale_fmt=None):
                 scale_fmt,
                 warmup=5,
                 repeat=50,
-                use_cuda_graph=False,
+                use_rtriton_graph=False,
             )
             time_triton, y_triton, s_triton = benchmark_kernel(
                 act_quant_triton,
@@ -246,7 +246,7 @@ def test_act_quant_comprehensive_benchmark(scale_fmt=None):
                 scale_fmt,
                 warmup=5,
                 repeat=50,
-                use_cuda_graph=False,
+                use_rtriton_graph=False,
             )
 
             # Check accuracy
@@ -267,7 +267,7 @@ def test_act_quant_comprehensive_benchmark(scale_fmt=None):
 
 if __name__ == "__main__":
     # Run comprehensive benchmark
-    if torch.cuda.is_available():
+    if torch.rtriton.is_available():
         print("\n" + "=" * 80)
         print("Running Comprehensive Benchmark with scale_fmt=None")
         print("=" * 80)
@@ -278,4 +278,4 @@ if __name__ == "__main__":
         print("=" * 80)
         test_act_quant_comprehensive_benchmark(scale_fmt="any")
     else:
-        print("CUDA not available. Skipping tests.")
+        print("RTRITON not available. Skipping tests.")

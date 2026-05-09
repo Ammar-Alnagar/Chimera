@@ -25,11 +25,11 @@ from sglang.srt.model_executor.forward_batch_info import CaptureHiddenMode, Forw
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.speculative.base_spec_worker import BaseDraftWorker, BaseSpecWorker
 from sglang.srt.speculative.draft_utils import DraftBackendFactory
-from sglang.srt.speculative.eagle_draft_cuda_graph_runner import (
-    EAGLEDraftCudaGraphRunner,
+from sglang.srt.speculative.eagle_draft_rtriton_graph_runner import (
+    EAGLEDraftRtritonGraphRunner,
 )
-from sglang.srt.speculative.eagle_draft_extend_cuda_graph_runner import (
-    EAGLEDraftExtendCudaGraphRunner,
+from sglang.srt.speculative.eagle_draft_extend_rtriton_graph_runner import (
+    EAGLEDraftExtendRtritonGraphRunner,
 )
 from sglang.srt.speculative.eagle_info import EagleDraftInput, EagleVerifyInput
 from sglang.srt.speculative.eagle_info_v2 import (
@@ -51,14 +51,14 @@ from sglang.srt.utils.common import (
     empty_context,
     fast_topk,
     get_available_gpu_memory,
-    is_cuda,
+    is_rtriton,
     is_npu,
     next_power_of_2,
 )
 from sglang.srt.utils.patch_torch import monkey_patch_torch_reductions
 
 _is_npu = is_npu()
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
 logger = logging.getLogger(__name__)
 
@@ -108,10 +108,10 @@ class EagleDraftWorker(BaseDraftWorker):
             self.speculative_num_steps * self.topk, self.speculative_num_draft_tokens
         )
 
-        # Do not capture cuda graph in `TpModelWorker` init,
-        # will capture later with init_cuda_graphs()
-        backup_disable_cuda_graph = server_args.disable_cuda_graph
-        server_args.disable_cuda_graph = True
+        # Do not capture rtriton graph in `TpModelWorker` init,
+        # will capture later with init_rtriton_graphs()
+        backup_disable_rtriton_graph = server_args.disable_rtriton_graph
+        server_args.disable_rtriton_graph = True
 
         # Share the allocator with a target worker.
         # Draft and target worker own their own KV cache pools.
@@ -139,8 +139,8 @@ class EagleDraftWorker(BaseDraftWorker):
         self.init_token_map()
         self.init_lm_head()
 
-        # Init attention backend and cuda graphs
-        self.draft_runner.server_args.disable_cuda_graph = backup_disable_cuda_graph
+        # Init attention backend and rtriton graphs
+        self.draft_runner.server_args.disable_rtriton_graph = backup_disable_rtriton_graph
         self.draft_tp_context = (
             draft_tp_context if server_args.enable_dp_attention else empty_context
         )
@@ -148,7 +148,7 @@ class EagleDraftWorker(BaseDraftWorker):
             self.draft_runner.tp_group
         ), speculative_moe_backend_context(), speculative_moe_a2a_backend_context():
             self.init_attention_backend()
-            self.init_cuda_graphs()
+            self.init_rtriton_graphs()
 
         self.tree_mask_mode = TreeMaskMode.FULL_MASK
 
@@ -199,7 +199,7 @@ class EagleDraftWorker(BaseDraftWorker):
             self.draft_runner.model.set_embed_and_head(embed, head)
 
     def init_attention_backend(self):
-        # Create multi-step attn backends and cuda graph runners
+        # Create multi-step attn backends and rtriton graph runners
 
         self.has_prefill_wrapper_verify = False
         self.draft_extend_attn_backend = None
@@ -222,73 +222,73 @@ class EagleDraftWorker(BaseDraftWorker):
         self.draft_runner.draft_attn_backend = self.draft_attn_backend
         self.tree_mask_mode = TreeMaskMode.FULL_MASK
 
-    def init_cuda_graphs(self):
-        """Capture cuda graphs."""
-        self.cuda_graph_runner = None
-        self.cuda_graph_runner_for_draft_extend = None
+    def init_rtriton_graphs(self):
+        """Capture rtriton graphs."""
+        self.rtriton_graph_runner = None
+        self.rtriton_graph_runner_for_draft_extend = None
 
-        if self.server_args.disable_cuda_graph:
+        if self.server_args.disable_rtriton_graph:
             return
 
-        Device2DraftCudaGraphRunner = {
+        Device2DraftRtritonGraphRunner = {
             "npu": EAGLEDraftNpuGraphRunner,
-            "cuda": EAGLEDraftCudaGraphRunner,
+            "rtriton": EAGLEDraftRtritonGraphRunner,
         }
         # Capture draft
         if self.speculative_num_steps > 1:
             tic = time.perf_counter()
             before_mem = get_available_gpu_memory(self.device, self.gpu_id)
             logger.info(
-                f"Capture draft cuda graph begin. This can take up to several minutes. avail mem={before_mem:.2f} GB"
+                f"Capture draft rtriton graph begin. This can take up to several minutes. avail mem={before_mem:.2f} GB"
             )
-            self.cuda_graph_runner = Device2DraftCudaGraphRunner[
+            self.rtriton_graph_runner = Device2DraftRtritonGraphRunner[
                 self.target_worker.device
             ](self)
             after_mem = get_available_gpu_memory(self.device, self.gpu_id)
             logger.info(
-                f"Capture draft cuda graph end. Time elapsed: {time.perf_counter() - tic:.2f} s. mem usage={(before_mem - after_mem):.2f} GB. avail mem={after_mem:.2f} GB."
+                f"Capture draft rtriton graph end. Time elapsed: {time.perf_counter() - tic:.2f} s. mem usage={(before_mem - after_mem):.2f} GB. avail mem={after_mem:.2f} GB."
             )
 
-        Device2ExtendCudaGraphRunner = {
+        Device2ExtendRtritonGraphRunner = {
             "npu": EAGLEDraftExtendNpuGraphRunner,
-            "cuda": EAGLEDraftExtendCudaGraphRunner,
+            "rtriton": EAGLEDraftExtendRtritonGraphRunner,
         }
         # Capture extend
-        # TODO: support draft extend cuda graph for more attention backends
+        # TODO: support draft extend rtriton graph for more attention backends
         if self.draft_extend_attn_backend and (
             _is_npu
             or (
-                _is_cuda
+                _is_rtriton
                 and isinstance(self.draft_attn_backend, TritonMultiStepDraftBackend)
             )
         ):
             tic = time.perf_counter()
             before_mem = get_available_gpu_memory(self.device, self.gpu_id)
             logger.info(
-                f"Capture draft extend cuda graph begin. This can take up to several minutes. avail mem={before_mem:.2f} GB"
+                f"Capture draft extend rtriton graph begin. This can take up to several minutes. avail mem={before_mem:.2f} GB"
             )
-            self.cuda_graph_runner_for_draft_extend = Device2ExtendCudaGraphRunner[
+            self.rtriton_graph_runner_for_draft_extend = Device2ExtendRtritonGraphRunner[
                 self.target_worker.device
             ](self)
             after_mem = get_available_gpu_memory(self.device, self.gpu_id)
             logger.info(
-                f"Capture draft extend cuda graph end. Time elapsed: {time.perf_counter() - tic:.2f} s. mem usage={(before_mem - after_mem):.2f} GB. avail mem={after_mem:.2f} GB."
+                f"Capture draft extend rtriton graph end. Time elapsed: {time.perf_counter() - tic:.2f} s. mem usage={(before_mem - after_mem):.2f} GB. avail mem={after_mem:.2f} GB."
             )
 
     def draft(self, model_worker_batch: ModelWorkerBatch):
         draft_input: EagleDraftInput = model_worker_batch.spec_info
-        forward_batch, can_cuda_graph = draft_input.prepare_for_v2_draft(
+        forward_batch, can_rtriton_graph = draft_input.prepare_for_v2_draft(
             self.req_to_token_pool,
             model_worker_batch,
-            self.cuda_graph_runner,
+            self.rtriton_graph_runner,
             self.draft_runner,
             self.topk,
             self.speculative_num_steps,
         )
 
         # Run draft
-        if can_cuda_graph:
-            parent_list, top_scores_index, draft_tokens = self.cuda_graph_runner.replay(
+        if can_rtriton_graph:
+            parent_list, top_scores_index, draft_tokens = self.rtriton_graph_runner.replay(
                 forward_batch,
             )
         else:
@@ -311,7 +311,7 @@ class EagleDraftWorker(BaseDraftWorker):
             )
 
         # Build tree mask
-        # Directly write to cuda graph buffers for verify attn
+        # Directly write to rtriton graph buffers for verify attn
         tree_mask_buf, position_buf = (
             self.target_worker.model_runner.attn_backend.get_verify_buffers_to_fill_after_draft()
         )
@@ -507,7 +507,7 @@ class EagleDraftWorker(BaseDraftWorker):
                 batch_result.next_token_ids,
                 self.speculative_num_draft_tokens,
                 self.draft_runner,
-                self.cuda_graph_runner_for_draft_extend,
+                self.rtriton_graph_runner_for_draft_extend,
             )
 
         if self.plan_stream:
@@ -519,12 +519,12 @@ class EagleDraftWorker(BaseDraftWorker):
             forward_batch.spec_info.accept_length = batch_result.accept_lens
 
         # Run draft extend batch in the main compute stream
-        can_cuda_graph = (
-            self.cuda_graph_runner_for_draft_extend
-            and self.cuda_graph_runner_for_draft_extend.can_run(forward_batch)
+        can_rtriton_graph = (
+            self.rtriton_graph_runner_for_draft_extend
+            and self.rtriton_graph_runner_for_draft_extend.can_run(forward_batch)
         )
-        if can_cuda_graph:
-            draft_logits_output = self.cuda_graph_runner_for_draft_extend.replay(
+        if can_rtriton_graph:
+            draft_logits_output = self.rtriton_graph_runner_for_draft_extend.replay(
                 forward_batch
             )
         else:
@@ -673,7 +673,7 @@ class EAGLEWorkerV2(BaseSpecWorker):
         # Batch 1: Target verify
         # Prepare for target verify in a separate stream
         with self.plan_stream_ctx:
-            verify_forward_batch, can_run_cuda_graph = (
+            verify_forward_batch, can_run_rtriton_graph = (
                 verify_input.prepare_for_v2_verify(
                     self.req_to_token_pool,
                     batch,
@@ -694,7 +694,7 @@ class EAGLEWorkerV2(BaseSpecWorker):
                 verify_input,
                 (
                     self.target_worker.model_runner.graph_runner.bs
-                    if can_run_cuda_graph
+                    if can_run_rtriton_graph
                     else None
                 ),
             )
@@ -770,7 +770,7 @@ class EAGLEWorkerV2(BaseSpecWorker):
         return GenerationBatchResult(
             logits_output=logits_output,
             next_token_ids=predict,
-            can_run_cuda_graph=can_run_cuda_graph,
+            can_run_rtriton_graph=can_run_rtriton_graph,
             next_draft_input=next_draft_input,
             accept_lens=accept_length,
         )

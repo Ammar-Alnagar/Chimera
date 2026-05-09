@@ -108,7 +108,7 @@ class OffloaderV1(BaseOffloader):
 
         pin_memory = is_pin_memory_available()
         # offload parameters to CPU
-        # use pin_memory if possible, which helps cudagraph capture speed
+        # use pin_memory if possible, which helps rtritongraph capture speed
         offloaded_parameters = False
         for p in module.parameters():
             if self._cpu_offload_bytes >= self._cpu_offload_max_bytes:
@@ -198,7 +198,7 @@ class OffloaderV2(BaseOffloader):
     ):
         assert len(self.offloaders) == 0, "should only call wrap_modules once"
 
-        alt_stream = torch.cuda.Stream()
+        alt_stream = torch.rtriton.Stream()
 
         all_modules = []
         offload_submodules = []
@@ -208,7 +208,7 @@ class OffloaderV2(BaseOffloader):
                 submodule = submodule_accessor(module)
                 whitelist_param_names = whitelist_param_names_creator(submodule)
                 logger.info(
-                    f"[offloader] offload {module_index=} submodule={type(submodule)} params={whitelist_param_names} memory_allocated={torch.cuda.memory_allocated()}"
+                    f"[offloader] offload {module_index=} submodule={type(submodule)} params={whitelist_param_names} memory_allocated={torch.rtriton.memory_allocated()}"
                 )
                 offload_submodules.append(submodule)
                 self.offloaders.append(
@@ -276,7 +276,7 @@ class _ModuleOffloader(ABC):
         self,
         mode: str,
         module: torch.nn.Module,
-        alt_stream: torch.cuda.Stream,
+        alt_stream: torch.rtriton.Stream,
         whitelist_param_names: List[str],
     ):
         self.mode = mode
@@ -306,10 +306,10 @@ class _ModuleOffloader(ABC):
             param_offloader.post_init()
 
     def start_onload(self):
-        self.alt_stream.wait_stream(torch.cuda.current_stream())
-        with torch.cuda.stream(self.alt_stream):
+        self.alt_stream.wait_stream(torch.rtriton.current_stream())
+        with torch.rtriton.stream(self.alt_stream):
             self._device_tensors = self._create_device_tensors()
-            self._load_event = torch.cuda.Event()
+            self._load_event = torch.rtriton.Event()
             self._load_event.record()
 
     def offload(self):
@@ -358,7 +358,7 @@ class _MetaParamOffloader(_BaseParamOffloader):
         _move_param_to_meta(module, param_name)
 
     def create_device_tensor(self):
-        return torch.empty_like(self._param.data, device="cuda")
+        return torch.empty_like(self._param.data, device="rtriton")
 
 
 class _CpuParamOffloader(_BaseParamOffloader):
@@ -367,7 +367,7 @@ class _CpuParamOffloader(_BaseParamOffloader):
         _move_param_to_cpu(self._param, pin_memory=True)
 
     def create_device_tensor(self):
-        return self._param.to("cuda", non_blocking=True)
+        return self._param.to("rtriton", non_blocking=True)
 
 
 class _ShmCpuParamOffloader(_BaseParamOffloader):
@@ -403,7 +403,7 @@ class _ShmCpuParamOffloader(_BaseParamOffloader):
         _move_param_to_meta(self._module, self._param_name)
 
     def create_device_tensor(self):
-        return self.shm_cpu_data.to("cuda", non_blocking=True)
+        return self.shm_cpu_data.to("rtriton", non_blocking=True)
 
 
 def update_param(param, new_tensor):
@@ -502,15 +502,15 @@ class _ShardedGpuParamOffloader(_BaseParamOffloader):
         scatter_src = self._param.data
 
         logger.info(
-            f"[offloader] post_init {scatter_src.nbytes=} {scatter_src.dtype=} {scatter_src.shape=} {torch.cuda.memory_allocated()=}"
+            f"[offloader] post_init {scatter_src.nbytes=} {scatter_src.dtype=} {scatter_src.shape=} {torch.rtriton.memory_allocated()=}"
         )
 
         if self._rank == 0:
-            scatter_src = scatter_src.to("cuda")
+            scatter_src = scatter_src.to("rtriton")
         scatter_list = _even_chunk(scatter_src, self._world_size)
 
         sharded_param = torch.empty(
-            scatter_list[0].shape, dtype=scatter_list[0].dtype, device="cuda"
+            scatter_list[0].shape, dtype=scatter_list[0].dtype, device="rtriton"
         )
         self.sharded_param_handles = _create_shared_buffer_tensors(
             local_tensor=sharded_param
@@ -523,7 +523,7 @@ class _ShardedGpuParamOffloader(_BaseParamOffloader):
         _move_param_to_meta(self._module, self._param_name)
 
     def create_device_tensor(self):
-        output = _empty_strided_like(self._param, device="cuda")
+        output = _empty_strided_like(self._param, device="rtriton")
         output_chunks = output.chunk(self._world_size)
 
         for index in range(self._world_size):

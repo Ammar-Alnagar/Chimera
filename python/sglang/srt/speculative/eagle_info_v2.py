@@ -29,20 +29,20 @@ from sglang.srt.speculative.spec_utils import (
     SIMULATE_ACC_LEN,
     generate_simulated_accept_index,
 )
-from sglang.srt.utils.common import is_cuda, is_hip, is_npu, next_power_of_2
+from sglang.srt.utils.common import is_rtriton, is_hip, is_npu, next_power_of_2
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 _is_npu = is_npu()
 
 if TYPE_CHECKING:
     from sglang.srt.managers.tp_worker import TpModelWorker
-    from sglang.srt.speculative.eagle_draft_cuda_graph_runner import (
-        EAGLEDraftCudaGraphRunner,
+    from sglang.srt.speculative.eagle_draft_rtriton_graph_runner import (
+        EAGLEDraftRtritonGraphRunner,
     )
     from sglang.srt.speculative.eagle_info import EagleDraftInput, EagleVerifyInput
 
-if is_cuda():
+if is_rtriton():
     from sgl_kernel import (
         top_k_renorm_prob,
         top_p_renorm_prob,
@@ -143,7 +143,7 @@ class EagleDraftInputV2Mixin:
         self: EagleDraftInput,
         req_to_token_pool: ReqToTokenPool,
         batch: ModelWorkerBatch,
-        cuda_graph_runner: EAGLEDraftCudaGraphRunner,
+        rtriton_graph_runner: EAGLEDraftRtritonGraphRunner,
         draft_model_runner: ModelRunner,
         topk: int,
         num_steps: int,
@@ -174,8 +174,8 @@ class EagleDraftInputV2Mixin:
         batch.capture_hidden_mode = CaptureHiddenMode.LAST
         self.positions = batch.seq_lens.repeat_interleave(topk, dim=0)
         forward_batch = ForwardBatch.init_new(batch, draft_model_runner)
-        can_cuda_graph = cuda_graph_runner and cuda_graph_runner.can_run(forward_batch)
-        return forward_batch, can_cuda_graph
+        can_rtriton_graph = rtriton_graph_runner and rtriton_graph_runner.can_run(forward_batch)
+        return forward_batch, can_rtriton_graph
 
     def prepare_for_extend_to_fill_draft_kvcache(
         self,
@@ -183,7 +183,7 @@ class EagleDraftInputV2Mixin:
         predict: torch.Tensor,
         num_draft_tokens: int,
         draft_model_runner: Any,
-        cuda_graph_runner: Any,
+        rtriton_graph_runner: Any,
     ):
         seq_lens_cpu_ = batch.seq_lens_cpu
         extend_num_tokens = len(batch.seq_lens) * num_draft_tokens
@@ -203,8 +203,8 @@ class EagleDraftInputV2Mixin:
             else ForwardMode.DRAFT_EXTEND_V2
         )
         forward_batch = ForwardBatch.init_new(batch, draft_model_runner)
-        can_cuda_graph = cuda_graph_runner and cuda_graph_runner.can_run(forward_batch)
-        if not batch.forward_mode.is_idle() and not can_cuda_graph:
+        can_rtriton_graph = rtriton_graph_runner and rtriton_graph_runner.can_run(forward_batch)
+        if not batch.forward_mode.is_idle() and not can_rtriton_graph:
             draft_model_runner.attn_backend.init_forward_metadata(forward_batch)
         return forward_batch
 
@@ -241,12 +241,12 @@ class EagleVerifyInputV2Mixin:
         batch.capture_hidden_mode = CaptureHiddenMode.FULL
         verify_forward_batch = ForwardBatch.init_new(batch, target_worker.model_runner)
 
-        # Run attention backend plan and cuda graph preparation
-        can_run_cuda_graph = bool(
+        # Run attention backend plan and rtriton graph preparation
+        can_run_rtriton_graph = bool(
             target_worker.model_runner.graph_runner
             and target_worker.model_runner.graph_runner.can_run(verify_forward_batch)
         )
-        if can_run_cuda_graph:
+        if can_run_rtriton_graph:
             target_worker.model_runner.graph_runner.replay_prepare(verify_forward_batch)
         else:
             if not batch.forward_mode.is_idle():
@@ -254,7 +254,7 @@ class EagleVerifyInputV2Mixin:
                     verify_forward_batch
                 )
 
-        return verify_forward_batch, can_run_cuda_graph
+        return verify_forward_batch, can_run_rtriton_graph
 
     def sample(
         self: EagleVerifyInput,
@@ -454,7 +454,7 @@ def assign_extend_cache_locs_func(
     draft_token_num: int,
     device,
 ) -> torch.Tensor:
-    if _is_cuda or _is_hip:
+    if _is_rtriton or _is_hip:
         out_cache_loc = torch.empty(
             (batch_size * draft_token_num,),
             dtype=torch.int64,

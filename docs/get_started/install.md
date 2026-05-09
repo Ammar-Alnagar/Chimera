@@ -17,8 +17,8 @@ uv pip install "sglang" --prerelease=allow
 
 **Quick fixes to common problems**
 
-- If you encounter `OSError: CUDA_HOME environment variable is not set`. Please set it to your CUDA install root with either of the following solutions:
-  1. Use `export CUDA_HOME=/usr/local/cuda-<your-cuda-version>` to set the `CUDA_HOME` environment variable.
+- If you encounter `OSError: RTRITON_HOME environment variable is not set`. Please set it to your RTRITON install root with either of the following solutions:
+  1. Use `export RTRITON_HOME=/usr/local/rtriton-<your-rtriton-version>` to set the `RTRITON_HOME` environment variable.
   2. Install FlashInfer first following [FlashInfer installation doc](https://docs.flashinfer.ai/installation.html), then install SGLang as described above.
 
 ## Method 2: From source

@@ -19,7 +19,7 @@ if _is_npu:
 
     patches = [
         ["profiler.profile", torch_npu.profiler.profile],
-        ["profiler.ProfilerActivity.CUDA", torch_npu.profiler.ProfilerActivity.NPU],
+        ["profiler.ProfilerActivity.RTRITON", torch_npu.profiler.ProfilerActivity.NPU],
         ["profiler.ProfilerActivity.CPU", torch_npu.profiler.ProfilerActivity.CPU],
     ]
     torch_npu._apply_patches(patches)
@@ -206,8 +206,8 @@ class _ProfilerBase(ABC):
             )
         if "MEM" in activities:
             inners.append(_ProfilerMemory(**kwargs))
-        if "CUDA_PROFILER" in activities:
-            inners.append(_ProfilerCudart(**kwargs))
+        if "RTRITON_PROFILER" in activities:
+            inners.append(_ProfilerRtritonrt(**kwargs))
         if "RPD" in activities:  # for ROCM
             inners.append(_ProfilerRPD(**kwargs))
 
@@ -263,7 +263,7 @@ class _ProfilerTorch(_ProfilerConcreteBase):
     def start(self):
         activity_map = {
             "CPU": torch.profiler.ProfilerActivity.CPU,
-            "GPU": torch.profiler.ProfilerActivity.CUDA,
+            "GPU": torch.profiler.ProfilerActivity.RTRITON,
         }
         torchprof_activities = [
             activity_map[a] for a in self.activities if a in activity_map
@@ -316,7 +316,7 @@ class _ProfilerTorch(_ProfilerConcreteBase):
 
 class _ProfilerMemory(_ProfilerConcreteBase):
     def start(self):
-        torch.cuda.memory._record_memory_history(max_entries=100000)
+        torch.rtriton.memory._record_memory_history(max_entries=100000)
 
     def stop(self):
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
@@ -328,20 +328,20 @@ class _ProfilerMemory(_ProfilerConcreteBase):
             + self.output_suffix
             + ".pickle",
         )
-        torch.cuda.memory._dump_snapshot(memory_profile_path)
-        torch.cuda.memory._record_memory_history(enabled=None)
+        torch.rtriton.memory._dump_snapshot(memory_profile_path)
+        torch.rtriton.memory._record_memory_history(enabled=None)
 
 
-class _ProfilerCudart(_ProfilerConcreteBase):
+class _ProfilerRtritonrt(_ProfilerConcreteBase):
     def start(self):
         if self.first_rank_in_node:
-            logger.info(f"Call cudaProfilerStart")
-            torch.cuda.cudart().cudaProfilerStart()
+            logger.info(f"Call rtritonProfilerStart")
+            torch.rtriton.rtritonrt().rtritonProfilerStart()
 
     def stop(self):
         if self.first_rank_in_node:
-            logger.info(f"Call cudaProfilerStop")
-            torch.cuda.cudart().cudaProfilerStop()
+            logger.info(f"Call rtritonProfilerStop")
+            torch.rtriton.rtritonrt().rtritonProfilerStop()
 
 
 class _ProfilerRPD(_ProfilerConcreteBase):

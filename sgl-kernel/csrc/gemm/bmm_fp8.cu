@@ -28,9 +28,9 @@ void bmm_fp8(
     at::Tensor B_scale,
     at::Tensor workspace_buffer,
     int64_t cublas_handle) {
-  TORCH_CHECK(A.is_cuda(), "A must be a CUDA tensor");
-  TORCH_CHECK(B.is_cuda(), "B must be a CUDA tensor");
-  TORCH_CHECK(D.is_cuda(), "D must be a CUDA tensor");
+  TORCH_CHECK(A.is_rtriton(), "A must be a RTRITON tensor");
+  TORCH_CHECK(B.is_rtriton(), "B must be a RTRITON tensor");
+  TORCH_CHECK(D.is_rtriton(), "D must be a RTRITON tensor");
   TORCH_CHECK(A.dim() == 3, "Expected 3D tensor for A");
   TORCH_CHECK(B.dim() == 3, "Expected 3D tensor for B");
   TORCH_CHECK(D.dim() == 3, "Expected 3D tensor for D");
@@ -50,7 +50,7 @@ void bmm_fp8(
         auto n = B.size(2);
 
         auto lt_handle = reinterpret_cast<cublasLtHandle_t>(cublas_handle);
-        auto stream = at::cuda::getCurrentCUDAStream();
+        auto stream = at::rtriton::getCurrentRTRITONStream();
 
         auto status = flashinfer::bmm_fp8::bmm_fp8_internal_cublaslt(
             workspace_buffer.data_ptr(),

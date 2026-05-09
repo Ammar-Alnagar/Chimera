@@ -1,10 +1,10 @@
 import unittest
 
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.nightly_utils import NightlyBenchmarkRunner
 from sglang.test.test_utils import DEFAULT_URL_FOR_TEST
 
-register_cuda_ci(est_time=600, suite="nightly-4-gpu-b200", nightly=True)
+register_rtriton_ci(est_time=600, suite="nightly-4-gpu-b200", nightly=True)
 
 PROFILE_DIR = "performance_profiles_gpt_oss_4gpu"
 
@@ -18,7 +18,7 @@ class TestNightlyGptOss4GpuPerformance(unittest.TestCase):
                 [
                     "--tp",
                     "4",
-                    "--cuda-graph-max-bs",
+                    "--rtriton-graph-max-bs",
                     "200",
                     "--mem-fraction-static",
                     "0.93",

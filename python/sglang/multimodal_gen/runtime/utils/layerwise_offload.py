@@ -15,7 +15,7 @@ class LayerwiseOffloadManager:
     """A lightweight layerwise CPU offload manager.
 
     This utility offloads per-layer parameters/buffers from GPU to CPU, and
-    supports async H2D prefetch using a dedicated CUDA stream.
+    supports async H2D prefetch using a dedicated RTRITON stream.
 
     Typical usage:
     - Construct the manager with the target model and the list-like module
@@ -39,11 +39,11 @@ class LayerwiseOffloadManager:
         self.num_layers = num_layers
         self.pin_cpu_memory = pin_cpu_memory
 
-        self.enabled = bool(enabled and torch.cuda.is_available())
+        self.enabled = bool(enabled and torch.rtriton.is_available())
         if not self.enabled:
             return
-        self.device = torch.device("cuda", torch.cuda.current_device())
-        self.copy_stream = torch.cuda.Stream()
+        self.device = torch.device("rtriton", torch.rtriton.current_device())
+        self.copy_stream = torch.rtriton.Stream()
 
         self._layer_name_re = re.compile(
             rf"(^|\.){re.escape(layers_attr_str)}\.(\d+)(\.|$)"
@@ -133,7 +133,7 @@ class LayerwiseOffloadManager:
     def prepare_for_next_denoise(self, non_blocking=True):
         self.prefetch_layer(0, non_blocking=non_blocking)
         if not non_blocking and self.copy_stream is not None:
-            torch.cuda.current_stream().wait_stream(self.copy_stream)
+            torch.rtriton.current_stream().wait_stream(self.copy_stream)
 
     def get_target_with_name(self, name: str) -> torch.Tensor:
         """get the target model weight/buffer to be replaced"""
@@ -153,11 +153,11 @@ class LayerwiseOffloadManager:
             return
         if layer_idx not in self._consolidated_cpu_weights:
             return
-        self.copy_stream.wait_stream(torch.cuda.current_stream())
+        self.copy_stream.wait_stream(torch.rtriton.current_stream())
 
         # create gpu buffer and load from CPU buffer
         gpu_buffers: Dict[torch.dtype, torch.Tensor] = {}
-        with torch.cuda.stream(self.copy_stream):
+        with torch.rtriton.stream(self.copy_stream):
             for dtype, cpu_buffer in self._consolidated_cpu_weights[layer_idx].items():
                 gpu_buffer = torch.empty(
                     cpu_buffer.shape, dtype=dtype, device=self.device
@@ -199,7 +199,7 @@ class LayerwiseOffloadManager:
         if not self.enabled or self.device is None:
             return
         if self.copy_stream is not None:
-            torch.cuda.current_stream().wait_stream(self.copy_stream)
+            torch.rtriton.current_stream().wait_stream(self.copy_stream)
 
         for layer_idx in list(self._gpu_layers):
             self.release_layer(layer_idx)
@@ -219,7 +219,7 @@ class LayerwiseOffloadManager:
         def make_post_hook(i):
             def hook(module, input, output):
                 if self.copy_stream is not None:
-                    torch.cuda.current_stream().wait_stream(self.copy_stream)
+                    torch.rtriton.current_stream().wait_stream(self.copy_stream)
                 self.release_layer(i)
 
             return hook

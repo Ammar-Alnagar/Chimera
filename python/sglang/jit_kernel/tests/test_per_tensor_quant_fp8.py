@@ -47,7 +47,7 @@ def test_jit_per_tensor_quant_compare_implementations(
     num_tokens: int,
     hidden_dim: int,
 ):
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
     x = torch.rand((num_tokens, hidden_dim), dtype=torch.float16, device=device)
 
     sglang_out, sglang_scale = sglang_scaled_fp8_quant(x)

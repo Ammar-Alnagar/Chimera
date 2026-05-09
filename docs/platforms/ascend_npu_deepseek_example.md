@@ -32,7 +32,7 @@ python3 -m sglang.launch_server \
     --device npu \
     --quantization modelslim \
     --watchdog-timeout 9000 \
-    --cuda-graph-bs 8 16 24 28 32 \
+    --rtriton-graph-bs 8 16 24 28 32 \
     --mem-fraction-static 0.68 \
     --max-running-requests 128 \
     --context-length 8188 \
@@ -129,7 +129,7 @@ export SGLANG_NPU_USE_MLAPO=1
 export SGLANG_USE_FIA_NZ=1
 export ENABLE_MOE_NZ=1
 
-# suggest max-running-requests <= max-cuda-graph-bs * dp_size, Because when this value is exceeded, performance will significantly degrade.
+# suggest max-running-requests <= max-rtriton-graph-bs * dp_size, Because when this value is exceeded, performance will significantly degrade.
 python -m sglang.launch_server \
     --model-path ${MODEL_PATH} \
     --disaggregation-mode decode \
@@ -149,7 +149,7 @@ python -m sglang.launch_server \
     --enable-dp-attention \
     --deepep-mode low_latency \
     --enable-dp-lm-head \
-    --cuda-graph-bs 8 10 12 14 16 18 20 22 \
+    --rtriton-graph-bs 8 10 12 14 16 18 20 22 \
     --disaggregation-transfer-backend ascend \
     --watchdog-timeout 9000 \
     --context-length 8192 \
@@ -284,7 +284,7 @@ do
       --enable-dp-attention \
       --deepep-mode low_latency \
       --enable-dp-lm-head \
-      --cuda-graph-bs  8 10 12 14 16 18 20 22 24 26 \
+      --rtriton-graph-bs  8 10 12 14 16 18 20 22 24 26 \
       --watchdog-timeout 9000 \
       --context-length 8192 \
       --speculative-algorithm NEXTN \

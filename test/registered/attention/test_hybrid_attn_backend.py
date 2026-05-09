@@ -5,7 +5,7 @@ import requests
 
 from sglang.srt.environ import envs
 from sglang.srt.utils import get_device_sm, kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_eval_few_shot_gsm8k
 from sglang.test.test_utils import (
     DEFAULT_DRAFT_MODEL_EAGLE,
@@ -20,14 +20,14 @@ from sglang.test.test_utils import (
 
 # Hybrid attention backend tests (FA3 prefill + FlashInfer decode, requires SM 90+ / H100)
 # Multiple test classes: base, MLA, TorchCompile, SpecDecode variants
-register_cuda_ci(est_time=200, suite="stage-b-test-large-1-gpu")
+register_rtriton_ci(est_time=200, suite="stage-b-test-large-1-gpu")
 
 GSM_DATASET_PATH = None
 
 # Default server arguments shared across all tests
 DEFAULT_SERVER_ARGS = [
     "--trust-remote-code",
-    "--cuda-graph-max-bs",
+    "--rtriton-graph-max-bs",
     "8",
     "--prefill-attention-backend",
     "fa3",
@@ -36,7 +36,7 @@ DEFAULT_SERVER_ARGS = [
 ]
 
 
-@unittest.skipIf(get_device_sm() < 90, "Test requires CUDA SM 90 or higher")
+@unittest.skipIf(get_device_sm() < 90, "Test requires RTRITON SM 90 or higher")
 class TestHybridAttnBackendBase(CustomTestCase):
 
     model = DEFAULT_MODEL_NAME_FOR_TEST

@@ -16,7 +16,7 @@ from torch import nn
 from sglang.srt.environ import envs
 from sglang.srt.layers.multimodal import gpu_tensor_hash
 from sglang.srt.managers.schedule_batch import (
-    CudaIpcTensorTransportProxy,
+    RtritonIpcTensorTransportProxy,
     Modality,
     MultimodalDataItem,
     MultimodalInputs,
@@ -35,8 +35,8 @@ _is_npu = is_npu()
 # in the console when multimodal support is enabled.
 
 # TODO(mick): nccl
-# cuda_ipc: for intranode tensor sharing
-TensorTransportMode = Literal["cuda_ipc", "auto", "default"]
+# rtriton_ipc: for intranode tensor sharing
+TensorTransportMode = Literal["rtriton_ipc", "auto", "default"]
 
 
 _GPU_FEATURE_BUFFER: Optional[torch.Tensor] = None
@@ -139,10 +139,10 @@ class TransportProxyTensor(torch.Tensor):
         }
         transport_mode = self._metadata.get("transport_mode", "default")
 
-        if transport_mode == "cuda_ipc" and self.is_cuda:
+        if transport_mode == "rtriton_ipc" and self.is_rtriton:
             try:
                 storage = self.untyped_storage()
-                handle = storage._share_cuda_()
+                handle = storage._share_rtriton_()
 
                 state["ipc_extra"] = {
                     "handle": handle,
@@ -154,7 +154,7 @@ class TransportProxyTensor(torch.Tensor):
                 }
                 state["tensor_data"] = None
             except Exception as e:
-                # Failed to get CUDA IPC handle (possibly tp). Falling back to default transport.
+                # Failed to get RTRITON IPC handle (possibly tp). Falling back to default transport.
                 state["metadata"]["transport_mode"] = "default"
                 state["tensor_data"] = self.as_subclass(torch.Tensor)
         else:
@@ -171,7 +171,7 @@ class TransportProxyTensor(torch.Tensor):
 
         transport_mode = self._metadata.get("transport_mode", "default")
 
-        if transport_mode == "cuda_ipc" and state["ipc_extra"] is not None:
+        if transport_mode == "rtriton_ipc" and state["ipc_extra"] is not None:
             ipc_extra = state["ipc_extra"]
             handle, shape, dtype, stride, source_device_index, s_offset = (
                 ipc_extra["handle"],
@@ -183,15 +183,15 @@ class TransportProxyTensor(torch.Tensor):
             )
 
             try:
-                target_device = torch.device(f"cuda:{source_device_index}")
-                with torch.cuda.device(target_device):
-                    storage = torch.UntypedStorage._new_shared_cuda(*handle)
+                target_device = torch.device(f"rtriton:{source_device_index}")
+                with torch.rtriton.device(target_device):
+                    storage = torch.UntypedStorage._new_shared_rtriton(*handle)
                     reconstructed_tensor = torch.empty(
                         0, dtype=dtype, device=target_device
                     ).set_(storage, storage_offset=s_offset, size=shape, stride=stride)
                     self.set_(reconstructed_tensor)
             except Exception as e:
-                print(f"Error: Failed to deserialize from CUDA IPC handle ({e}).")
+                print(f"Error: Failed to deserialize from RTRITON IPC handle ({e}).")
                 raise e
 
         elif state["tensor_data"] is not None:
@@ -1090,12 +1090,12 @@ def general_mm_embed_routine(
                     if mm_input_obj and hasattr(mm_input_obj, "mm_items"):
                         for mm_item in mm_input_obj.mm_items:
                             feature = getattr(mm_item, "feature", None)
-                            if isinstance(feature, torch.Tensor) and feature.is_cuda:
+                            if isinstance(feature, torch.Tensor) and feature.is_rtriton:
                                 mm_item.feature = feature.to("cpu", non_blocking=True)
             forward_batch.mm_inputs = None
         else:
             input_embeds = embed_tokens(input_ids)
-        # Copy to pre-allocated buffer if available (for CUDA graph address stability)
+        # Copy to pre-allocated buffer if available (for RTRITON graph address stability)
         if forward_batch.input_embeds is not None:
             forward_batch.input_embeds.copy_(input_embeds)
             input_embeds = forward_batch.input_embeds
@@ -1187,8 +1187,8 @@ def tensor_hash(tensor_list) -> int:
             x.flatten() if isinstance(x, torch.Tensor) else x for x in tensor_list
         ]
         tensor = torch.concat(tensor_list)
-    if tensor.is_cuda:
-        return gpu_tensor_hash(tensor.cuda())
+    if tensor.is_rtriton:
+        return gpu_tensor_hash(tensor.rtriton())
     tensor = tensor.detach().contiguous()
 
     if tensor.dtype == torch.bfloat16:
@@ -1213,8 +1213,8 @@ def hash_feature(f):
         return data_hash(arr_bytes)
     elif isinstance(f, torch.Tensor):
         return tensor_hash([f])
-    elif isinstance(f, CudaIpcTensorTransportProxy):
-        reconstruct_t = f.reconstruct_on_target_device(torch.cuda.current_device())
+    elif isinstance(f, RtritonIpcTensorTransportProxy):
+        reconstruct_t = f.reconstruct_on_target_device(torch.rtriton.current_device())
         return tensor_hash([reconstruct_t])
     return data_hash(f)
 

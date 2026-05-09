@@ -23,7 +23,7 @@ import requests
 import torch
 
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.runners import SRTRunner
 from sglang.test.test_utils import (
     DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
@@ -34,7 +34,7 @@ from sglang.test.test_utils import (
     popen_launch_server,
 )
 
-register_cuda_ci(est_time=451, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=451, suite="stage-b-test-small-1-gpu")
 
 PROMPTS = [
     "SGL is a",
@@ -918,8 +918,8 @@ class LoRAUpdateTestSessionBase:
         enable_lora: Optional[bool] = None,
         lora_target_modules: Optional[List[str]] = None,
         lora_backend: str = "csgmv",
-        disable_cuda_graph: bool = False,
-        cuda_graph_max_bs: int = 4,
+        disable_rtriton_graph: bool = False,
+        rtriton_graph_max_bs: int = 4,
     ):
         self.testcase = testcase
         self.model_path = model_path
@@ -929,8 +929,8 @@ class LoRAUpdateTestSessionBase:
         self.max_loras_per_batch = max_loras_per_batch
         self.max_loaded_loras = max_loaded_loras
         self.lora_backend = lora_backend
-        self.disable_cuda_graph = disable_cuda_graph
-        self.cuda_graph_max_bs = cuda_graph_max_bs
+        self.disable_rtriton_graph = disable_rtriton_graph
+        self.rtriton_graph_max_bs = rtriton_graph_max_bs
         self.enable_lora = enable_lora
 
         self.expected_adapters = set()
@@ -1003,8 +1003,8 @@ class LoRAUpdateEngineTestSession(LoRAUpdateTestSessionBase):
             mem_fraction_static=MEM_FRACTION_STATIC,
             max_loras_per_batch=self.max_loras_per_batch,
             max_loaded_loras=self.max_loaded_loras,
-            disable_cuda_graph=self.disable_cuda_graph,
-            cuda_graph_max_bs=self.cuda_graph_max_bs,
+            disable_rtriton_graph=self.disable_rtriton_graph,
+            rtriton_graph_max_bs=self.rtriton_graph_max_bs,
             enable_lora=self.enable_lora,
             disable_radix_cache=True,
         )
@@ -1141,8 +1141,8 @@ class LoRAUpdateServerTestSession(LoRAUpdateTestSessionBase):
 
     def __enter__(self):
         other_args = [
-            "--cuda-graph-max-bs",
-            str(self.cuda_graph_max_bs),
+            "--rtriton-graph-max-bs",
+            str(self.rtriton_graph_max_bs),
             "--max-loras-per-batch",
             str(self.max_loras_per_batch),
             "--lora-backend",
@@ -1163,8 +1163,8 @@ class LoRAUpdateServerTestSession(LoRAUpdateTestSessionBase):
                 if isinstance(lora_path, dict):
                     lora_path = json.dumps(lora_path)
                 other_args.append(lora_path)
-        if self.disable_cuda_graph:
-            other_args.append("--disable-cuda-graph")
+        if self.disable_rtriton_graph:
+            other_args.append("--disable-rtriton-graph")
         if self.max_lora_rank is not None:
             other_args.extend(["--max-lora-rank", str(self.max_lora_rank)])
         if self.lora_target_modules is not None:

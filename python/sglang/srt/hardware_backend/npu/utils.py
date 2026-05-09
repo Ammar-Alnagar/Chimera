@@ -52,24 +52,24 @@ def set_default_server_args(args: "ServerArgs"):
     npu_mem = get_npu_memory_capacity()
     if npu_mem <= 32 * 1024:
         # Ascend 910B4,910B4_1
-        # (chunked_prefill_size 4k, cuda_graph_max_bs 16 if tp < 4 else 64)
+        # (chunked_prefill_size 4k, rtriton_graph_max_bs 16 if tp < 4 else 64)
         if args.chunked_prefill_size is None:
             args.chunked_prefill_size = 4 * 1024
-        if args.cuda_graph_max_bs is None:
+        if args.rtriton_graph_max_bs is None:
             if args.tp_size < 4:
-                args.cuda_graph_max_bs = 16
+                args.rtriton_graph_max_bs = 16
             else:
-                args.cuda_graph_max_bs = 64
+                args.rtriton_graph_max_bs = 64
     elif npu_mem <= 64 * 1024:
         # Ascend 910B1,910B2,910B2C,910B3,910_9391,910_9392,910_9381,910_9382,910_9372,910_9362
-        # (chunked_prefill_size 8k, cuda_graph_max_bs 64 if tp < 4 else 256)
+        # (chunked_prefill_size 8k, rtriton_graph_max_bs 64 if tp < 4 else 256)
         if args.chunked_prefill_size is None:
             args.chunked_prefill_size = 8 * 1024
-        if args.cuda_graph_max_bs is None:
+        if args.rtriton_graph_max_bs is None:
             if args.tp_size < 4:
-                args.cuda_graph_max_bs = 64
+                args.rtriton_graph_max_bs = 64
             else:
-                args.cuda_graph_max_bs = 256
+                args.rtriton_graph_max_bs = 256
 
     # NPU does not support CustomAllReduce
     args.disable_custom_all_reduce = True
@@ -103,8 +103,8 @@ def init_npu_backend():
     import torch_npu
     from torch_npu.contrib import transfer_to_npu  # noqa: F401
 
-    # Re-mock torch.cuda.is_available cuz transfer_to_npu mocks it True
-    torch.cuda.is_available = lambda: False
+    # Re-mock torch.rtriton.is_available cuz transfer_to_npu mocks it True
+    torch.rtriton.is_available = lambda: False
 
     torch_npu.npu.config.allow_internal_format = True
     torch_npu.npu.set_compile_mode(jit_compile=False)

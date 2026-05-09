@@ -684,7 +684,7 @@ class QwenImageTransformerBlock(nn.Module):
             )
             gate0, gate1 = gate[:actual_batch], gate[actual_batch : 2 * actual_batch]
 
-            if x.is_cuda:
+            if x.is_rtriton:
                 if not x.is_contiguous():
                     x = x.contiguous()
                 if not index.is_contiguous():

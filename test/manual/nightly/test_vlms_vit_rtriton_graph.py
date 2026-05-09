@@ -19,6 +19,7 @@ from sglang.test.test_utils import (
 
 MODELS = [
     SimpleNamespace(model="Qwen/Qwen2.5-VL-7B-Instruct", mmmu_accuracy=0.60),
+    SimpleNamespace(model="Qwen/Qwen3-VL-8B-Instruct", mmmu_accuracy=0.60),
 ]
 
 
@@ -26,7 +27,7 @@ MODELS = [
 DEFAULT_MEM_FRACTION_STATIC = 0.8
 
 
-class TestVLMPiecewiseCudaGraph(CustomTestCase):
+class TestVLMViTRtritonGraph(CustomTestCase):
     parsed_args = None  # Class variable to store args
 
     @classmethod
@@ -35,6 +36,7 @@ class TestVLMPiecewiseCudaGraph(CustomTestCase):
         cls.base_url = DEFAULT_URL_FOR_TEST
         cls.api_key = "sk-123456"
         cls.time_out = DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH
+        cls.enable_vit_rtriton_graph = "1"
 
         if cls.parsed_args is None:
             cls.parsed_args = SimpleNamespace(
@@ -44,6 +46,7 @@ class TestVLMPiecewiseCudaGraph(CustomTestCase):
         # Set OpenAI API key and base URL environment variables. Needed for lmm-evals to work.
         os.environ["OPENAI_API_KEY"] = cls.api_key
         os.environ["OPENAI_API_BASE"] = f"{cls.base_url}/v1"
+        os.environ["SGLANG_VIT_ENABLE_RTRITON_GRAPH"] = cls.enable_vit_rtriton_graph
 
     def run_mmmu_eval(
         self,
@@ -121,8 +124,9 @@ class TestVLMPiecewiseCudaGraph(CustomTestCase):
             process_env = os.environ.copy()
             if custom_env:
                 process_env.update(custom_env)
-            # if test vlm with cuda_ipc feature, open this env_var
-            process_env["SGLANG_USE_CUDA_IPC_TRANSPORT"] = "1"
+            # if test vlm with rtriton_ipc feature, open this env_var
+            process_env["SGLANG_USE_RTRITON_IPC_TRANSPORT"] = "1"
+            process_env["SGLANG_VIT_ENABLE_RTRITON_GRAPH"] = "1"
 
             # Prepare stdout/stderr redirection if needed
             stdout_file = None
@@ -138,15 +142,17 @@ class TestVLMPiecewiseCudaGraph(CustomTestCase):
                 timeout=self.time_out,
                 api_key=self.api_key,
                 other_args=[
-                    "--trust-remote-code",
-                    "--piecewise-cuda-graph-max-tokens",
+                    "--mm-attention-backend",
+                    "fa3",
+                    "--enable-piecewise-rtriton-graph",
+                    "--piecewise-rtriton-graph-max-tokens",
                     "8192",
-                    "--enable-piecewise-cuda-graph",
-                    "--tp=8",
-                    "--piecewise-cuda-graph-compiler=eager",
+                    "--chunked-prefill-size",
+                    "8192",
                     "--disable-radix-cache",
-                    "--log-level",
-                    log_level,
+                    "--disable-overlap-schedule",
+                    "--piecewise-rtriton-graph-compiler",
+                    "eager",
                 ],
                 env=process_env,
                 return_stdout_stderr=(
@@ -260,7 +266,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Store the parsed args object on the class
-    TestVLMPiecewiseCudaGraph.parsed_args = args
+    TestVLMViTRtritonGraph.parsed_args = args
 
     # Pass args to unittest
     unittest.main(argv=[sys.argv[0]])

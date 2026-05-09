@@ -109,7 +109,7 @@ class NemotronHConfig(PretrainedConfig):
         use_mamba_kernels (`bool`, *optional*, defaults to `True`):
             Flag indicating whether or not to use the fast mamba kernels.
             These are available only if `mamba-ssm` and `causal-conv1d`
-            are installed, and the mamba modules are running on a CUDA device.
+            are installed, and the mamba modules are running on a RTRITON device.
         ssm_state_size (`int`, *optional*, defaults to 128):
             The dimension of the mamba state space latents.
         mamba_num_heads (`int`, *optional*, defaults to 128):

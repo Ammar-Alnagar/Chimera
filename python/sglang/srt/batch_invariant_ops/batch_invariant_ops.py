@@ -169,7 +169,7 @@ def _matmul_persistent_triton(
     assert (
         bias is None or bias.dim() == 1
     ), "Currently assuming bias is 1D, let Horace know if you run into this"
-    NUM_SMS = torch.cuda.get_device_properties("cuda").multi_processor_count
+    NUM_SMS = torch.rtriton.get_device_properties("rtriton").multi_processor_count
     M, K = a.shape
     K, N = b.shape
     dtype = a.dtype
@@ -487,7 +487,7 @@ def mean_dim(
         Tensor with mean values along specified dimension
     """
     # Validate inputs
-    assert input.is_cuda, "Input must be a CUDA tensor"
+    assert input.is_rtriton, "Input must be a RTRITON tensor"
     assert (
         -input.ndim <= dim < input.ndim
     ), f"Invalid dimension {dim} for tensor with {input.ndim} dimensions"
@@ -730,7 +730,7 @@ def bmm_batch_invariant(a, b, *, out=None):
         else:
             c = out
 
-        NUM_SMS = torch.cuda.get_device_properties("cuda").multi_processor_count
+        NUM_SMS = torch.rtriton.get_device_properties("rtriton").multi_processor_count
 
         # Use fixed kernel configuration for determinism
         configs = {
@@ -944,15 +944,15 @@ def enable_batch_invariant_mode(
 
     _batch_invariant_MODE = True
     _batch_invariant_LIB = torch.library.Library("aten", "IMPL")
-    _batch_invariant_LIB.impl("aten::mm", mm_batch_invariant, "CUDA")
-    _batch_invariant_LIB.impl("aten::addmm", addmm_batch_invariant, "CUDA")
+    _batch_invariant_LIB.impl("aten::mm", mm_batch_invariant, "RTRITON")
+    _batch_invariant_LIB.impl("aten::addmm", addmm_batch_invariant, "RTRITON")
     _batch_invariant_LIB.impl(
-        "aten::_log_softmax", _log_softmax_batch_invariant, "CUDA"
+        "aten::_log_softmax", _log_softmax_batch_invariant, "RTRITON"
     )
-    _batch_invariant_LIB.impl("aten::mean.dim", mean_batch_invariant, "CUDA")
+    _batch_invariant_LIB.impl("aten::mean.dim", mean_batch_invariant, "RTRITON")
 
     if enable_bmm:
-        _batch_invariant_LIB.impl("aten::bmm", bmm_batch_invariant, "CUDA")
+        _batch_invariant_LIB.impl("aten::bmm", bmm_batch_invariant, "RTRITON")
 
         # Also monkeypatch torch.bmm directly as a fallback
         _original_torch_bmm = torch.bmm

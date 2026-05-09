@@ -34,13 +34,13 @@ class LayerTransferCounter:
 
     The KV pool calls `wait_until(layer_id)` after finishing a layer, which we
     translate into a `load_kv_layerwise(layer_id)` call on the LMCache connector
-    within the provided CUDA stream.
+    within the provided RTRITON stream.
     """
 
     def __init__(
         self,
         num_layers: int,
-        load_stream: torch.cuda.Stream,
+        load_stream: torch.rtriton.Stream,
         lmc_connector: LMCacheLayerwiseConnector,
         printable: bool = False,
     ):
@@ -60,7 +60,7 @@ class LMCRadixCache(RadixCache):
 
     This subclass adds:
       - LMCache connector setup (device/host buffers, TP rank/size)
-      - Two CUDA streams for async load/store
+      - Two RTRITON streams for async load/store
       - Layer-wise transfer executor wiring to the KV cache
       - Overridden `match_prefix` to fetch missing prefix chunks from LMCache
       - Extended cache_finalization paths to store back into LMCache
@@ -98,8 +98,8 @@ class LMCRadixCache(RadixCache):
             tp_group=tp_group.device_group if tp_group is not None else None,
         )
 
-        self.load_stream = torch.cuda.Stream()
-        self.store_stream = torch.cuda.Stream()
+        self.load_stream = torch.rtriton.Stream()
+        self.store_stream = torch.rtriton.Stream()
 
         self.layer_done_executor = LayerTransferCounter(
             num_layers=(
@@ -163,7 +163,7 @@ class LMCRadixCache(RadixCache):
             ]
         )
 
-        with torch.cuda.stream(self.load_stream):
+        with torch.rtriton.stream(self.load_stream):
             num_retrieved = self.lmcache_connector.start_load_kv(
                 LoadMetadata(
                     token_ids=key.token_ids,  # full page-aligned key
@@ -240,7 +240,7 @@ class LMCRadixCache(RadixCache):
             kv_indices=kv_indices,
             offset=0,
         )
-        with torch.cuda.stream(self.store_stream):
+        with torch.rtriton.stream(self.store_stream):
             self.lmcache_connector.store_kv(store_md)
         with self._node_lock:
             self._in_flight_nodes.append(new_last_node)

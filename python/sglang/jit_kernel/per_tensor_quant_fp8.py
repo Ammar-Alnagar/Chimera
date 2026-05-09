@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import flashinfer
 import torch
-from torch.utils.cpp_extension import CUDA_HOME
+from torch.utils.cpp_extension import RTRITON_HOME
 
 from sglang.jit_kernel.utils import load_jit, make_cpp_args
 
@@ -21,13 +21,13 @@ def _jit_per_tensor_quant_fp8_module(is_static: bool) -> Module:
     flashinfer_include = os.path.join(
         os.path.dirname(flashinfer.__file__), "data", "include"
     )
-    cub_include = os.path.join(CUDA_HOME, "include")
+    cub_include = os.path.join(RTRITON_HOME, "include")
 
     return load_jit(
         "per_tensor_quant_fp8",
         *args,
-        cuda_files=["gemm/per_tensor_quant_fp8.cuh"],
-        cuda_wrappers=[("per_tensor_quant_fp8", f"per_tensor_quant_fp8<{args}>")],
+        rtriton_files=["gemm/per_tensor_quant_fp8.cuh"],
+        rtriton_wrappers=[("per_tensor_quant_fp8", f"per_tensor_quant_fp8<{args}>")],
         extra_include_paths=[flashinfer_include, cub_include],
     )
 

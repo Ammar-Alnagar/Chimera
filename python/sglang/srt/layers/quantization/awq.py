@@ -49,9 +49,9 @@ if TYPE_CHECKING:
         StandardDispatchOutput,
     )
 
-from sglang.srt.utils import is_cuda, is_hip, is_npu, is_xpu
+from sglang.srt.utils import is_rtriton, is_hip, is_npu, is_xpu
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 _is_xpu = is_xpu()
 _is_npu = is_npu()
@@ -59,7 +59,7 @@ _is_npu = is_npu()
 if _is_npu:
     import torch_npu
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import awq_dequantize, awq_marlin_moe_repack, awq_marlin_repack
 
 
@@ -74,7 +74,7 @@ elif _is_xpu:
 
     warnings.warn(f"XPU does not support fused_marlin_moe currently.")
 else:
-    warnings.warn(f"Only CUDA, HIP and XPU support AWQ currently.")
+    warnings.warn(f"Only RTRITON, HIP and XPU support AWQ currently.")
 
 logger = logging.getLogger(__name__)
 
@@ -331,7 +331,7 @@ class AWQMarlinConfig(QuantizationConfig):
         group_size = quant_config.get("group_size")
         zero_point = quant_config.get("zero_point")
 
-        if not _is_cuda:
+        if not _is_rtriton:
             return False
 
         if quant_method != "awq":
@@ -945,7 +945,7 @@ class AWQMoEAscendMethod(AWQMoEMethod):
 
 
 # Register fake implementations for torch.compile support
-if _is_cuda:
+if _is_rtriton:
 
     @register_fake_if_exists("sgl_kernel::awq_dequantize")
     def _(

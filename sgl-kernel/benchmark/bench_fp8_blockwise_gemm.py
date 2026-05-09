@@ -83,7 +83,7 @@ def fp8_gemm_deepgemm(
     k: int,
 ):
     """DeepGEMM implementation of FP8 GEMM"""
-    out = torch.empty((m, n), device="cuda", dtype=torch.bfloat16)
+    out = torch.empty((m, n), device="rtriton", dtype=torch.bfloat16)
 
     # Run DeepGEMM kernel
     deep_gemm.fp8_gemm_nt((x_fp8, x_scale), (y_fp8, y_scale), out)
@@ -145,10 +145,10 @@ def benchmark(batch_size, provider, N, K):
     fp8_info = torch.finfo(torch.float8_e4m3fn)
     fp8_max, fp8_min = fp8_info.max, fp8_info.min
 
-    a_fp32 = (torch.rand(M, K, dtype=torch.float32, device="cuda") - 0.5) * 2 * fp8_max
+    a_fp32 = (torch.rand(M, K, dtype=torch.float32, device="rtriton") - 0.5) * 2 * fp8_max
     a_fp8 = a_fp32.clamp(min=fp8_min, max=fp8_max).to(torch.float8_e4m3fn)
 
-    b_fp32 = (torch.rand(N, K, dtype=torch.float32, device="cuda") - 0.5) * 2 * fp8_max
+    b_fp32 = (torch.rand(N, K, dtype=torch.float32, device="rtriton") - 0.5) * 2 * fp8_max
     b_fp8 = b_fp32.clamp(min=fp8_min, max=fp8_max).to(torch.float8_e4m3fn)
 
     scale_a_group_shape = (1, 128)
@@ -156,14 +156,14 @@ def benchmark(batch_size, provider, N, K):
     scale_a_shape = scale_shape(a_fp8.shape, scale_a_group_shape)
     scale_b_shape = scale_shape(b_fp8.shape, scale_b_group_shape)
 
-    scale_a = torch.randn(scale_a_shape, device="cuda", dtype=torch.float32)
-    scale_b = torch.randn(scale_b_shape, device="cuda", dtype=torch.float32)
+    scale_a = torch.randn(scale_a_shape, device="rtriton", dtype=torch.float32)
+    scale_b = torch.randn(scale_b_shape, device="rtriton", dtype=torch.float32)
 
     quantiles = [0.5, 0.2, 0.8]
     if provider == "sgl-kernel":
         scale_a = scale_a.t().contiguous().t()
         b_fp8, scale_b = b_fp8.t(), scale_b.t()
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: fp8_blockwise_scaled_mm(
                 a_fp8, b_fp8, scale_a, scale_b, torch.float16
             ),
@@ -174,12 +174,12 @@ def benchmark(batch_size, provider, N, K):
             return (0, 0, 0)
         scale_a = scale_a.t().contiguous().t()
         b_fp8, scale_b = b_fp8.t(), scale_b.t()
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: vllm_scaled_mm(a_fp8, b_fp8, scale_a, scale_b, torch.float16),
             quantiles=quantiles,
         )
     elif provider == "triton":
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: w8a8_block_fp8_matmul(
                 a_fp8, b_fp8, scale_a, scale_b, [128, 128], torch.float16
             ),
@@ -187,7 +187,7 @@ def benchmark(batch_size, provider, N, K):
         )
     if provider == "deepgemm":
         scale_a_col_major = get_mn_major_tma_aligned_tensor(scale_a.clone())
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: fp8_gemm_deepgemm(
                 a_fp8, scale_a_col_major, b_fp8, scale_b, M, N, K
             ),

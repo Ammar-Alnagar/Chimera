@@ -69,15 +69,15 @@ from sglang.srt.models.utils import (
 from sglang.srt.server_args import get_global_server_args
 from sglang.srt.utils import (
     add_prefix,
-    is_cuda,
+    is_rtriton,
     is_flashinfer_available,
     is_non_idle_and_non_empty,
     is_npu,
 )
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import fused_qk_norm_rope
 
 TConfig = TypeVar("TConfig", bound=PretrainedConfig)
@@ -87,7 +87,7 @@ Qwen3MoeConfig = None
 _is_flashinfer_available = is_flashinfer_available()
 
 logger = logging.getLogger(__name__)
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_npu = is_npu()
 
 if _is_npu:
@@ -412,7 +412,7 @@ class Qwen3MoeAttention(nn.Module):
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
         dual_chunk_attention_config: Optional[dict[str, Any]] = None,
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.hidden_size = hidden_size
@@ -669,7 +669,7 @@ class Qwen3MoeDecoderLayer(nn.Module):
         layer_id: int,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.config = config
@@ -868,7 +868,7 @@ class Qwen3MoeModel(Qwen2MoeModel):
         prefix: str = "",
         decoder_layer_type=Qwen3MoeDecoderLayer,
     ) -> None:
-        alt_stream = torch.cuda.Stream() if _is_cuda else None
+        alt_stream = torch.rtriton.Stream() if _is_rtriton else None
         super().__init__(
             config=config,
             quant_config=quant_config,

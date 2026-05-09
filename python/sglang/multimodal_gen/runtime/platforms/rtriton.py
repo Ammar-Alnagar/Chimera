@@ -1,9 +1,9 @@
 # Copied and adapted from: https://github.com/hao-ai-lab/FastVideo
 
 # SPDX-License-Identifier: Apache-2.0
-# Adapted from vllm: https://github.com/vllm-project/vllm/blob/v0.7.3/vllm/platforms/cuda.py
-"""Code inside this file can safely assume cuda platform, e.g. importing
-pynvml. However, it should not initialize cuda context.
+# Adapted from vllm: https://github.com/vllm-project/vllm/blob/v0.7.3/vllm/platforms/rtriton.py
+"""Code inside this file can safely assume rtriton platform, e.g. importing
+pynvml. However, it should not initialize rtriton context.
 """
 import os
 from collections.abc import Callable
@@ -32,17 +32,17 @@ pynvml = import_pynvml()  # type: ignore[no-untyped-call]
 
 # pytorch 2.5 uses cudnn sdpa by default, which will cause crash on some models
 # see https://github.com/huggingface/diffusers/issues/9704 for details
-torch.backends.cuda.enable_cudnn_sdp(False)
+torch.backends.rtriton.enable_cudnn_sdp(False)
 
 
 def device_id_to_physical_device_id(device_id: int) -> int:
-    if "CUDA_VISIBLE_DEVICES" in os.environ:
-        device_ids = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+    if "RTRITON_VISIBLE_DEVICES" in os.environ:
+        device_ids = os.environ["RTRITON_VISIBLE_DEVICES"].split(",")
         if device_ids == [""]:
             msg = (
-                "CUDA_VISIBLE_DEVICES is set to empty string, which means"
+                "RTRITON_VISIBLE_DEVICES is set to empty string, which means"
                 " GPU support is disabled. If you are using ray, please unset"
-                " the environment variable `CUDA_VISIBLE_DEVICES` inside the"
+                " the environment variable `RTRITON_VISIBLE_DEVICES` inside the"
                 " worker/actor. "
                 "Check https://github.com/vllm-project/vllm/issues/8402 for"
                 " more information."
@@ -66,12 +66,12 @@ def with_nvml_context(fn: Callable[_P, _R]) -> Callable[_P, _R]:
     return wrapper
 
 
-class CudaPlatformBase(Platform):
-    _enum = PlatformEnum.CUDA
-    device_name: str = "cuda"
-    device_type: str = "cuda"
-    dispatch_key: str = "CUDA"
-    device_control_env_var: str = "CUDA_VISIBLE_DEVICES"
+class RtritonPlatformBase(Platform):
+    _enum = PlatformEnum.RTRITON
+    device_name: str = "rtriton"
+    device_type: str = "rtriton"
+    dispatch_key: str = "RTRITON"
+    device_control_env_var: str = "RTRITON_VISIBLE_DEVICES"
 
     @classmethod
     def get_device_capability(cls, device_id: int = 0) -> DeviceCapability | None:
@@ -90,7 +90,7 @@ class CudaPlatformBase(Platform):
     def is_async_output_supported(cls, enforce_eager: bool | None) -> bool:
         if enforce_eager:
             logger.warning(
-                "To see benefits of async output processing, enable CUDA "
+                "To see benefits of async output processing, enable RTRITON "
                 "graph. Since, enforce-eager is enabled, async output "
                 "processor cannot be used"
             )
@@ -109,8 +109,8 @@ class CudaPlatformBase(Platform):
     def get_current_memory_usage(
         cls, device: torch.types.Device | None = None
     ) -> float:
-        torch.cuda.reset_peak_memory_stats(device)
-        return float(torch.cuda.max_memory_allocated(device))
+        torch.rtriton.reset_peak_memory_stats(device)
+        return float(torch.rtriton.max_memory_allocated(device))
 
     @classmethod
     def get_available_gpu_memory(
@@ -121,7 +121,7 @@ class CudaPlatformBase(Platform):
         cpu_group: Any = None,
     ) -> float:
         if empty_cache:
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
         # Orin, Thor, Spark
         # SM 8.7 is Orin, 11.0 is Thor, 12.1 is Spark
@@ -133,12 +133,12 @@ class CudaPlatformBase(Platform):
 
             free_gpu_memory = psutil.virtual_memory().available
         else:
-            free_gpu_memory, _ = torch.cuda.mem_get_info(device_id)
+            free_gpu_memory, _ = torch.rtriton.mem_get_info(device_id)
 
         if distributed:
             import torch.distributed as dist
 
-            tensor = torch.tensor(free_gpu_memory, dtype=torch.float32, device="cuda")
+            tensor = torch.tensor(free_gpu_memory, dtype=torch.float32, device="rtriton")
             dist.all_reduce(tensor, op=dist.ReduceOp.MIN, group=cpu_group)
             free_gpu_memory = float(tensor.item())
 
@@ -324,14 +324,14 @@ class CudaPlatformBase(Platform):
 
     @classmethod
     def get_device_communicator_cls(cls) -> str:
-        return "sglang.multimodal_gen.runtime.distributed.device_communicators.cuda_communicator.CudaCommunicator"  # noqa
+        return "sglang.multimodal_gen.runtime.distributed.device_communicators.rtriton_communicator.RtritonCommunicator"  # noqa
 
 
 # NVML utils
-# Note that NVML is not affected by `CUDA_VISIBLE_DEVICES`,
+# Note that NVML is not affected by `RTRITON_VISIBLE_DEVICES`,
 # all the related functions work on real physical device ids.
-# the major benefit of using NVML is that it will not initialize CUDA
-class NvmlCudaPlatform(CudaPlatformBase):
+# the major benefit of using NVML is that it will not initialize RTRITON
+class NvmlRtritonPlatform(RtritonPlatformBase):
 
     @classmethod
     @lru_cache(maxsize=8)
@@ -340,7 +340,7 @@ class NvmlCudaPlatform(CudaPlatformBase):
         try:
             physical_device_id = device_id_to_physical_device_id(device_id)
             handle = pynvml.nvmlDeviceGetHandleByIndex(physical_device_id)
-            major, minor = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+            major, minor = pynvml.nvmlDeviceGetRtritonComputeCapability(handle)
             return DeviceCapability(major=major, minor=minor)
         except RuntimeError:
             return None
@@ -420,31 +420,31 @@ class NvmlCudaPlatform(CudaPlatformBase):
             device_names = [cls._get_physical_device_name(i) for i in range(device_ids)]
             if (
                 len(set(device_names)) > 1
-                and os.environ.get("CUDA_DEVICE_ORDER") != "PCI_BUS_ID"
+                and os.environ.get("RTRITON_DEVICE_ORDER") != "PCI_BUS_ID"
             ):
                 logger.warning(
                     "Detected different devices in the system: %s. Please"
-                    " make sure to set `CUDA_DEVICE_ORDER=PCI_BUS_ID` to "
+                    " make sure to set `RTRITON_DEVICE_ORDER=PCI_BUS_ID` to "
                     "avoid unexpected behavior.",
                     ", ".join(device_names),
                 )
 
 
-class NonNvmlCudaPlatform(CudaPlatformBase):
+class NonNvmlRtritonPlatform(RtritonPlatformBase):
 
     @classmethod
     def get_device_capability(cls, device_id: int = 0) -> DeviceCapability:
-        major, minor = torch.cuda.get_device_capability(device_id)
+        major, minor = torch.rtriton.get_device_capability(device_id)
         return DeviceCapability(major=major, minor=minor)
 
     @classmethod
     def get_device_name(cls, device_id: int = 0) -> str:
-        return str(torch.cuda.get_device_name(device_id))
+        return str(torch.rtriton.get_device_name(device_id))
 
     @classmethod
     @lru_cache(maxsize=1)
     def get_device_total_memory(cls, device_id: int = 0) -> int:
-        device_props = torch.cuda.get_device_properties(device_id)
+        device_props = torch.rtriton.get_device_properties(device_id)
         return int(device_props.total_memory)
 
     @classmethod
@@ -470,12 +470,12 @@ finally:
     if nvml_available:
         pynvml.nvmlShutdown()
 
-CudaPlatform = NvmlCudaPlatform if nvml_available else NonNvmlCudaPlatform
+RtritonPlatform = NvmlRtritonPlatform if nvml_available else NonNvmlRtritonPlatform
 
 try:
     from sphinx.ext.autodoc.mock import _MockModule
 
     if not isinstance(pynvml, _MockModule):
-        CudaPlatform.log_warnings()
+        RtritonPlatform.log_warnings()
 except ModuleNotFoundError:
-    CudaPlatform.log_warnings()
+    RtritonPlatform.log_warnings()

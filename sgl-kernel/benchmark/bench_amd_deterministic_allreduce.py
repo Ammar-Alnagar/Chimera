@@ -110,8 +110,8 @@ def reduce_scatter_then_all_gather(tensor, rank, world_size, custom_ar=None):
 
 
 def worker(world_size, rank, port, results_queue):
-    device = torch.device(f"cuda:{rank}")
-    torch.cuda.set_device(device)
+    device = torch.device(f"rtriton:{rank}")
+    torch.rtriton.set_device(device)
 
     dist.init_process_group(
         backend="nccl",
@@ -171,10 +171,10 @@ def worker(world_size, rank, port, results_queue):
             inp_flat_ar = inp_ar.view(-1)
 
             # Measure latency
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
             start = time.perf_counter()
             dist.all_reduce(inp_flat_ar, op=dist.ReduceOp.SUM)
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
             end = time.perf_counter()
             latencies_ar.append(end - start)
 
@@ -192,12 +192,12 @@ def worker(world_size, rank, port, results_queue):
             inp_flat_rs_ag = inp_rs_ag.view(-1)
 
             # Measure latency
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
             start = time.perf_counter()
             reduce_scatter_then_all_gather(
                 inp_flat_rs_ag, rank, world_size, custom_ar=None
             )
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
             end = time.perf_counter()
             latencies_rs_ag.append(end - start)
 
@@ -222,12 +222,12 @@ def worker(world_size, rank, port, results_queue):
                 inp_flat_custom = inp_custom.view(-1)
 
                 # Measure latency
-                torch.cuda.synchronize()
+                torch.rtriton.synchronize()
                 start = time.perf_counter()
                 reduce_scatter_then_all_gather(
                     inp_flat_custom, rank, world_size, custom_ar=custom_ar
                 )
-                torch.cuda.synchronize()
+                torch.rtriton.synchronize()
                 end = time.perf_counter()
                 latencies_custom_ar.append(end - start)
 
@@ -257,12 +257,12 @@ def worker(world_size, rank, port, results_queue):
                         inp_kernel = base_input.clone()
 
                         # Measure latency
-                        torch.cuda.synchronize()
+                        torch.rtriton.synchronize()
                         start = time.perf_counter()
                         result_kernel = custom_ar.deterministic_all_reduce(
                             inp_kernel, registered=False
                         )
-                        torch.cuda.synchronize()
+                        torch.rtriton.synchronize()
                         end = time.perf_counter()
                         latencies_deterministic_kernel.append(end - start)
 
@@ -458,7 +458,7 @@ def worker(world_size, rank, port, results_queue):
 
 def main():
     world_size = 8
-    available_gpus = torch.cuda.device_count()
+    available_gpus = torch.rtriton.device_count()
 
     print("=" * 80)
     print("All-Reduce vs Reduce-Scatter + All-Gather Determinism & Latency Benchmark")

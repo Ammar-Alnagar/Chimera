@@ -152,13 +152,13 @@ else:
 def benchmark(batch_size, provider, N, K):
     # M, N, K = batch_size, 4096, 8192
     M = batch_size
-    a = torch.ones((M, K), device="cuda") * 5.0
-    b = torch.ones((N, K), device="cuda") * 5.0
+    a = torch.ones((M, K), device="rtriton") * 5.0
+    b = torch.ones((N, K), device="rtriton") * 5.0
     # vLLM expects scalar scales, while sglang can handle per-token scales
-    scale_a_scalar = torch.randn(1, device="cuda", dtype=torch.float32)
-    scale_b_scalar = torch.randn(1, device="cuda", dtype=torch.float32)
-    scale_a = torch.randn((M,), device="cuda", dtype=torch.float32)
-    scale_b = torch.randn((N,), device="cuda", dtype=torch.float32)
+    scale_a_scalar = torch.randn(1, device="rtriton", dtype=torch.float32)
+    scale_b_scalar = torch.randn(1, device="rtriton", dtype=torch.float32)
+    scale_a = torch.randn((M,), device="rtriton", dtype=torch.float32)
+    scale_b = torch.randn((N,), device="rtriton", dtype=torch.float32)
     quantiles = [0.5, 0.2, 0.8]
 
     dtype = torch.float16 if "fp16" in provider else torch.bfloat16
@@ -170,7 +170,7 @@ def benchmark(batch_size, provider, N, K):
         a_fp8, scale_a_fp8 = vllm_scaled_fp8_quant(a, scale_a_scalar)
         b_fp8, scale_b_fp8 = vllm_scaled_fp8_quant(b, scale_b_scalar)
         b_fp8 = b_fp8.t()
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: vllm_scaled_mm(a_fp8, b_fp8, scale_a_fp8, scale_b_fp8, dtype),
             quantiles=quantiles,
         )
@@ -178,7 +178,7 @@ def benchmark(batch_size, provider, N, K):
         a_fp8, scale_a_fp8 = sglang_scaled_fp8_quant(a, scale_a)
         b_fp8, scale_b_fp8 = sglang_scaled_fp8_quant(b, scale_b)
         b_fp8 = b_fp8.t()
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             lambda: sgl_scaled_mm(
                 a_fp8, b_fp8, scale_a_fp8, scale_b_fp8, dtype, bias=None
             ),

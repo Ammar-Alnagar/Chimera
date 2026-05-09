@@ -32,19 +32,19 @@ def test_mixer2_gated_norm_multi_gpu(
     seq_len: int,
     hidden_size_n_groups: tuple[int, int],
     dtype: torch.dtype,
-    device: str = "cuda",
+    device: str = "rtriton",
 ):
-    if not torch.cuda.is_available():
-        pytest.skip("CUDA device not available")
+    if not torch.rtriton.is_available():
+        pytest.skip("RTRITON device not available")
 
-    assert torch.cuda.device_count() == NUM_GPUS
+    assert torch.rtriton.device_count() == NUM_GPUS
 
     hidden_size, n_groups = hidden_size_n_groups
     num_processes = NUM_GPUS
 
     def run_torch_spawn(fn, nprocs):
         # need to use torch.mp.spawn otherwise will have problems with
-        # torch.distributed and cuda
+        # torch.distributed and rtriton
         torch.multiprocessing.spawn(
             fn,
             args=(
@@ -74,8 +74,8 @@ def mixer2_gated_norm_tensor_parallel(
 ):
     torch.manual_seed(0)
 
-    device = torch.device(f"cuda:{local_rank}")
-    torch.cuda.set_device(device)
+    device = torch.device(f"rtriton:{local_rank}")
+    torch.rtriton.set_device(device)
     torch.set_default_device(device)
     torch.set_default_dtype(dtype)
 

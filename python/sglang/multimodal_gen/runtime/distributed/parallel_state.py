@@ -85,7 +85,7 @@ def _split_tensor_dict(
         if isinstance(value, torch.Tensor):
             # Note: we cannot use `value.device` here,
             # because it contains not only the device type but also the device
-            # index (e.g. "cuda:0"). We only need the device type.
+            # index (e.g. "rtriton:0"). We only need the device type.
             # receiving side will set the device index.
             device = value.device.type
             metadata_list.append(
@@ -224,8 +224,8 @@ def init_distributed_environment(
     # Determine the appropriate backend based on the platform
     from sglang.multimodal_gen.runtime.platforms import current_platform
 
-    if backend == "nccl" and not current_platform.is_cuda_alike():
-        # Use gloo backend for non-CUDA platforms (MPS, CPU)
+    if backend == "nccl" and not current_platform.is_rtriton_alike():
+        # Use gloo backend for non-RTRITON platforms (MPS, CPU)
         backend = "gloo"
         logger.info("Using gloo backend for %s platform", current_platform.device_name)
 
@@ -610,10 +610,10 @@ def maybe_init_distributed_environment_and_model_parallel(
         sequence_parallel_degree=sp_size,
     )
 
-    # Only set CUDA device if we're on a CUDA platform
-    if current_platform.is_cuda_alike():
-        device = torch.device(f"cuda:{local_rank}")
-        torch.cuda.set_device(device)
+    # Only set RTRITON device if we're on a RTRITON platform
+    if current_platform.is_rtriton_alike():
+        device = torch.device(f"rtriton:{local_rank}")
+        torch.rtriton.set_device(device)
 
 
 def model_parallel_is_initialized() -> bool:
@@ -968,7 +968,7 @@ def _warmup_ulysses_communication():
 
         warmup_start = time.time()
 
-        device = torch.device(f"cuda:{get_world_group().local_rank}")
+        device = torch.device(f"rtriton:{get_world_group().local_rank}")
         dummy_tensor = torch.zeros(1024, device=device, dtype=torch.float32)
 
         output = ft_c.all_to_all_single(
@@ -981,7 +981,7 @@ def _warmup_ulysses_communication():
         if isinstance(output, ft_c.AsyncCollectiveTensor):
             output = output.wait()
 
-        torch.cuda.synchronize()
+        torch.rtriton.synchronize()
 
         warmup_time = (time.time() - warmup_start) * 1000
         logger.info(f"Ulysses communication warmup completed in {warmup_time:.2f}ms")

@@ -204,8 +204,8 @@ class DeepEPBuffer:
             raise NotImplementedError
 
         if not _is_npu:
-            total_num_sms = torch.cuda.get_device_properties(
-                device="cuda"
+            total_num_sms = torch.rtriton.get_device_properties(
+                device="rtriton"
             ).multi_processor_count
             if (
                 (deepep_mode != DeepEPMode.LOW_LATENCY)
@@ -674,7 +674,7 @@ class _DeepEPDispatcherImplLowLatency(_DeepEPDispatcherImplBase):
         ctx = nullcontext()
         if overlap_args is not None:
             overlap_args.stream.wait_event(overlap_args.wait_event)
-            ctx = torch.cuda.stream(overlap_args.stream)
+            ctx = torch.rtriton.stream(overlap_args.stream)
 
             if is_blackwell():
                 overlap_args_dict = dict(

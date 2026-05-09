@@ -151,7 +151,7 @@ async def create_video(
     fps: Optional[int] = Form(None),
     num_frames: Optional[int] = Form(None),
     seed: Optional[int] = Form(1024),
-    generator_device: Optional[str] = Form("cuda"),
+    generator_device: Optional[str] = Form("rtriton"),
     negative_prompt: Optional[str] = Form(None),
     guidance_scale: Optional[float] = Form(None),
     num_inference_steps: Optional[int] = Form(None),

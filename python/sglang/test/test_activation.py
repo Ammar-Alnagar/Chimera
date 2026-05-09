@@ -18,9 +18,9 @@ class TestGeluAndMul(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _run_gelu_and_mul_test(self, num_tokens, d, dtype, seed):
         torch.manual_seed(seed)
@@ -30,7 +30,7 @@ class TestGeluAndMul(CustomTestCase):
 
         with torch.inference_mode():
             ref_out = layer.forward_native(x)
-            out = layer.forward_cuda(x)
+            out = layer.forward_rtriton(x)
 
         if dtype == torch.bfloat16:
             atol = rtol = 1e-2
@@ -63,23 +63,23 @@ class TestQuickGELU(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA is not available")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON is not available")
+        torch.set_default_device("rtriton")
 
     def _run_gelu_quick_test(self, n_tok: int, dim: int, dtype: torch.dtype, seed: int):
         torch.manual_seed(seed)
 
         layer = QuickGELU().to(dtype=dtype)
 
-        x = torch.randn(n_tok, dim, dtype=dtype, device="cuda")
+        x = torch.randn(n_tok, dim, dtype=dtype, device="rtriton")
 
         with torch.inference_mode():
             ref = layer.forward_native(x)  # x * sigmoid(1.702 * x), fp32 math
             if _is_hip:
                 out = layer.forward_hip(x)  # 128-bit vectorised kernel from sgl-kernel
             else:
-                out = layer.forward_cuda(x)
+                out = layer.forward_rtriton(x)
 
         tol = 1e-2 if dtype is torch.bfloat16 else 1e-3
         self.assertTrue(

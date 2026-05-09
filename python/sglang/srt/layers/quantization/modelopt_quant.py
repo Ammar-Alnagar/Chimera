@@ -49,7 +49,7 @@ from sglang.srt.layers.quantization.utils import (
 from sglang.srt.layers.radix_attention import RadixAttention
 from sglang.srt.utils.common import (
     get_bool_env_var,
-    is_cuda,
+    is_rtriton,
     is_sm120_supported,
     next_power_of_2,
 )
@@ -79,7 +79,7 @@ try:
 
     enable_flashinfer_fp4_gemm = True
 except ImportError:
-    if is_cuda():
+    if is_rtriton():
         from sgl_kernel import tilelang_scaled_fp4_mm as tilelang_fp4_gemm
     enable_flashinfer_fp4_gemm = False
     reorder_rows_for_gated_act_gemm = None
@@ -135,7 +135,7 @@ def fp4_gemm(
         return tilelang_fp4_gemm(input, weight, input_sf, weight_sf, alpha, out_dtype)
 
 
-if is_cuda() and (not is_sm120_supported()) and (fp4_quantize is not None):
+if is_rtriton() and (not is_sm120_supported()) and (fp4_quantize is not None):
 
     @register_fake_if_exists("sgl_kernel::scaled_fp4_quant")
     def _sgl_kernel_scaled_fp4_quant_fake(
@@ -1191,7 +1191,7 @@ class ModelOptFp4LinearMethod(LinearMethodBase):
         assert cols % 4 == 0
         padded_scales = padded_scales.reshape(batches, rows // 128, 4, 32, cols // 4, 4)
         padded_scales = padded_scales.permute((0, 1, 4, 3, 2, 5))
-        padded_scales = padded_scales.contiguous().cuda()
+        padded_scales = padded_scales.contiguous().rtriton()
         padded_scales = (
             padded_scales.reshape(M_padded, K_padded)
             if scale_ndim == 2

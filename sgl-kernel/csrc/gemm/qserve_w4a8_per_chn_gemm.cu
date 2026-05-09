@@ -10,11 +10,11 @@
 //   Lin, Yujun and Liu, Zhijian and Lu, Yao and Han, Song}, year={2025}
 // }
 
-// Adapted from https://github.com/mit-han-lab/omniserve/blob/main/kernels/csrc/qgemm/w4a8_per_chn/gemm_cuda.cu
+// Adapted from https://github.com/mit-han-lab/omniserve/blob/main/kernels/csrc/qgemm/w4a8_per_chn/gemm_rtriton.cu
 
-#include <ATen/cuda/CUDAContext.h>
-#include <cuda_fp16.h>
-#include <cuda_pipeline_primitives.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <rtriton_fp16.h>
+#include <rtriton_pipeline_primitives.h>
 #include <torch/all.h>
 
 #include "utils.h"
@@ -29,7 +29,7 @@
 #define SMEM_PAD_A 0
 #define SMEM_PAD_B 0
 #define PACK_SIZE 16
-#if (__CUDACC_VER_MAJOR__ >= 11) && (__CUDACC_VER_MINOR__ >= 4)
+#if (__RTRITONCC_VER_MAJOR__ >= 11) && (__RTRITONCC_VER_MINOR__ >= 4)
 #define L2_CACHEHINT(size) ".L2::" #size "B"
 #else
 #define L2_CACHEHINT(size)
@@ -55,7 +55,7 @@
   dim3 num_blocks(num_blocks_n* tile_shift, (num_blocks_m + tile_shift - 1) / tile_shift);                   \
   dim3 threads_per_block(WARP_SIZE, NUM_WARPS);                                                              \
   auto kernel_func = dense_kernel0<CTA_M, CTA_N, CTA_K, WARP_M, WARP_N, WARP_K, STAGES, G>;                  \
-  cudaFuncSetAttribute(kernel_func, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemByteSize);             \
+  rtritonFuncSetAttribute(kernel_func, rtritonFuncAttributeMaxDynamicSharedMemorySize, kSmemByteSize);             \
   kernel_func<<<num_blocks, threads_per_block, kSmemByteSize, stream>>>(                                     \
       in_feats, kernel, wscales, ascales, w_szs, a_ssums, out_feats, num_in_feats, num_out_channels, num_in_channels);
 
@@ -71,7 +71,7 @@ __inline__ __host__ __device__ int get_log_tile(int n) {
     return 0;
 }
 
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 800
 __inline__ __device__ uint2 get_block_idx_mapping(int blockIdx_x, int blockIdx_y, int log_tile) {
   return make_uint2((blockIdx_x >> log_tile), (blockIdx_y << log_tile) + ((blockIdx_x) & ((1 << (log_tile)) - 1)));
 }
@@ -614,17 +614,17 @@ void qserve_w4a8_per_chn_gemm(
     const torch::Tensor& _a_ssums,
     torch::Tensor& _out_feats) {
   // Check input tensor
-  TORCH_CHECK(_in_feats.is_cuda(), "_in_feats must be a CUDA tensor");
+  TORCH_CHECK(_in_feats.is_rtriton(), "_in_feats must be a RTRITON tensor");
   TORCH_CHECK(_in_feats.dim() == 2, "_in_feats must be a 2D tensor");
   TORCH_CHECK(_in_feats.is_contiguous(), "_in_feats must be contiguous");
   TORCH_CHECK(_in_feats.scalar_type() == torch::kInt8, "_in_feats must be int8");
   // Check kernel tensor
-  TORCH_CHECK(_kernel.is_cuda(), "_kernel must be a CUDA tensor");
+  TORCH_CHECK(_kernel.is_rtriton(), "_kernel must be a RTRITON tensor");
   TORCH_CHECK(_kernel.dim() == 2, "_kernel must be a 2D tensor");
   TORCH_CHECK(_kernel.is_contiguous(), "_kernel must be contiguous");
   TORCH_CHECK(_kernel.scalar_type() == torch::kInt8, "_kernel must be int8");
   // Check output tensor
-  TORCH_CHECK(_out_feats.is_cuda(), "_out_feats must be a CUDA tensor");
+  TORCH_CHECK(_out_feats.is_rtriton(), "_out_feats must be a RTRITON tensor");
   TORCH_CHECK(_out_feats.is_contiguous(), "_out_feats must be contiguous");
   TORCH_CHECK(_out_feats.scalar_type() == torch::kHalf, "_out_feats must be half");
 
@@ -638,25 +638,25 @@ void qserve_w4a8_per_chn_gemm(
   TORCH_CHECK(num_in_feats == num_out_feats, "num_in_feats must be equal to num_out_feats");
 
   // Check _ascales
-  TORCH_CHECK(_ascales.is_cuda(), "_ascales must be a CUDA tensor");
+  TORCH_CHECK(_ascales.is_rtriton(), "_ascales must be a RTRITON tensor");
   TORCH_CHECK(_ascales.is_contiguous(), "_ascales must be contiguous");
   TORCH_CHECK(_ascales.scalar_type() == torch::kHalf, "_ascales must be half");
   TORCH_CHECK(_ascales.numel() == num_in_feats, "_ascales must have num_in_feats elements");
 
   // Check _wscales
-  TORCH_CHECK(_wscales.is_cuda(), "_wscales must be a CUDA tensor");
+  TORCH_CHECK(_wscales.is_rtriton(), "_wscales must be a RTRITON tensor");
   TORCH_CHECK(_wscales.is_contiguous(), "_wscales must be contiguous");
   TORCH_CHECK(_wscales.scalar_type() == torch::kHalf, "_wscales must be half");
   TORCH_CHECK(_wscales.numel() == num_out_channels, "_wscales must have num_out_channels elements");
 
   // Check _w_szs
-  TORCH_CHECK(_w_szs.is_cuda(), "_w_szs must be a CUDA tensor");
+  TORCH_CHECK(_w_szs.is_rtriton(), "_w_szs must be a RTRITON tensor");
   TORCH_CHECK(_w_szs.is_contiguous(), "_w_szs must be contiguous");
   TORCH_CHECK(_w_szs.scalar_type() == torch::kHalf, "_w_szs must be half");
   TORCH_CHECK(_w_szs.numel() == num_out_channels, "_w_szs must have num_out_channels elements");
 
   // Check _a_ssums
-  TORCH_CHECK(_a_ssums.is_cuda(), "_a_ssums must be a CUDA tensor");
+  TORCH_CHECK(_a_ssums.is_rtriton(), "_a_ssums must be a RTRITON tensor");
   TORCH_CHECK(_a_ssums.is_contiguous(), "_a_ssums must be contiguous");
   TORCH_CHECK(_a_ssums.scalar_type() == torch::kHalf, "_a_ssums must be half");
   TORCH_CHECK(_a_ssums.numel() == num_in_feats, "_a_ssums must have num_in_feats elements");
@@ -668,7 +668,7 @@ void qserve_w4a8_per_chn_gemm(
   auto wscales = reinterpret_cast<half2*>(_wscales.data_ptr());
   auto ascales = reinterpret_cast<half*>(_ascales.data_ptr());
   auto out_feats = reinterpret_cast<half*>(_out_feats.data_ptr<at::Half>());
-  auto stream = at::cuda::getCurrentCUDAStream(_in_feats.get_device());
+  auto stream = at::rtriton::getCurrentRTRITONStream(_in_feats.get_device());
 
   auto sm_version = getSMVersion();
   if (sm_version >= 80) {

@@ -33,7 +33,7 @@ from sglang.srt.server_args import get_global_server_args
 from sglang.srt.utils import (
     cpu_has_amx_support,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
     is_npu,
     is_xpu,
@@ -41,14 +41,14 @@ from sglang.srt.utils import (
 )
 from sglang.utils import resolve_obj_by_qualname
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_npu = is_npu()
 _is_cpu_amx_available = cpu_has_amx_support()
 _is_cpu = is_cpu()
 _is_hip = is_hip()
 _is_xpu = is_xpu()
 
-if _is_cuda or _is_xpu:
+if _is_rtriton or _is_xpu:
     from sgl_kernel import gelu_and_mul, gelu_tanh_and_mul, silu_and_mul
 elif _is_hip:
     from sgl_kernel import gelu_and_mul, gelu_quick, gelu_tanh_and_mul, silu_and_mul
@@ -73,7 +73,7 @@ class SiluAndMul(MultiPlatformOp):
         d = x.shape[-1] // 2
         return F.silu(x[..., :d]) * x[..., d:]
 
-    def forward_cuda(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_rtriton(self, x: torch.Tensor) -> torch.Tensor:
         if not _has_sgl_kernel_op("silu_and_mul"):
             return self.forward_native(x)
         d = x.shape[-1] // 2
@@ -136,7 +136,7 @@ class GeluAndMul(MultiPlatformOp):
         else:
             return self.forward_native(x)
 
-    def forward_cuda(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_rtriton(self, x: torch.Tensor) -> torch.Tensor:
         return self._forward_impl(x)
 
     def forward_xpu(self, x: torch.Tensor) -> torch.Tensor:
@@ -157,8 +157,8 @@ class NewGELU(MultiPlatformOp):
         c = math.sqrt(2.0 / math.pi)
         return 0.5 * x * (1.0 + torch.tanh(c * (x + 0.044715 * torch.pow(x, 3.0))))
 
-    def forward_cuda(self, x: torch.Tensor) -> torch.Tensor:
-        # TODO: Implement the CUDA kernel for NewGELU in sgl-kernel
+    def forward_rtriton(self, x: torch.Tensor) -> torch.Tensor:
+        # TODO: Implement the RTRITON kernel for NewGELU in sgl-kernel
         return self.forward_native(x)
 
 
@@ -177,7 +177,7 @@ class QuickGELU(MultiPlatformOp):
     def forward_native(self, x: torch.Tensor) -> torch.Tensor:
         return x * torch.sigmoid(1.702 * x)
 
-    def forward_cuda(self, x: torch.Tensor) -> torch.Tensor:
+    def forward_rtriton(self, x: torch.Tensor) -> torch.Tensor:
         return self.forward_native(x)
 
     def forward_hip(self, x: torch.Tensor) -> torch.Tensor:
@@ -192,7 +192,7 @@ class QuickGELU(MultiPlatformOp):
 class XIELU(MultiPlatformOp):
     """
     Applies the xIELU activation function introduced in https://arxiv.org/abs/2411.13010
-    If the user has installed the nickjbrowning/XIELU, we import xIELU CUDA
+    If the user has installed the nickjbrowning/XIELU, we import xIELU RTRITON
     Otherwise, we emit a single warning and use xIELU Python
     """
 
@@ -219,34 +219,34 @@ class XIELU(MultiPlatformOp):
         self.register_buffer("beta", torch.tensor(beta, dtype=dtype))
         self.register_buffer("eps", torch.tensor(eps, dtype=dtype))
         self.with_vector_loads = with_vector_loads
-        # Temporary until xIELU CUDA fully implemented
+        # Temporary until xIELU RTRITON fully implemented
         self._beta_scalar = float(self.beta.detach().cpu().float().item())
         self._eps_scalar = float(self.eps.detach().cpu().float().item())
 
-        self._xielu_cuda_obj = None
+        self._xielu_rtriton_obj = None
         try:
             import xielu.ops  # noqa: F401
 
-            self._xielu_cuda_obj = torch.classes.xielu.XIELU()
-            msg = "Using experimental xIELU CUDA."
+            self._xielu_rtriton_obj = torch.classes.xielu.XIELU()
+            msg = "Using experimental xIELU RTRITON."
             try:
                 from torch._dynamo import allow_in_graph
 
-                self._xielu_cuda_fn = allow_in_graph(self._xielu_cuda)
-                msg += " Enabled torch._dynamo for xIELU CUDA."
+                self._xielu_rtriton_fn = allow_in_graph(self._xielu_rtriton)
+                msg += " Enabled torch._dynamo for xIELU RTRITON."
             except Exception as err:
                 msg += (
                     f" Could not enable torch._dynamo for xIELU ({err}) - "
                     "this may result in slower performance."
                 )
-                self._xielu_cuda_fn = self._xielu_cuda
+                self._xielu_rtriton_fn = self._xielu_rtriton
             logger.warning_once(msg)
         except Exception as err:
             pass
             # logger.warning_once(
-            #     "CUDA-fused xIELU not available (%s) –"
+            #     "RTRITON-fused xIELU not available (%s) –"
             #     " falling back to a Python version.\n"
-            #     "For CUDA xIELU (experimental), `pip install git+https://github.com/nickjbrowning/XIELU`",
+            #     "For RTRITON xIELU (experimental), `pip install git+https://github.com/nickjbrowning/XIELU`",
             #     str(err),
             # )
 
@@ -259,11 +259,11 @@ class XIELU(MultiPlatformOp):
             (torch.expm1(torch.min(x, self.eps)) - x) * alpha_n + self.beta * x,
         )
 
-    def _xielu_cuda(self, x: torch.Tensor) -> torch.Tensor:
+    def _xielu_rtriton(self, x: torch.Tensor) -> torch.Tensor:
         """Firewall function to prevent torch.compile from seeing .item()"""
-        assert self._xielu_cuda_obj is not None, "XIELU CUDA object must not be None"
+        assert self._xielu_rtriton_obj is not None, "XIELU RTRITON object must not be None"
         original_shape = x.shape
-        # CUDA kernel expects 3D tensors, reshape if needed
+        # RTRITON kernel expects 3D tensors, reshape if needed
         while x.dim() < 3:
             x = x.unsqueeze(0)
         if x.dim() > 3:
@@ -277,11 +277,11 @@ class XIELU(MultiPlatformOp):
                 original_shape,
                 x.shape,
             )
-        result = self._xielu_cuda_obj.forward(
+        result = self._xielu_rtriton_obj.forward(
             x,
             self.alpha_p,
             self.alpha_n,
-            # Temporary until xIELU CUDA fully implemented -> self.{beta,eps}.item()
+            # Temporary until xIELU RTRITON fully implemented -> self.{beta,eps}.item()
             self._beta_scalar,
             self._eps_scalar,
             self.with_vector_loads,
@@ -289,9 +289,9 @@ class XIELU(MultiPlatformOp):
         return result.view(original_shape)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self._xielu_cuda_obj is not None and input.is_cuda:
+        if self._xielu_rtriton_obj is not None and input.is_rtriton:
             if not torch._dynamo.is_compiling():
-                return self._xielu_cuda_fn(input)
+                return self._xielu_rtriton_fn(input)
             else:
                 logger.warning_once(
                     "torch._dynamo is compiling, using Python version of xIELU."
@@ -393,7 +393,7 @@ def get_cross_encoder_activation_function(config: PretrainedConfig):
 
 
 if not (
-    _is_cuda or _is_npu or (_is_cpu and _is_cpu_amx_available) or _is_hip or _is_xpu
+    _is_rtriton or _is_npu or (_is_cpu and _is_cpu_amx_available) or _is_hip or _is_xpu
 ):
     logger.info(
         "sgl-kernel is not available on Non-NV, Non-AMD platforms or Non-AMX CPUs. Fallback to other kernel libraries."

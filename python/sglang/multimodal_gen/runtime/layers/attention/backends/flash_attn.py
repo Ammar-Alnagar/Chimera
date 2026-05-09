@@ -46,7 +46,7 @@ def _get_cu_seqlens(device_index: int, bsz: int, seqlen: int) -> torch.Tensor:
         0,
         (bsz + 1) * seqlen,
         step=seqlen,
-        device=torch.device("cuda", device_index),
+        device=torch.device("rtriton", device_index),
         dtype=torch.int32,
     )
 

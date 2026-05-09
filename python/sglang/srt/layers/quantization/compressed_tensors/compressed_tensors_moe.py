@@ -41,7 +41,7 @@ from sglang.srt.layers.quantization.utils import (
 )
 from sglang.srt.utils import (
     get_bool_env_var,
-    is_cuda,
+    is_rtriton,
     is_hip,
     next_power_of_2,
     set_weight_attrs,
@@ -58,7 +58,7 @@ if TYPE_CHECKING:
     )
 
 _is_hip = is_hip()
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
 _use_aiter = get_bool_env_var("SGLANG_USE_AITER") and _is_hip
 
@@ -767,12 +767,12 @@ class CompressedTensorsW8A8Fp8MoEMethod(CompressedTensorsMoEMethod):
                     shuffle_weight(layer.w13_weight.data, (16, 16)),
                     requires_grad=False,
                 )
-                torch.cuda.empty_cache()
+                torch.rtriton.empty_cache()
                 layer.w2_weight = torch.nn.Parameter(
                     shuffle_weight(layer.w2_weight.data, (16, 16)),
                     requires_grad=False,
                 )
-                torch.cuda.empty_cache()
+                torch.rtriton.empty_cache()
 
     def create_moe_runner(
         self, layer: torch.nn.Module, moe_runner_config: MoeRunnerConfig

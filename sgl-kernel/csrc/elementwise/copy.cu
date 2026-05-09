@@ -1,5 +1,5 @@
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 #include <torch/all.h>
 
 #include <vector>
@@ -30,7 +30,7 @@ void copy_to_gpu_no_ce_impl(const at::Tensor& input, at::Tensor& output) {
   TORCH_CHECK(output.dtype() == torch::kInt32, "output dtype");
 
   TORCH_CHECK(input.device().is_cpu(), "input must be a CPU tensor");
-  TORCH_CHECK(output.device().is_cuda(), "output must be a CUDA tensor");
+  TORCH_CHECK(output.device().is_rtriton(), "output must be a RTRITON tensor");
 
   InputArray<N> input_array;
   const int* input_ptr = input.data_ptr<int>();
@@ -40,9 +40,9 @@ void copy_to_gpu_no_ce_impl(const at::Tensor& input, at::Tensor& output) {
   // may use multi thread blocks if performance bottleneck
   dim3 grid(1);
   dim3 block(static_cast<int>(input.numel()));
-  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   copy_to_gpu_no_ce_kernel<<<grid, block, 0, stream>>>(input_array, output.data_ptr<int>());
-  C10_CUDA_KERNEL_LAUNCH_CHECK();
+  C10_RTRITON_KERNEL_LAUNCH_CHECK();
 }
 
 void copy_to_gpu_no_ce(const at::Tensor& input, at::Tensor& output) {

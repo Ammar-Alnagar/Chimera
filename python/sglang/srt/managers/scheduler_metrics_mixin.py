@@ -270,7 +270,7 @@ class SchedulerMetricsMixin:
             )
 
     def log_decode_stats(
-        self: Scheduler, can_run_cuda_graph: bool, running_batch: ScheduleBatch = None
+        self: Scheduler, can_run_rtriton_graph: bool, running_batch: ScheduleBatch = None
     ):
         batch = running_batch or self.running_batch
 
@@ -365,7 +365,7 @@ class SchedulerMetricsMixin:
             msg += f"#retracted-req: {len(self.disagg_decode_prealloc_queue.retracted_queue)}, "
 
         msg += (
-            f"{'cuda graph' if self.device == 'cuda' else 'cpu graph'}: {can_run_cuda_graph}, "
+            f"{'rtriton graph' if self.device == 'rtriton' else 'cpu graph'}: {can_run_rtriton_graph}, "
             f"gen throughput (token/s): {self.last_gen_throughput:.2f}, "
             f"#queue-req: {len(self.waiting_queue)}, "
         )

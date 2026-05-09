@@ -106,11 +106,11 @@ When launching the model server for **multimodal support**, you can use the foll
 - `--mm-per-request-timeout <seconds>`: Defines the **timeout duration (in seconds)** for each multimodal request. If a request exceeds this time limit (e.g., for very large video inputs), it will be automatically terminated.
 - `--keep-mm-feature-on-device`: Instructs the server to **retain multimodal feature tensors on the GPU** after processing. This avoids device-to-host (D2H) memory copies and improves performance for repeated or high-frequency inference workloads.
 - `--mm-enable-dp-encoder`: Placing the ViT in data parallel while keeping the LLM in tensor parallel consistently lowers TTFT and boosts end-to-end throughput.
-- `SGLANG_USE_CUDA_IPC_TRANSPORT=1`: Shared memory pool based CUDA IPC for multi-modal data transport. For significantly improving e2e latency.
+- `SGLANG_USE_RTRITON_IPC_TRANSPORT=1`: Shared memory pool based RTRITON IPC for multi-modal data transport. For significantly improving e2e latency.
 
 ### Example usage with the above optimizations:
 ```bash
-SGLANG_USE_CUDA_IPC_TRANSPORT=1 \
+SGLANG_USE_RTRITON_IPC_TRANSPORT=1 \
 SGLANG_VLM_CACHE_SIZE_MB=0 \
 python -m sglang.launch_server \
   --model-path zai-org/GLM-4.6V \

@@ -12,9 +12,9 @@ from sglang.srt.speculative.eagle_utils import TreeMaskMode
 from sglang.srt.speculative.eagle_worker_v2 import EagleDraftWorker, EAGLEWorkerV2
 from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
 from sglang.srt.speculative.spec_utils import draft_tp_context
-from sglang.srt.utils import empty_context, get_bool_env_var, is_cuda
+from sglang.srt.utils import empty_context, get_bool_env_var, is_rtriton
 
-if is_cuda():
+if is_rtriton():
     from sgl_kernel import segment_packbits  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -70,10 +70,10 @@ class StandaloneDraftWorker(EagleDraftWorker):
             self.speculative_num_steps * self.topk, self.speculative_num_draft_tokens
         )
 
-        # Do not capture cuda graph in `TpModelWorker` init,
-        # will capture later with init_cuda_graphs()
-        backup_disable_cuda_graph = server_args.disable_cuda_graph
-        server_args.disable_cuda_graph = True
+        # Do not capture rtriton graph in `TpModelWorker` init,
+        # will capture later with init_rtriton_graphs()
+        backup_disable_rtriton_graph = server_args.disable_rtriton_graph
+        server_args.disable_rtriton_graph = True
 
         # Share the allocator with a target worker.
         # Draft and target worker own their own KV cache pools.
@@ -101,8 +101,8 @@ class StandaloneDraftWorker(EagleDraftWorker):
         self.init_token_map()
         self.init_lm_head()
 
-        # Init attention backend and cuda graphs
-        self.draft_runner.server_args.disable_cuda_graph = backup_disable_cuda_graph
+        # Init attention backend and rtriton graphs
+        self.draft_runner.server_args.disable_rtriton_graph = backup_disable_rtriton_graph
         self.draft_tp_context = (
             draft_tp_context if server_args.enable_dp_attention else empty_context
         )
@@ -110,7 +110,7 @@ class StandaloneDraftWorker(EagleDraftWorker):
             self.draft_runner.tp_group
         ), speculative_moe_backend_context():
             self.init_attention_backend()
-            self.init_cuda_graphs()
+            self.init_rtriton_graphs()
         self.tree_mask_mode = TreeMaskMode.FULL_MASK
 
         self.plan_stream, self.plan_stream_ctx = _get_plan_stream(self.device)

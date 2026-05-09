@@ -35,7 +35,7 @@ configs = [(bs,) for bs in batch_sizes]
 )
 def benchmark(batch_size, provider):
     dtype = torch.bfloat16
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
     hidden_size, topk, start_expert_id, end_expert_id, block_size = 4096, 8, 0, 255, 512
 
     def alloc_tensors():
@@ -76,7 +76,7 @@ def benchmark(batch_size, provider):
                 block_size,
             )
 
-        ms, min_ms, max_ms = triton.testing.do_bench_cudagraph(
+        ms, min_ms, max_ms = triton.testing.do_bench_rtritongraph(
             run_triton, quantiles=quantiles
         )
 

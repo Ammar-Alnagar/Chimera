@@ -54,7 +54,7 @@ class EmbeddingData:
 
     def get_embedding(self, is_concat=False):
         if is_concat:
-            return torch.concat([embedding.cuda() for embedding in self.embedding_list])
+            return torch.concat([embedding.rtriton() for embedding in self.embedding_list])
         else:
             return self.embedding_list
 
@@ -202,7 +202,7 @@ def _determine_tensor_transport_mode(server_args):
         # Fallback to default CPU transport for multi-node
         return "default"
     else:
-        return "cuda_ipc"
+        return "rtriton_ipc"
 
 
 class MMReceiver:

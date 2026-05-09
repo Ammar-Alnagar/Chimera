@@ -39,9 +39,9 @@ ATOL = 0.00
 # ------------------------------------------------
 
 torch.manual_seed(1234)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed_all(1234)
-    torch.backends.cuda.matmul.allow_tf32 = False
+if torch.rtriton.is_available():
+    torch.rtriton.manual_seed_all(1234)
+    torch.backends.rtriton.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
 
 

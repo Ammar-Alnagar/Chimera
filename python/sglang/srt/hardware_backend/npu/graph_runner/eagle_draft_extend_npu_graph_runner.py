@@ -22,15 +22,15 @@ import torch
 
 from sglang.srt.configs.model_config import is_deepseek_nsa
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
-from sglang.srt.speculative.eagle_draft_extend_cuda_graph_runner import (
-    EAGLEDraftExtendCudaGraphRunner,
+from sglang.srt.speculative.eagle_draft_extend_rtriton_graph_runner import (
+    EAGLEDraftExtendRtritonGraphRunner,
 )
 
 if TYPE_CHECKING:
     from sglang.srt.speculative.eagle_worker import EAGLEWorker
 
 
-class EAGLEDraftExtendNpuGraphRunner(EAGLEDraftExtendCudaGraphRunner):
+class EAGLEDraftExtendNpuGraphRunner(EAGLEDraftExtendRtritonGraphRunner):
     def __init__(self, eagle_worker: EAGLEWorker):
         super().__init__(eagle_worker)
 

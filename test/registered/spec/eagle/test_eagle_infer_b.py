@@ -11,13 +11,13 @@ import numpy as np
 import requests
 
 from sglang.srt.environ import envs
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_gsm8k_eval
 from sglang.test.kits.radix_cache_server_kit import run_radix_attention_test
 from sglang.test.server_fixtures.eagle_fixture import EagleServerBase
 from sglang.test.test_utils import DEFAULT_TARGET_MODEL_EAGLE, run_logprob_check
 
-register_cuda_ci(est_time=1100, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=1100, suite="stage-b-test-small-1-gpu")
 
 
 class TestEAGLEServerBasic(EagleServerBase):
@@ -341,7 +341,7 @@ class TestEAGLEServerPageSizeTopkFA3(TestEAGLEServerBasic):
     extra_args = [
         "--page-size=256",
         "--attention-backend=fa3",
-        "--cuda-graph-max-bs=5",
+        "--rtriton-graph-max-bs=5",
         "--dtype=float16",
         "--max-running-requests=8",
     ]

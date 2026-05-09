@@ -27,7 +27,7 @@ CHUNK_SIZE = 64
 #         for BV in [32, 64]
 #     ],
 #     key=["H", "K", "V", "BT", "USE_G"],
-#     use_cuda_graph=use_cuda_graph,
+#     use_rtriton_graph=use_rtriton_graph,
 # )
 @triton.jit(do_not_specialize=["T"])
 def chunk_gated_delta_rule_fwd_kernel_h_blockdim64(

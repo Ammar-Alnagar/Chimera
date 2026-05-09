@@ -20,7 +20,7 @@ class TestScoreAPI(CustomTestCase):
         """Clean up after each test case."""
         if self.engine is not None:
             self.engine.shutdown()
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
     def compute_hf_scores(
         self, query, items, label_token_ids, apply_softmax=False, item_first=False
@@ -72,7 +72,7 @@ class TestScoreAPI(CustomTestCase):
             model.cpu()
             del model
             del tokenizer
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
     def _get_token_ids(self, tokens):
         """Helper method to get token IDs for a list of tokens."""

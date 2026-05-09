@@ -31,7 +31,7 @@ from sglang.srt.layers.attention.nsa.utils import (
 from sglang.srt.layers.attention.trtllm_mla_backend import _concat_mla_absorb_q_general
 from sglang.srt.layers.dp_attention import get_attention_tp_size
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch, ForwardMode
-from sglang.srt.utils import is_cuda, is_hip
+from sglang.srt.utils import is_rtriton, is_hip
 
 # from sgl_kernel.flash_attn import flash_attn_varlen_func, flash_attn_with_kvcache
 
@@ -295,7 +295,7 @@ class NativeSparseAttnBackend(
         )
         self.speculative_step_id = speculative_step_id
 
-        self.device_capability = torch.cuda.get_device_capability()
+        self.device_capability = torch.rtriton.get_device_capability()
         self.device_sm_major = self.device_capability[0]
 
         # Allocate global workspace buffer for TRTLLm ragged attention kernel (SM100/B200)
@@ -536,7 +536,7 @@ class NativeSparseAttnBackend(
         paged_mqa_schedule_metadata = None
         # DeepGEMM paged MQA logits path needs a schedule metadata tensor.
         # Compute it once per forward batch and reuse it across layers.
-        if is_cuda() and (
+        if is_rtriton() and (
             forward_batch.forward_mode.is_decode_or_idle()
             or forward_batch.forward_mode.is_target_verify()
             or forward_batch.forward_mode.is_draft_extend()
@@ -590,16 +590,16 @@ class NativeSparseAttnBackend(
 
         self.forward_metadata = metadata
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
-        """Initialize CUDA graph state for the attention backend.
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
+        """Initialize RTRITON graph state for the attention backend.
 
         Args:
-            max_bs (int): Maximum batch size to support in CUDA graphs
+            max_bs (int): Maximum batch size to support in RTRITON graphs
 
-        This creates fixed-size tensors that will be reused during CUDA graph replay
+        This creates fixed-size tensors that will be reused during RTRITON graph replay
         to avoid memory allocations.
         """
-        self.decode_cuda_graph_metadata: Dict = {
+        self.decode_rtriton_graph_metadata: Dict = {
             "cache_seqlens": torch.ones(
                 max_num_tokens, dtype=torch.int32, device=self.device
             ),
@@ -628,7 +628,7 @@ class NativeSparseAttnBackend(
             ),
         }
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -640,7 +640,7 @@ class NativeSparseAttnBackend(
     ):
         self.set_nsa_prefill_impl(forward_batch=None)
 
-        """Initialize forward metadata for capturing CUDA graph."""
+        """Initialize forward metadata for capturing RTRITON graph."""
         if forward_mode.is_decode_or_idle():
             # Normal Decode
             # Get sequence information
@@ -648,7 +648,7 @@ class NativeSparseAttnBackend(
             cu_seqlens_k = compute_cu_seqlens(cache_seqlens_int32)
 
             # Use max context length for seq_len_k
-            page_table_1 = self.decode_cuda_graph_metadata["page_table"][:bs, :]
+            page_table_1 = self.decode_rtriton_graph_metadata["page_table"][:bs, :]
             max_seqlen_q = 1
             max_seqlen_k = page_table_1.shape[1]
 
@@ -656,7 +656,7 @@ class NativeSparseAttnBackend(
             # Precompute cumulative sequence lengths
 
             # NOTE(dark): this is always arange, since we are decoding
-            cu_seqlens_q = self.decode_cuda_graph_metadata["cu_seqlens_q"][: bs + 1]
+            cu_seqlens_q = self.decode_rtriton_graph_metadata["cu_seqlens_q"][: bs + 1]
             nsa_cache_seqlens_int32 = compute_nsa_seqlens(
                 cache_seqlens_int32, nsa_index_topk=self.nsa_index_topk
             )
@@ -664,7 +664,7 @@ class NativeSparseAttnBackend(
             seqlens_expanded = cache_seqlens_int32
             nsa_extend_seq_lens_list = [1] * num_tokens
             if self.nsa_decode_impl == "flashmla_kv":
-                flashmla_metadata = self.decode_cuda_graph_metadata[
+                flashmla_metadata = self.decode_rtriton_graph_metadata[
                     "flashmla_metadata"
                 ].slice(slice(0, num_tokens + 1))
                 flashmla_metadata.copy_(
@@ -683,7 +683,7 @@ class NativeSparseAttnBackend(
             )
             cu_seqlens_k = compute_cu_seqlens(cache_seqlens_int32)
             max_seqlen_q = 1
-            page_table_1 = self.decode_cuda_graph_metadata["page_table"][
+            page_table_1 = self.decode_rtriton_graph_metadata["page_table"][
                 : bs * self.speculative_num_draft_tokens, :
             ]
             max_seqlen_k = page_table_1.shape[1]
@@ -723,7 +723,7 @@ class NativeSparseAttnBackend(
             nsa_extend_seq_lens_list = [1] * bs * self.speculative_num_draft_tokens
 
             if self.nsa_decode_impl == "flashmla_kv":
-                flashmla_metadata = self.decode_cuda_graph_metadata[
+                flashmla_metadata = self.decode_rtriton_graph_metadata[
                     "flashmla_metadata"
                 ].slice(slice(0, bs * self.speculative_num_draft_tokens + 1))
 
@@ -741,7 +741,7 @@ class NativeSparseAttnBackend(
         real_page_table = self._transform_table_1_to_real(page_table_1)
 
         paged_mqa_schedule_metadata = None
-        if is_cuda() and (
+        if is_rtriton() and (
             forward_mode.is_decode_or_idle()
             or forward_mode.is_target_verify()
             or forward_mode.is_draft_extend()
@@ -780,10 +780,10 @@ class NativeSparseAttnBackend(
             real_page_table=real_page_table,
             nsa_extend_seq_lens_list=nsa_extend_seq_lens_list,
         )
-        self.decode_cuda_graph_metadata[bs] = metadata
+        self.decode_rtriton_graph_metadata[bs] = metadata
         self.forward_metadata = metadata
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -795,7 +795,7 @@ class NativeSparseAttnBackend(
         seq_lens_cpu: Optional[torch.Tensor],
         out_cache_loc: Optional[torch.Tensor] = None,
     ):
-        """Initialize forward metadata for replaying CUDA graph."""
+        """Initialize forward metadata for replaying RTRITON graph."""
         assert seq_lens_cpu is not None
 
         self.set_nsa_prefill_impl(forward_batch=None)
@@ -805,7 +805,7 @@ class NativeSparseAttnBackend(
         req_pool_indices = req_pool_indices[:bs]
 
         # Normal Decode
-        metadata: NSAMetadata = self.decode_cuda_graph_metadata[bs]
+        metadata: NSAMetadata = self.decode_rtriton_graph_metadata[bs]
         if forward_mode.is_decode_or_idle():
             # Normal Decode
             max_len = int(seq_lens_cpu.max().item())
@@ -910,7 +910,7 @@ class NativeSparseAttnBackend(
             )
 
         # Update DeepGEMM paged MQA schedule metadata outside the captured graph.
-        if is_cuda() and (
+        if is_rtriton() and (
             forward_mode.is_decode_or_idle()
             or forward_mode.is_target_verify()
             or forward_mode.is_draft_extend()
@@ -969,7 +969,7 @@ class NativeSparseAttnBackend(
 
         self.forward_metadata = metadata
 
-    def init_forward_metadata_replay_cuda_graph_from_precomputed(
+    def init_forward_metadata_replay_rtriton_graph_from_precomputed(
         self,
         bs: int,
         precomputed: PrecomputedMetadata,
@@ -986,7 +986,7 @@ class NativeSparseAttnBackend(
         """
         self.set_nsa_prefill_impl(forward_batch=None)
 
-        metadata = self.decode_cuda_graph_metadata[bs]
+        metadata = self.decode_rtriton_graph_metadata[bs]
 
         # Copy basic seqlens
         metadata.cache_seqlens_int32.copy_(precomputed.cache_seqlens)
@@ -1604,8 +1604,8 @@ class NativeSparseAttnBackend(
         )
         return torch.cat([topk_indices, padding], dim=0)
 
-    def get_cuda_graph_seq_len_fill_value(self):
-        """Get the fill value for sequence length in CUDA graph."""
+    def get_rtriton_graph_seq_len_fill_value(self):
+        """Get the fill value for sequence length in RTRITON graph."""
         return 1
 
     def set_nsa_prefill_impl(self, forward_batch: Optional[ForwardBatch] = None):
@@ -1723,13 +1723,13 @@ class NativeSparseAttnMultiStepBackend:
         for i in range(self.speculative_num_steps - 1):
             self.attn_backends[i].init_forward_metadata(forward_batch)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
         for i in range(self.speculative_num_steps):
-            self.attn_backends[i].init_cuda_graph_state(max_bs, max_num_tokens)
+            self.attn_backends[i].init_rtriton_graph_state(max_bs, max_num_tokens)
 
-    def init_forward_metadata_capture_cuda_graph(self, forward_batch: ForwardBatch):
+    def init_forward_metadata_capture_rtriton_graph(self, forward_batch: ForwardBatch):
         for i in range(self.speculative_num_steps):
-            self.attn_backends[i].init_forward_metadata_capture_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_capture_rtriton_graph(
                 forward_batch.batch_size,
                 forward_batch.batch_size * self.topk,
                 forward_batch.req_pool_indices,
@@ -1739,7 +1739,7 @@ class NativeSparseAttnMultiStepBackend:
                 spec_info=forward_batch.spec_info,
             )
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self, forward_batch: ForwardBatch, bs: int
     ):
         if NSA_ENABLE_MTP_PRECOMPUTE_METADATA:
@@ -1757,7 +1757,7 @@ class NativeSparseAttnMultiStepBackend:
             for i in range(self.speculative_num_steps):
                 self.attn_backends[
                     i
-                ].init_forward_metadata_replay_cuda_graph_from_precomputed(
+                ].init_forward_metadata_replay_rtriton_graph_from_precomputed(
                     bs=bs,
                     precomputed=precomputed,
                     forward_mode=ForwardMode.DECODE,
@@ -1765,7 +1765,7 @@ class NativeSparseAttnMultiStepBackend:
         else:
             # Fallback: compute metadata separately for each backend
             for i in range(self.speculative_num_steps):
-                self.attn_backends[i].init_forward_metadata_replay_cuda_graph(
+                self.attn_backends[i].init_forward_metadata_replay_rtriton_graph(
                     bs=bs,
                     req_pool_indices=forward_batch.req_pool_indices,
                     seq_lens=forward_batch.seq_lens,

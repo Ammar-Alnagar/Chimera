@@ -30,14 +30,14 @@ from sglang.srt.utils import (
     cpu_has_amx_support,
     get_bool_env_var,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_flashinfer_available,
     is_hip,
     is_npu,
     is_xpu,
 )
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_flashinfer_available = is_flashinfer_available()
 _is_hip = is_hip()
 _is_npu = is_npu()
@@ -47,7 +47,7 @@ _is_cpu = is_cpu()
 _is_xpu = is_xpu()
 _flashinfer_layernorm_available = False
 
-if _is_cuda or _is_xpu:
+if _is_rtriton or _is_xpu:
     if _is_flashinfer_available:
         try:
             from flashinfer.norm import layernorm
@@ -100,7 +100,7 @@ class RMSNorm(MultiPlatformOp):
         if _use_aiter:
             self._forward_method = self.forward_aiter
 
-    def forward_cuda(
+    def forward_rtriton(
         self,
         x: torch.Tensor,
         residual: Optional[torch.Tensor] = None,
@@ -297,7 +297,7 @@ class LayerNorm(MultiPlatformOp):
         self.bias = nn.Parameter(torch.zeros(hidden_size, dtype=self.dtype))
         self.weight = nn.Parameter(torch.ones(hidden_size, dtype=self.dtype))
 
-    def forward_cuda(
+    def forward_rtriton(
         self,
         x: torch.Tensor,
     ) -> torch.Tensor:
@@ -394,7 +394,7 @@ class GemmaRMSNorm(MultiPlatformOp):
         x = x.to(orig_dtype)
         return x if residual is None else (x, residual)
 
-    def forward_cuda(
+    def forward_rtriton(
         self,
         x: torch.Tensor,
         residual: Optional[torch.Tensor] = None,
@@ -459,7 +459,7 @@ class Gemma3RMSNorm(MultiPlatformOp):
             return torch.ops.sgl_kernel.gemma3_rmsnorm_cpu(x, self.weight, self.eps)
         return self.forward_native(x)
 
-    def forward_cuda(self, x):
+    def forward_rtriton(self, x):
         return self.forward_native(x)
 
     def forward_npu(self, x):
@@ -471,7 +471,7 @@ class Gemma3RMSNorm(MultiPlatformOp):
 
 
 if not (
-    _is_cuda or _is_hip or _is_npu or (_is_cpu and _is_cpu_amx_available) or _is_xpu
+    _is_rtriton or _is_hip or _is_npu or (_is_cpu and _is_cpu_amx_available) or _is_xpu
 ):
     logger.info(
         "sgl-kernel layernorm implementation is not available on current platform. Fallback to other kernel libraries."

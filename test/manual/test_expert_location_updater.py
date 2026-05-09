@@ -61,7 +61,7 @@ class TestExpertLocationUpdater(CustomTestCase):
     def test_gpu(self):
         if is_in_ci():
             return
-        self._test_common(device="cuda")
+        self._test_common(device="rtriton")
 
     def _test_common(self, device):
         infos = []
@@ -131,10 +131,10 @@ def _run_subprocess(
         torch.distributed.init_process_group(
             rank=rank,
             world_size=num_gpus,
-            backend={"cpu": "gloo", "cuda": None}[device],
+            backend={"cpu": "gloo", "rtriton": None}[device],
         )
-        if device == "cuda":
-            torch.cuda.set_device(f"cuda:{rank}")
+        if device == "rtriton":
+            torch.rtriton.set_device(f"rtriton:{rank}")
 
         for info in infos:
             _execute_test(info, rank=rank, num_gpus=num_gpus, device=device)

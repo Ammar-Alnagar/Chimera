@@ -372,7 +372,7 @@ if __name__ == "__main__":
         input_k_cache = torch.randn(
             (num_blocks, block_size, 1, dim_nope_and_rope),
             dtype=torch.bfloat16,
-            device="cuda",
+            device="rtriton",
         )
 
         ref_quant = _quantize_k_cache_slow(input_k_cache)
@@ -399,7 +399,7 @@ if __name__ == "__main__":
 
         # test dequant_k_cache_paged
         page_table_1 = torch.arange(
-            num_blocks * block_size, dtype=torch.int32, device="cuda"
+            num_blocks * block_size, dtype=torch.int32, device="rtriton"
         )
         actual_dequant_paged = dequant_k_cache.dequantize_k_cache_paged(
             actual_quant, page_table_1
@@ -418,10 +418,10 @@ if __name__ == "__main__":
         dim_rope = 64
 
         k_nope = torch.randn(
-            num_tokens, 1, dim_nope, dtype=torch.bfloat16, device="cuda"
+            num_tokens, 1, dim_nope, dtype=torch.bfloat16, device="rtriton"
         )
         k_rope = torch.randn(
-            num_tokens, 1, dim_rope, dtype=torch.bfloat16, device="cuda"
+            num_tokens, 1, dim_rope, dtype=torch.bfloat16, device="rtriton"
         )
 
         # Old path: concat then quantize
@@ -469,13 +469,13 @@ if __name__ == "__main__":
         input_k_cache = torch.randn(
             (num_blocks, block_size, 1, dim_nope_and_rope),
             dtype=torch.bfloat16,
-            device="cuda",
+            device="rtriton",
         )
 
         actual_quant = _quantize_k_cache_fast_wrapped(input_k_cache)
 
         page_table_1 = torch.arange(
-            num_blocks * block_size, dtype=torch.int32, device="cuda"
+            num_blocks * block_size, dtype=torch.int32, device="rtriton"
         )
 
         def run_ans():

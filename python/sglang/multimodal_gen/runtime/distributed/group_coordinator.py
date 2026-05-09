@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.distributed
-from torch.cuda import synchronize
+from torch.rtriton import synchronize
 from torch.distributed import Backend, ProcessGroup
 
 from sglang.multimodal_gen import envs
@@ -47,8 +47,8 @@ def get_local_torch_device() -> torch.device:
     """Return the torch device for the current rank."""
 
     return (
-        torch.device(f"cuda:{envs.LOCAL_RANK}")
-        if current_platform.is_cuda_alike()
+        torch.device(f"rtriton:{envs.LOCAL_RANK}")
+        if current_platform.is_rtriton_alike()
         else torch.device("mps")
     )
 
@@ -87,7 +87,7 @@ def _split_tensor_dict(
         if isinstance(value, torch.Tensor):
             # Note: we cannot use `value.device` here,
             # because it contains not only the device type but also the device
-            # index (e.g. "cuda:0"). We only need the device type.
+            # index (e.g. "rtriton:0"). We only need the device type.
             # receiving side will set the device index.
             device = value.device.type
             metadata_list.append(
@@ -122,7 +122,7 @@ def _update_nested_dict(nested_dict, flattened_key, value):
 
 @dataclass
 class GraphCaptureContext:
-    stream: torch.cuda.Stream | None
+    stream: torch.rtriton.Stream | None
 
 
 class GroupCoordinator:
@@ -133,7 +133,7 @@ class GroupCoordinator:
     GroupCoordinator takes charge of all the communication operations among
         the processes in the group. It can route the communication to
         a specific implementation (e.g. switch allreduce implementation
-        based on the tensor size and cuda graph mode).
+        based on the tensor size and rtriton graph mode).
     """
 
     # available attributes:
@@ -197,12 +197,12 @@ class GroupCoordinator:
         self.device_communicator: DeviceCommunicatorBase = None  # type: ignore
         if use_device_communicator and self.world_size > 1:
             # Platform-aware device communicator selection
-            if current_platform.is_cuda_alike():
-                from sglang.multimodal_gen.runtime.distributed.device_communicators.cuda_communicator import (
-                    CudaCommunicator,
+            if current_platform.is_rtriton_alike():
+                from sglang.multimodal_gen.runtime.distributed.device_communicators.rtriton_communicator import (
+                    RtritonCommunicator,
                 )
 
-                self.device_communicator = CudaCommunicator(
+                self.device_communicator = RtritonCommunicator(
                     cpu_group=self.cpu_group,
                     device=self.device,
                     device_group=self.device_group,
@@ -220,7 +220,7 @@ class GroupCoordinator:
         self.mq_broadcaster = None
 
         # TODO(will): check if this is needed
-        # self.use_custom_op_call = current_platform.is_cuda_alike()
+        # self.use_custom_op_call = current_platform.is_rtriton_alike()
         self.use_custom_op_call = False
 
     @property
@@ -290,25 +290,25 @@ class GroupCoordinator:
         # Platform-aware graph capture
         from sglang.multimodal_gen.runtime.platforms import current_platform
 
-        if current_platform.is_cuda_alike():
+        if current_platform.is_rtriton_alike():
             if graph_capture_context is None:
-                stream = torch.cuda.Stream()
+                stream = torch.rtriton.Stream()
                 graph_capture_context = GraphCaptureContext(stream)
             else:
                 stream = graph_capture_context.stream
 
             # ensure all initialization operations complete before attempting to
             # capture the graph on another stream
-            curr_stream = torch.cuda.current_stream()
+            curr_stream = torch.rtriton.current_stream()
             if curr_stream != stream:
                 stream.wait_stream(curr_stream)
 
-            with torch.cuda.stream(stream):
+            with torch.rtriton.stream(stream):
                 yield graph_capture_context
         else:
-            # For non-CUDA platforms (MPS, CPU), just yield the context without stream management
+            # For non-RTRITON platforms (MPS, CPU), just yield the context without stream management
             if graph_capture_context is None:
-                # Create a dummy context for non-CUDA platforms
+                # Create a dummy context for non-RTRITON platforms
                 graph_capture_context = GraphCaptureContext(None)
             yield graph_capture_context
 

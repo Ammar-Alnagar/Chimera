@@ -11,7 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Run the model with cuda graph and torch.compile."""
+"""Run the model with rtriton graph and torch.compile."""
 
 from __future__ import annotations
 
@@ -24,12 +24,12 @@ from typing import TYPE_CHECKING, Union
 import torch
 import tqdm
 
-from sglang.srt.batch_overlap.two_batch_overlap import TboCudaGraphRunnerPlugin
+from sglang.srt.batch_overlap.two_batch_overlap import TboRtritonGraphRunnerPlugin
 from sglang.srt.compilation.compilation_config import CompilationConfig
 from sglang.srt.compilation.compile import install_torch_compiled, set_compiled
 from sglang.srt.compilation.piecewise_context_manager import (
-    enable_piecewise_cuda_graph,
-    enable_piecewise_cuda_graph_compile,
+    enable_piecewise_rtriton_graph,
+    enable_piecewise_rtriton_graph_compile,
     set_forward_context,
     set_pcg_capture_stream,
 )
@@ -64,14 +64,14 @@ if TYPE_CHECKING:
 
 
 @contextmanager
-def freeze_gc(enable_cudagraph_gc: bool):
+def freeze_gc(enable_rtritongraph_gc: bool):
     """
-    Optimize garbage collection during CUDA graph capture.
+    Optimize garbage collection during RTRITON graph capture.
     Clean up, then freeze all remaining objects from being included
     in future collections if GC is disabled during capture.
     """
     gc.collect()
-    should_freeze = not enable_cudagraph_gc
+    should_freeze = not enable_rtritongraph_gc
     if should_freeze:
         gc.freeze()
     try:
@@ -102,7 +102,7 @@ def patch_model(model: torch.nn.Module, compiler: str):
         _to_torch(model, reverse=True, num_tokens=16)
 
 
-# Reuse this memory pool across all cuda graph runners.
+# Reuse this memory pool across all rtriton graph runners.
 global_graph_memory_pool = None
 
 
@@ -124,8 +124,8 @@ def set_torch_compile_config():
         torch._dynamo.config.cache_size_limit = 1024
 
 
-class PiecewiseCudaGraphRunner:
-    """A PiecewiseCudaGraphRunner runs the forward pass of a model with cuda graph and torch.compile."""
+class PiecewiseRtritonGraphRunner:
+    """A PiecewiseRtritonGraphRunner runs the forward pass of a model with rtriton graph and torch.compile."""
 
     def is_mamba_track_enabled(self):
         return (
@@ -151,20 +151,20 @@ class PiecewiseCudaGraphRunner:
         set_torch_compile_config()
 
         assert (
-            self.model_runner.server_args.piecewise_cuda_graph_tokens is not None
-        ), "piecewise_cuda_graph_tokens is not set"
-        assert self.model_runner.server_args.piecewise_cuda_graph_compiler in [
+            self.model_runner.server_args.piecewise_rtriton_graph_tokens is not None
+        ), "piecewise_rtriton_graph_tokens is not set"
+        assert self.model_runner.server_args.piecewise_rtriton_graph_compiler in [
             "eager",
             "inductor",
-        ], "By now, only eager and inductor are supported for piecewise cuda graph compiler."
+        ], "By now, only eager and inductor are supported for piecewise rtriton graph compiler."
         self.compile_config = CompilationConfig(
-            self.model_runner.server_args.piecewise_cuda_graph_tokens,
-            self.model_runner.server_args.piecewise_cuda_graph_compiler,
+            self.model_runner.server_args.piecewise_rtriton_graph_tokens,
+            self.model_runner.server_args.piecewise_rtriton_graph_compiler,
             self.model_runner.server_args.enable_torch_compile_debug_mode,
         )
         if get_moe_a2a_backend().is_deepep() or get_moe_a2a_backend().is_mooncake():
             self.compile_config.add_split_op(
-                "sglang.moe_forward_piecewise_cuda_graph_impl"
+                "sglang.moe_forward_piecewise_rtriton_graph_impl"
             )
 
         self.quant_config = getattr(self.model_runner.model, "quant_config", None)
@@ -172,7 +172,7 @@ class PiecewiseCudaGraphRunner:
         # Batch sizes to capture
         self.capture_num_tokens = self.compile_config.get_capture_sizes()
         log_info_on_rank0(
-            logger, f"Capture cuda graph num tokens {self.capture_num_tokens}"
+            logger, f"Capture rtriton graph num tokens {self.capture_num_tokens}"
         )
         self.capture_forward_mode = ForwardMode.EXTEND
         self.capture_hidden_mode = CaptureHiddenMode.NULL
@@ -215,13 +215,13 @@ class PiecewiseCudaGraphRunner:
             )
             self.positions = torch.zeros((self.max_num_tokens,), dtype=torch.int64)
 
-            self.tbo_plugin = TboCudaGraphRunnerPlugin()
+            self.tbo_plugin = TboRtritonGraphRunnerPlugin()
 
             if (
                 self.is_multimodal
             ):  # Only create input_embeds and mrope_positions for multimodal model to save memory
                 # 1. In multimodal, we only compile and capture the language model part.
-                # 2. The embedder is outside of the graph, but cuda graph requires the input embeds to have a fixed memory address.
+                # 2. The embedder is outside of the graph, but rtriton graph requires the input embeds to have a fixed memory address.
                 # 3. Input embeds is a pre-allocated buffer. In model.forward, we copy the embed output to this buffer.
                 self.input_embeds = torch.zeros(
                     (self.max_num_tokens, self.model_runner.model_config.hidden_size),
@@ -239,7 +239,7 @@ class PiecewiseCudaGraphRunner:
         # Set graph pool id globally to be able to use symmetric memory
         set_graph_pool_id(get_global_graph_memory_pool())
 
-        with enable_piecewise_cuda_graph():
+        with enable_piecewise_rtriton_graph():
             with patch_model(
                 self.model_runner.model.model, self.compile_config.compiler
             ) as patched_model:
@@ -251,7 +251,7 @@ class PiecewiseCudaGraphRunner:
                     graph_pool=get_global_graph_memory_pool(),
                 )
 
-                with set_compiled(True), enable_piecewise_cuda_graph_compile():
+                with set_compiled(True), enable_piecewise_rtriton_graph_compile():
                     compile_range = (
                         tqdm.tqdm(list(reversed(self.capture_num_tokens)))
                         if get_tensor_model_parallel_rank() == 0
@@ -274,13 +274,13 @@ class PiecewiseCudaGraphRunner:
                     self.capture()
                 except RuntimeError as e:
                     raise Exception(
-                        f"Capture cuda graph failed: {e}\n{PIECEWISE_CUDA_GRAPH_CAPTURE_FAILED_MSG}"
+                        f"Capture rtriton graph failed: {e}\n{PIECEWISE_RTRITON_GRAPH_CAPTURE_FAILED_MSG}"
                     )
 
         self.raw_num_tokens = 0
 
     def warmup_torch_compile(self, num_tokens: int):
-        """Warmup the model with a simple forward pass before CUDA graph capture."""
+        """Warmup the model with a simple forward pass before RTRITON graph capture."""
         input_ids = self.input_ids[:num_tokens]
         input_embeds = self.input_embeds[:num_tokens] if self.is_multimodal else None
         positions = self.positions[:num_tokens]
@@ -338,7 +338,7 @@ class PiecewiseCudaGraphRunner:
                 positions=positions,
                 global_num_tokens_gpu=None,
                 global_num_tokens_for_logprob_gpu=None,
-                dp_padding_mode=DpPaddingMode.get_default_mode_in_cuda_graph(),
+                dp_padding_mode=DpPaddingMode.get_default_mode_in_rtriton_graph(),
                 global_dp_buffer_len=None,
                 mrope_positions=mrope_positions,
                 spec_algorithm=None,
@@ -380,11 +380,11 @@ class PiecewiseCudaGraphRunner:
         return False
 
     def capture(self) -> None:
-        # Trigger CUDA graph capture for specific shapes.
+        # Trigger RTRITON graph capture for specific shapes.
         # Capture the large shapes first so that the smaller shapes
         # can reuse the memory pool allocated for the large shapes.
         with freeze_gc(
-            self.model_runner.server_args.enable_cudagraph_gc
+            self.model_runner.server_args.enable_rtritongraph_gc
         ), graph_capture() as graph_capture_context:
             stream = graph_capture_context.stream
             with set_pcg_capture_stream(stream):
@@ -393,7 +393,7 @@ class PiecewiseCudaGraphRunner:
                     self.model_runner.gpu_id,
                     empty_cache=False,
                 )
-                # Reverse the order to enable better memory sharing across cuda graphs.
+                # Reverse the order to enable better memory sharing across rtriton graphs.
                 capture_range = (
                     tqdm.tqdm(list(reversed(self.capture_num_tokens)))
                     if get_tensor_model_parallel_rank() == 0
@@ -447,7 +447,7 @@ class PiecewiseCudaGraphRunner:
         global_dp_buffer_len = None
 
         if self.model_runner.server_args.enable_lora:
-            # It is safe to capture CUDA graph using empty LoRA id, as the LoRA kernels will always be launched whenever
+            # It is safe to capture RTRITON graph using empty LoRA id, as the LoRA kernels will always be launched whenever
             # `--enable-lora` is set to True (and return immediately if the LoRA id is empty for perf optimization).
             lora_ids = [None] * bs
         else:
@@ -485,7 +485,7 @@ class PiecewiseCudaGraphRunner:
                 positions=positions,
                 global_num_tokens_gpu=None,
                 global_num_tokens_for_logprob_gpu=None,
-                dp_padding_mode=DpPaddingMode.get_default_mode_in_cuda_graph(),
+                dp_padding_mode=DpPaddingMode.get_default_mode_in_rtriton_graph(),
                 global_dp_buffer_len=None,
                 mrope_positions=mrope_positions,
                 spec_algorithm=None,
@@ -527,8 +527,8 @@ class PiecewiseCudaGraphRunner:
                 )
             return
 
-        # run twice for warmup at the first time and cuda graph capture at the second time
-        # detail lies in sglang/python/sglang/srt/compilation/cuda_piecewise_backend.py
+        # run twice for warmup at the first time and rtriton graph capture at the second time
+        # detail lies in sglang/python/sglang/srt/compilation/rtriton_piecewise_backend.py
         for _ in range(2):
             self.device_module.synchronize()
             self.model_runner.tp_group.barrier()
@@ -672,7 +672,7 @@ class PiecewiseCudaGraphRunner:
         forward_batch: ForwardBatch,
         **kwargs,
     ) -> Union[LogitsProcessorOutput, PPProxyTensors, EmbeddingPoolerOutput]:
-        with enable_piecewise_cuda_graph():
+        with enable_piecewise_rtriton_graph():
             self.model_runner.attn_backend.init_forward_metadata(forward_batch)
             static_forward_batch = self.replay_prepare(forward_batch, **kwargs)
             # Replay
@@ -706,7 +706,7 @@ class PiecewiseCudaGraphRunner:
                     assert isinstance(output, PPProxyTensors)
                     # TODO(Yuwei): support PP Support
                     raise NotImplementedError(
-                        "PPProxyTensors is not supported in PiecewiseCudaGraphRunner yet."
+                        "PPProxyTensors is not supported in PiecewiseRtritonGraphRunner yet."
                     )
 
     def get_spec_info(self, num_tokens: int):
@@ -739,10 +739,10 @@ class PiecewiseCudaGraphRunner:
         return spec_info
 
 
-PIECEWISE_CUDA_GRAPH_CAPTURE_FAILED_MSG = (
+PIECEWISE_RTRITON_GRAPH_CAPTURE_FAILED_MSG = (
     "Possible solutions:\n"
     "1. set --mem-fraction-static to a smaller value (e.g., 0.8 or 0.7)\n"
-    "2. set --piecewise-cuda-graph-max-tokens to a smaller value (e.g., 512)\n"
-    "3. disable Piecewise CUDA graph by unset --enable-piecewise-cuda-graph\n"
+    "2. set --piecewise-rtriton-graph-max-tokens to a smaller value (e.g., 512)\n"
+    "3. disable Piecewise RTRITON graph by unset --enable-piecewise-rtriton-graph\n"
     "Open an issue on GitHub https://github.com/sgl-project/sglang/issues/new/choose \n"
 )

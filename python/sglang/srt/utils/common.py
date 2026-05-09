@@ -123,13 +123,13 @@ builtins.FP8_E4M3_MIN = FP8_E4M3_MIN
 
 
 @lru_cache(maxsize=1)
-def is_cuda():
-    return torch.cuda.is_available() and torch.version.cuda
+def is_rtriton():
+    return torch.rtriton.is_available() and torch.version.rtriton
 
 
 @lru_cache(maxsize=1)
-def is_cuda_alike():
-    return is_cuda() or is_hip()
+def is_rtriton_alike():
+    return is_rtriton() or is_hip()
 
 
 @lru_cache(maxsize=1)
@@ -171,14 +171,14 @@ def is_cpu() -> bool:
 
 
 def is_float4_e2m1fn_x2(dtype) -> bool:
-    """Check if dtype is float4_e2m1fn_x2 and CUDA is available."""
+    """Check if dtype is float4_e2m1fn_x2 and RTRITON is available."""
     target_dtype = getattr(torch, "float4_e2m1fn_x2", None)
-    return is_cuda() and dtype == target_dtype
+    return is_rtriton() and dtype == target_dtype
 
 
-def get_cuda_version():
-    if torch.version.cuda:
-        return tuple(map(int, torch.version.cuda.split(".")))
+def get_rtriton_version():
+    if torch.version.rtriton:
+        return tuple(map(int, torch.version.rtriton.split(".")))
     return (0, 0)
 
 
@@ -196,47 +196,47 @@ def device_context(device: torch.device):
             raise ValueError(f"Unknown device module: {device}")
 
 
-def _check_cuda_device_version(
-    device_capability_majors: List[int], cuda_version: Tuple[int, int]
+def _check_rtriton_device_version(
+    device_capability_majors: List[int], rtriton_version: Tuple[int, int]
 ):
-    if not is_cuda():
+    if not is_rtriton():
         return False
     return (
-        torch.cuda.get_device_capability()[0] in device_capability_majors
-        and tuple(map(int, torch.version.cuda.split(".")[:2])) >= cuda_version
+        torch.rtriton.get_device_capability()[0] in device_capability_majors
+        and tuple(map(int, torch.version.rtriton.split(".")[:2])) >= rtriton_version
     )
 
 
-is_ampere_with_cuda_12_3 = lru_cache(maxsize=1)(
+is_ampere_with_rtriton_12_3 = lru_cache(maxsize=1)(
     partial(
-        _check_cuda_device_version, device_capability_majors=[8], cuda_version=(12, 3)
+        _check_rtriton_device_version, device_capability_majors=[8], rtriton_version=(12, 3)
     )
 )
-is_hopper_with_cuda_12_3 = lru_cache(maxsize=1)(
+is_hopper_with_rtriton_12_3 = lru_cache(maxsize=1)(
     partial(
-        _check_cuda_device_version, device_capability_majors=[9], cuda_version=(12, 3)
+        _check_rtriton_device_version, device_capability_majors=[9], rtriton_version=(12, 3)
     )
 )
 is_blackwell_supported = is_blackwell = lru_cache(maxsize=1)(
     partial(
-        _check_cuda_device_version,
+        _check_rtriton_device_version,
         device_capability_majors=[10, 12],
-        cuda_version=(12, 8),
+        rtriton_version=(12, 8),
     )
 )
 is_sm120_supported = lru_cache(maxsize=1)(
     partial(
-        _check_cuda_device_version, device_capability_majors=[12], cuda_version=(12, 8)
+        _check_rtriton_device_version, device_capability_majors=[12], rtriton_version=(12, 8)
     )
 )
 is_sm100_supported = lru_cache(maxsize=1)(
     partial(
-        _check_cuda_device_version, device_capability_majors=[10], cuda_version=(12, 8)
+        _check_rtriton_device_version, device_capability_majors=[10], rtriton_version=(12, 8)
     )
 )
 is_sm90_supported = lru_cache(maxsize=1)(
     partial(
-        _check_cuda_device_version, device_capability_majors=[9], cuda_version=(12, 3)
+        _check_rtriton_device_version, device_capability_majors=[9], rtriton_version=(12, 3)
     )
 )
 
@@ -282,7 +282,7 @@ def is_flashinfer_available():
     """
     if not get_bool_env_var("SGLANG_IS_FLASHINFER_AVAILABLE", default="true"):
         return False
-    return importlib.util.find_spec("flashinfer") is not None and is_cuda()
+    return importlib.util.find_spec("flashinfer") is not None and is_rtriton()
 
 
 def is_nvidia_cublas_cu12_version_ge_12_9():
@@ -471,7 +471,7 @@ def mark_start(name, interval=0.1, color=0, indent=0):
     global time_infos, show_time_cost
     if not show_time_cost:
         return
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     if time_infos.get(name, None) is None:
         time_infos[name] = TimeInfo(name, interval, color, indent)
     time_infos[name].acc_time -= time.perf_counter()
@@ -481,7 +481,7 @@ def mark_end(name):
     global time_infos, show_time_cost
     if not show_time_cost:
         return
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     time_infos[name].acc_time += time.perf_counter()
     if time_infos[name].check():
         time_infos[name].pretty_print()
@@ -490,11 +490,11 @@ def mark_end(name):
 def calculate_time(show=False, min_cost_ms=0.0):
     def wrapper(func):
         def inner_func(*args, **kwargs):
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
             if show:
                 start_time = time.perf_counter()
             result = func(*args, **kwargs)
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
             if show:
                 cost_time = (time.perf_counter() - start_time) * 1000
                 if cost_time > min_cost_ms:
@@ -510,30 +510,30 @@ def get_available_gpu_memory(
     device, gpu_id, distributed=False, empty_cache=True, cpu_group=None
 ):
     """
-    Get available memory for cuda:gpu_id device.
+    Get available memory for rtriton:gpu_id device.
     When distributed is True, the available memory is the minimum available memory of all GPUs.
     """
-    if device == "cuda":
-        num_gpus = torch.cuda.device_count()
+    if device == "rtriton":
+        num_gpus = torch.rtriton.device_count()
         assert gpu_id < num_gpus
 
-        if torch.cuda.current_device() != gpu_id:
+        if torch.rtriton.current_device() != gpu_id:
             print(
-                f"WARNING: current device is not {gpu_id}, but {torch.cuda.current_device()}, ",
-                "which may cause useless memory allocation for torch CUDA context.",
+                f"WARNING: current device is not {gpu_id}, but {torch.rtriton.current_device()}, ",
+                "which may cause useless memory allocation for torch RTRITON context.",
             )
 
         if empty_cache:
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
         SHARED_SYSMEM_DEVICE_MEM_SMS = (87, 110, 121)  # Orin, Thor, Spark
         if get_device_sm() in SHARED_SYSMEM_DEVICE_MEM_SMS:
-            # On these devices, which use sysmem as device mem, torch.cuda.mem_get_info()
+            # On these devices, which use sysmem as device mem, torch.rtriton.mem_get_info()
             # only reports "free" memory, which can be lower than what is actually
             # available due to not including cache memory. So we use the system available
             # memory metric instead.
             free_gpu_memory = psutil.virtual_memory().available
         else:
-            free_gpu_memory, _ = torch.cuda.mem_get_info(gpu_id)
+            free_gpu_memory, _ = torch.rtriton.mem_get_info(gpu_id)
 
     elif device == "xpu":
         num_gpus = torch.xpu.device_count()
@@ -592,7 +592,7 @@ def get_available_gpu_memory(
 
 
 def is_pin_memory_available() -> bool:
-    return torch.cuda.is_available()
+    return torch.rtriton.is_available()
 
 
 class LayerFn(Protocol):
@@ -672,8 +672,8 @@ def set_random_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+    if torch.rtriton.is_available():
+        torch.rtriton.manual_seed_all(seed)
 
 
 def find_process_using_port(port: int) -> Optional[psutil.Process]:
@@ -1228,7 +1228,7 @@ def broadcast_pyobj(
     of dist_group argument).
     """
     device = torch.device(
-        "cuda" if torch.cuda.is_available() and not force_cpu_device else "cpu"
+        "rtriton" if torch.rtriton.is_available() and not force_cpu_device else "cpu"
     )
 
     if rank == src:
@@ -1346,7 +1346,7 @@ def pytorch_profile(name, func, *args, data_size=-1):
     global step_counter
     os.makedirs("trace", exist_ok=True)
     with profile(
-        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+        activities=[ProfilerActivity.CPU, ProfilerActivity.RTRITON],
         # schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
         # on_trace_ready=tensorboard_trace_handler('./log_dir'),
         record_shapes=True,
@@ -1620,8 +1620,8 @@ def get_amdgpu_memory_capacity():
 
 
 def get_device_sm():
-    if torch.cuda.is_available():
-        major, minor = torch.cuda.get_device_capability()
+    if torch.rtriton.is_available():
+        major, minor = torch.rtriton.get_device_capability()
         return major * 10 + minor
     return 0
 
@@ -1647,13 +1647,13 @@ def get_nvgpu_memory_capacity():
         ]
 
         if not memory_values:
-            # Fallback to torch.cuda.mem_get_info() when failed to get memory capacity from nvidia-smi,
+            # Fallback to torch.rtriton.mem_get_info() when failed to get memory capacity from nvidia-smi,
             # typically in NVIDIA MIG mode.
-            if torch.cuda.is_available():
+            if torch.rtriton.is_available():
                 logger.warning(
-                    "Failed to get GPU memory capacity from nvidia-smi, falling back to torch.cuda.mem_get_info()."
+                    "Failed to get GPU memory capacity from nvidia-smi, falling back to torch.rtriton.mem_get_info()."
                 )
-                return torch.cuda.mem_get_info()[1] // 1024 // 1024  # unit: MB
+                return torch.rtriton.mem_get_info()[1] // 1024 // 1024  # unit: MB
             raise ValueError("No GPU memory values found.")
 
         # Return the minimum memory value
@@ -1746,7 +1746,7 @@ def get_xpu_memory_capacity():
 
 
 def get_device_memory_capacity(device: str = None):
-    if is_cuda():
+    if is_rtriton():
         gpu_mem = get_nvgpu_memory_capacity()
     elif is_hip():
         gpu_mem = get_amdgpu_memory_capacity()
@@ -1855,8 +1855,8 @@ def print_info_once(msg: str) -> None:
 
 
 def get_device_name(device_id: int = 0) -> str:
-    if hasattr(torch, "cuda") and torch.cuda.is_available():
-        return torch.cuda.get_device_name(device_id)
+    if hasattr(torch, "rtriton") and torch.rtriton.is_available():
+        return torch.rtriton.get_device_name(device_id)
 
     if hasattr(torch, "xpu") and torch.xpu.is_available():
         return torch.xpu.get_device_name(device_id)
@@ -1884,10 +1884,10 @@ def get_device(device_id: Optional[int] = None) -> str:
             )
         return "cpu"
 
-    if hasattr(torch, "cuda") and torch.cuda.is_available():
+    if hasattr(torch, "rtriton") and torch.rtriton.is_available():
         if device_id is None:
-            return "cuda"
-        return "cuda:{}".format(device_id)
+            return "rtriton"
+        return "rtriton:{}".format(device_id)
 
     if hasattr(torch, "xpu") and torch.xpu.is_available():
         if device_id == None:
@@ -1912,14 +1912,14 @@ def get_device(device_id: Optional[int] = None) -> str:
                 "Habana frameworks detected, but failed to import 'habana_frameworks.torch.hpu'."
             )
 
-    raise RuntimeError("No accelerator (CUDA, XPU, HPU, NPU) is available.")
+    raise RuntimeError("No accelerator (RTRITON, XPU, HPU, NPU) is available.")
 
 
 @lru_cache(maxsize=1)
 def get_device_count() -> int:
-    if hasattr(torch, "cuda") and torch.cuda.is_available():
+    if hasattr(torch, "rtriton") and torch.rtriton.is_available():
         try:
-            return torch.cuda.device_count()
+            return torch.rtriton.device_count()
         except RuntimeError:
             return 0
 
@@ -1942,16 +1942,16 @@ def get_device_count() -> int:
 
 
 def get_device_core_count(device_id: int = 0) -> int:
-    if hasattr(torch, "cuda") and torch.cuda.is_available():
-        return torch.cuda.get_device_properties(device_id).multi_processor_count
+    if hasattr(torch, "rtriton") and torch.rtriton.is_available():
+        return torch.rtriton.get_device_properties(device_id).multi_processor_count
 
     return 0
 
 
 def get_device_capability(device_id: int = 0) -> Tuple[int, int]:
     major, minor = None, None
-    if hasattr(torch, "cuda") and torch.cuda.is_available():
-        major, minor = torch.cuda.get_device_capability(device_id)
+    if hasattr(torch, "rtriton") and torch.rtriton.is_available():
+        major, minor = torch.rtriton.get_device_capability(device_id)
 
     if hasattr(torch, "xpu") and torch.xpu.is_available():
         major, minor, *_ = torch.xpu.get_device_capability(device_id)["version"].split(
@@ -2012,7 +2012,7 @@ def direct_register_custom_op(
     """
     `torch.library.custom_op` can have significant overhead because it
     needs to consider complicated dispatching logic. This function
-    directly registers a custom op and dispatches it to the CUDA backend.
+    directly registers a custom op and dispatches it to the RTRITON backend.
     See https://gist.github.com/youkaichao/ecbea9ec9fc79a45d2adce1784d7a9a5
     for more details.
 
@@ -2056,7 +2056,7 @@ def direct_register_custom_op(
 
     try:
         my_lib.define(op_name + schema_str)
-        my_lib.impl(op_name, op_func, "CUDA" if not is_npu() else "PrivateUse1")
+        my_lib.impl(op_name, op_func, "RTRITON" if not is_npu() else "PrivateUse1")
         if fake_impl is not None:
             my_lib._register_fake(op_name, fake_impl)
     except RuntimeError as error:
@@ -2247,8 +2247,8 @@ def debug_timing(func):
     # todo: replace with a more organized instrumentation
     def wrapper(*args, **kwargs):
         if logger.isEnabledFor(logging.DEBUG):
-            tic = torch.cuda.Event(enable_timing=True)
-            toc = torch.cuda.Event(enable_timing=True)
+            tic = torch.rtriton.Event(enable_timing=True)
+            toc = torch.rtriton.Event(enable_timing=True)
             tic.record()
             result = func(*args, **kwargs)
             toc.record()
@@ -2447,11 +2447,11 @@ def create_checksum(directory: str):
     raise NotImplementedError()
 
 
-def set_cuda_arch():
+def set_rtriton_arch():
     if is_flashinfer_available():
-        capability = torch.cuda.get_device_capability()
+        capability = torch.rtriton.get_device_capability()
         arch = f"{capability[0]}.{capability[1]}"
-        os.environ["FLASHINFER_CUDA_ARCH_LIST"] = (
+        os.environ["FLASHINFER_RTRITON_ARCH_LIST"] = (
             f"{arch}{'a' if capability[0] >= 9 else ''}"
         )
 
@@ -2771,17 +2771,17 @@ def load_json_config(data: str):
 def dispose_tensor(x: torch.Tensor):
     """
     Dispose a tensor by freeing its memory.
-    During piecewise CUDA graph capture/replay, we skip disposal to avoid
+    During piecewise RTRITON graph capture/replay, we skip disposal to avoid
     interfering with torch.compile's memory tracking and graph recording.
     """
 
-    # Skip disposal during piecewise CUDA graph to avoid torch.compile issues
+    # Skip disposal during piecewise RTRITON graph to avoid torch.compile issues
     # we do local import to avoid circular import
     from sglang.srt.compilation.piecewise_context_manager import (
-        is_in_piecewise_cuda_graph,
+        is_in_piecewise_rtriton_graph,
     )
 
-    if is_in_piecewise_cuda_graph():
+    if is_in_piecewise_rtriton_graph():
         return
 
     x.set_(torch.empty((0,), device=x.device, dtype=x.dtype))
@@ -3309,7 +3309,7 @@ def mxfp_supported():
     Returns whether the current platform supports MX types.
     """
     if torch.version.hip:
-        gcn_arch = torch.cuda.get_device_properties(0).gcnArchName
+        gcn_arch = torch.rtriton.get_device_properties(0).gcnArchName
         return any(gfx in gcn_arch for gfx in ["gfx95"])
     else:
         return False
@@ -3321,7 +3321,7 @@ def is_gfx95_supported():
     Returns whether the current platform supports MX types.
     """
     if torch.version.hip:
-        gcn_arch = torch.cuda.get_device_properties(0).gcnArchName
+        gcn_arch = torch.rtriton.get_device_properties(0).gcnArchName
         return any(gfx in gcn_arch for gfx in ["gfx95"])
     else:
         return False
@@ -3436,12 +3436,12 @@ def is_triton_kernels_available() -> bool:
     return importlib.util.find_spec("triton_kernels") is not None
 
 
-def check_cuda_result(raw_output):
-    import cuda.bindings.runtime as cuda_rt
+def check_rtriton_result(raw_output):
+    import rtriton.bindings.runtime as rtriton_rt
 
     err, *results = raw_output
-    if err != cuda_rt.cudaError_t.cudaSuccess:
-        raise Exception(f"CUDA error: {err}")
+    if err != rtriton_rt.rtritonError_t.rtritonSuccess:
+        raise Exception(f"RTRITON error: {err}")
 
     return results
 
@@ -3450,14 +3450,14 @@ def get_physical_device_id() -> int:
     """
     Convert PyTorch logical device ID to physical device ID.
     """
-    cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", None)
+    rtriton_visible_devices = os.environ.get("RTRITON_VISIBLE_DEVICES", None)
     assert (
-        cuda_visible_devices is not None
-    ), "CUDA_VISIBLE_DEVICES should be set in a scheduler"
-    device_list = cuda_visible_devices.split(",")
+        rtriton_visible_devices is not None
+    ), "RTRITON_VISIBLE_DEVICES should be set in a scheduler"
+    device_list = rtriton_visible_devices.split(",")
     assert (
         len(device_list) == 1
-    ), "CUDA_VISIBLE_DEVICES should be set to a single device in a scheduler"
+    ), "RTRITON_VISIBLE_DEVICES should be set to a single device in a scheduler"
     return int(device_list[0])
 
 
@@ -3505,27 +3505,27 @@ def json_list_type(value):
 @contextmanager
 def maybe_reindex_device_id(gpu_id: int):
 
-    if envs.SGLANG_ONE_VISIBLE_DEVICE_PER_PROCESS.get() is False or not is_cuda_alike():
+    if envs.SGLANG_ONE_VISIBLE_DEVICE_PER_PROCESS.get() is False or not is_rtriton_alike():
         yield gpu_id
         return
 
-    original_cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
-    if original_cuda_visible_devices:
-        cuda_visible_devices = original_cuda_visible_devices.split(",")
+    original_rtriton_visible_devices = os.environ.get("RTRITON_VISIBLE_DEVICES")
+    if original_rtriton_visible_devices:
+        rtriton_visible_devices = original_rtriton_visible_devices.split(",")
     else:
-        cuda_visible_devices = []
+        rtriton_visible_devices = []
 
-    str_gpu_id = cuda_visible_devices[gpu_id] if cuda_visible_devices else str(gpu_id)
-    os.environ["CUDA_VISIBLE_DEVICES"] = str_gpu_id
+    str_gpu_id = rtriton_visible_devices[gpu_id] if rtriton_visible_devices else str(gpu_id)
+    os.environ["RTRITON_VISIBLE_DEVICES"] = str_gpu_id
 
-    logger.debug(f"Set CUDA_VISIBLE_DEVICES to {str_gpu_id}")
+    logger.debug(f"Set RTRITON_VISIBLE_DEVICES to {str_gpu_id}")
 
     yield 0
 
-    if original_cuda_visible_devices:
-        os.environ["CUDA_VISIBLE_DEVICES"] = original_cuda_visible_devices
+    if original_rtriton_visible_devices:
+        os.environ["RTRITON_VISIBLE_DEVICES"] = original_rtriton_visible_devices
     else:
-        del os.environ["CUDA_VISIBLE_DEVICES"]
+        del os.environ["RTRITON_VISIBLE_DEVICES"]
 
 
 def get_extend_input_len_swa_limit(
@@ -3679,10 +3679,10 @@ def cached_triton_kernel(key_fn=None):
     """
 
     def decorator(fn):
-        # Auto-enable the custom kernel cache for CUDA, where it is
+        # Auto-enable the custom kernel cache for RTRITON, where it is
         # known to be compatible.
-        if is_cuda() and not envs.SGLANG_USE_CUSTOM_TRITON_KERNEL_CACHE.is_set():
-            logger.debug("Detected platform CUDA, using custom triton kernel cache.")
+        if is_rtriton() and not envs.SGLANG_USE_CUSTOM_TRITON_KERNEL_CACHE.is_set():
+            logger.debug("Detected platform RTRITON, using custom triton kernel cache.")
             return CachedKernel(fn, key_fn)
 
         if envs.SGLANG_USE_CUSTOM_TRITON_KERNEL_CACHE.get():

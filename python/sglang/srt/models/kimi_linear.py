@@ -32,7 +32,7 @@ from sglang.srt.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
 )
-from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
+from sglang.srt.model_executor.rtriton_graph_runner import get_is_capture_mode
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch, PPProxyTensors
 from sglang.srt.model_loader.weight_utils import (
     default_weight_loader,
@@ -53,7 +53,7 @@ class KimiMoE(nn.Module):
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
         layer_idx: int = 0,
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ):
         super().__init__()
         hidden_size = config.hidden_size
@@ -132,12 +132,12 @@ class KimiMoE(nn.Module):
             and hidden_states.shape[0] > 0
             and get_is_capture_mode()
         ):
-            current_stream = torch.cuda.current_stream()
+            current_stream = torch.rtriton.current_stream()
             self.alt_stream.wait_stream(current_stream)
 
             shared_output = self.shared_experts(hidden_states.clone())
 
-            with torch.cuda.stream(self.alt_stream):
+            with torch.rtriton.stream(self.alt_stream):
                 router_logits, _ = self.gate(hidden_states)
                 topk_output = self.topk(hidden_states, router_logits)
                 final_hidden_states = self.experts(hidden_states, topk_output)
@@ -358,7 +358,7 @@ class KimiDecoderLayer(nn.Module):
         layer_idx: int,
         quant_config: Optional[QuantizationConfig] = None,
         prefix: str = "",
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
     ) -> None:
         super().__init__()
         self.hidden_size = config.hidden_size
@@ -469,7 +469,7 @@ class KimiLinearModel(nn.Module):
         else:
             self.embed_tokens = PPMissingLayer()
 
-        self.alt_stream = torch.cuda.Stream()
+        self.alt_stream = torch.rtriton.Stream()
 
         self.layers, self.start_layer, self.end_layer = make_layers(
             config.num_hidden_layers,

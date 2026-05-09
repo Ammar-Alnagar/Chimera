@@ -57,7 +57,7 @@ You can find all arguments by `python3 -m sglang.launch_server --help`
 - To enable fp8 kv cache quantization, add `--kv-cache-dtype fp8_e5m2`.
 - To enable deterministic inference and batch invariant operations, add `--enable-deterministic-inference`. More details can be found in [deterministic inference document](../advanced_features/deterministic_inference.md).
 - If the model does not have a chat template in the Hugging Face tokenizer, you can specify a [custom chat template](../references/custom_chat_template.md).
-- To run tensor parallelism on multiple nodes, add `--nnodes 2`. If you have two nodes with two GPUs on each node and want to run TP=4, let `sgl-dev-0` be the hostname of the first node and `50000` be an available port, you can use the following commands. If you meet deadlock, please try to add `--disable-cuda-graph`
+- To run tensor parallelism on multiple nodes, add `--nnodes 2`. If you have two nodes with two GPUs on each node and want to run TP=4, let `sgl-dev-0` be the hostname of the first node and `50000` be an available port, you can use the following commands. If you meet deadlock, please try to add `--disable-rtriton-graph`
 
   ```bash
   # Node 0
@@ -115,7 +115,7 @@ Please consult the documentation below and [server_args.py](https://github.com/s
 | `--modelopt-quant` | The ModelOpt quantization configuration. Supported values: 'fp8', 'int4_awq', 'w4a8_awq', 'nvfp4', 'nvfp4_awq'. This requires the NVIDIA Model Optimizer library to be installed: pip install nvidia-modelopt | `None` | Type: str |
 | `--modelopt-checkpoint-restore-path` | Path to restore a previously saved ModelOpt quantized checkpoint. If provided, the quantization process will be skipped and the model will be loaded from this checkpoint. | `None` | Type: str |
 | `--modelopt-checkpoint-save-path` | Path to save the ModelOpt quantized checkpoint after quantization. This allows reusing the quantized model in future runs. | `None` | Type: str |
-| `--kv-cache-dtype` | Data type for kv cache storage. "auto" will use model data type. "fp8_e5m2" and "fp8_e4m3" is supported for CUDA 11.8+. | `auto` | `auto`, `fp8_e5m2`, `fp8_e4m3` |
+| `--kv-cache-dtype` | Data type for kv cache storage. "auto" will use model data type. "fp8_e5m2" and "fp8_e4m3" is supported for RTRITON 11.8+. | `auto` | `auto`, `fp8_e5m2`, `fp8_e4m3` |
 | `--enable-fp32-lm-head` | If set, the LM head outputs (logits) are in FP32. | `False` | bool flag (set to enable) |
 
 ## Memory and scheduling
@@ -140,7 +140,7 @@ Please consult the documentation below and [server_args.py](https://github.com/s
 ## Runtime options
 | Argument | Description | Defaults | Options |
 | --- | --- | --- | --- |
-| `--device` | The device to use ('cuda', 'xpu', 'hpu', 'npu', 'cpu'). Defaults to auto-detection if not specified. | `None` | Type: str |
+| `--device` | The device to use ('rtriton', 'xpu', 'hpu', 'npu', 'cpu'). Defaults to auto-detection if not specified. | `None` | Type: str |
 | `--elastic-ep-backend` | Select the collective communication backend for elastic EP. Currently supports 'mooncake'. | None | N/A       |
 | `--mooncake-ib-device` | The InfiniBand devices for Mooncake Backend, accepts multiple comma-separated devices. Default is None, which triggers automatic device detection when Mooncake Backend is enabled. | None | N/A   |
 | `--tensor-parallel-size`<br>`--tp-size` | The tensor parallelism size. | `1` | Type: int |
@@ -354,12 +354,12 @@ Please consult the documentation below and [server_args.py](https://github.com/s
 | Argument | Description | Defaults | Options |
 | --- | --- | --- | --- |
 | `--disable-radix-cache` | Disable RadixAttention for prefix caching. | `False` | bool flag (set to enable) |
-| `--cuda-graph-max-bs` | Set the maximum batch size for cuda graph. It will extend the cuda graph capture batch size to this value. | `None` | Type: int |
-| `--cuda-graph-bs` | Set the list of batch sizes for cuda graph. | `None` | List[int] |
-| `--disable-cuda-graph` | Disable cuda graph. | `False` | bool flag (set to enable) |
-| `--disable-cuda-graph-padding` | Disable cuda graph when padding is needed. Still uses cuda graph when padding is not needed. | `False` | bool flag (set to enable) |
-| `--enable-profile-cuda-graph` | Enable profiling of cuda graph capture. | `False` | bool flag (set to enable) |
-| `--enable-cudagraph-gc` | Enable garbage collection during CUDA graph capture. If disabled (default), GC is frozen during capture to speed up the process. | `False` | bool flag (set to enable) |
+| `--rtriton-graph-max-bs` | Set the maximum batch size for rtriton graph. It will extend the rtriton graph capture batch size to this value. | `None` | Type: int |
+| `--rtriton-graph-bs` | Set the list of batch sizes for rtriton graph. | `None` | List[int] |
+| `--disable-rtriton-graph` | Disable rtriton graph. | `False` | bool flag (set to enable) |
+| `--disable-rtriton-graph-padding` | Disable rtriton graph when padding is needed. Still uses rtriton graph when padding is not needed. | `False` | bool flag (set to enable) |
+| `--enable-profile-rtriton-graph` | Enable profiling of rtriton graph capture. | `False` | bool flag (set to enable) |
+| `--enable-rtritongraph-gc` | Enable garbage collection during RTRITON graph capture. If disabled (default), GC is frozen during capture to speed up the process. | `False` | bool flag (set to enable) |
 | `--enable-nccl-nvls` | Enable NCCL NVLS for prefill heavy requests when available. | `False` | bool flag (set to enable) |
 | `--enable-symm-mem` | Enable NCCL symmetric memory for fast collectives. | `False` | bool flag (set to enable) |
 | `--disable-flashinfer-tilelang-moe-fp4-allgather` | Disables quantize before all-gather for flashinfer tilelang moe. | `False` | bool flag (set to enable) |
@@ -367,7 +367,7 @@ Please consult the documentation below and [server_args.py](https://github.com/s
 | `--disable-outlines-disk-cache` | Disable disk cache of outlines to avoid possible crashes related to file system or high concurrency. | `False` | bool flag (set to enable) |
 | `--disable-custom-all-reduce` | Disable the custom all-reduce kernel and fall back to NCCL. | `False` | bool flag (set to enable) |
 | `--enable-mscclpp` | Enable using mscclpp for small messages for all-reduce kernel and fall back to NCCL. | `False` | bool flag (set to enable) |
-| `--enable-torch-symm-mem` | Enable using torch symm mem for all-reduce kernel and fall back to NCCL. Only supports CUDA device SM90 and above. SM90 supports world size 4, 6, 8. SM10 supports world size 6, 8. | `False` | bool flag (set to enable) |
+| `--enable-torch-symm-mem` | Enable using torch symm mem for all-reduce kernel and fall back to NCCL. Only supports RTRITON device SM90 and above. SM90 supports world size 4, 6, 8. SM10 supports world size 6, 8. | `False` | bool flag (set to enable) |
 | `--disable-overlap-schedule` | Disable the overlap scheduler, which overlaps the CPU scheduler with GPU model worker. | `False` | bool flag (set to enable) |
 | `--enable-mixed-chunk` | Enabling mixing prefill and decode in a batch when using chunked prefill. | `False` | bool flag (set to enable) |
 | `--enable-dp-attention` | Enabling data parallelism for attention and tensor parallelism for FFN. The dp size should be equal to the tp size. Currently DeepSeek-V2 and Qwen 2/3 MoE models are supported. | `False` | bool flag (set to enable) |
@@ -377,10 +377,10 @@ Please consult the documentation below and [server_args.py](https://github.com/s
 | `--tbo-token-distribution-threshold` | The threshold of token distribution between two batches in micro-batch-overlap, determines whether to two-batch-overlap or two-chunk-overlap. Set to 0 denote disable two-chunk-overlap. | `0.48` | Type: float |
 | `--enable-torch-compile` | Optimize the model with torch.compile. Experimental feature. | `False` | bool flag (set to enable) |
 | `--enable-torch-compile-debug-mode` | Enable debug mode for torch compile. | `False` | bool flag (set to enable) |
-| `--enable-piecewise-cuda-graph` | Optimize the model with piecewise cuda graph for extend/prefill only. Experimental feature. | `False` | bool flag (set to enable) |
-| `--piecewise-cuda-graph-tokens` | Set the list of tokens when using piecewise cuda graph. | `None` | Type: JSON list |
+| `--enable-piecewise-rtriton-graph` | Optimize the model with piecewise rtriton graph for extend/prefill only. Experimental feature. | `False` | bool flag (set to enable) |
+| `--piecewise-rtriton-graph-tokens` | Set the list of tokens when using piecewise rtriton graph. | `None` | Type: JSON list |
 | `--torch-compile-max-bs` | Set the maximum batch size when using torch compile. | `32` | Type: int |
-| `--piecewise-cuda-graph-max-tokens` | Set the maximum tokens when using piecewise cuda graph. | `4096` | Type: int |
+| `--piecewise-rtriton-graph-max-tokens` | Set the maximum tokens when using piecewise rtriton graph. | `4096` | Type: int |
 | `--torchao-config` | Optimize the model with torchao. Experimental feature. Current choices are: int8dq, int8wo, int4wo-<group_size>, fp8wo, fp8dq-per_tensor, fp8dq-per_row | `` | Type: str |
 | `--enable-nan-detection` | Enable the NaN detection for debugging purposes. | `False` | bool flag (set to enable) |
 | `--enable-p2p-check` | Enable P2P check for GPU access, otherwise the p2p access is allowed by default. | `False` | bool flag (set to enable) |

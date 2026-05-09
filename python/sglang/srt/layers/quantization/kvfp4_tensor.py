@@ -15,8 +15,8 @@
 import torch
 
 E2M1_MAX = 6.0
-# Put constants directly on CUDA if available
-_device = "cuda" if torch.cuda.is_available() else "cpu"
+# Put constants directly on RTRITON if available
+_device = "rtriton" if torch.rtriton.is_available() else "cpu"
 E2M1_VALUES = torch.tensor(
     [0, 0.5, 1, 1.5, 2, 3, 4, 6], dtype=torch.float32, device=_device
 )
@@ -57,7 +57,7 @@ class KVFP4QuantizeUtil:
         sign_bits = (scaled < 0).to(torch.uint8) << 3
         abs_vals = scaled.abs()
 
-        # Pure tensor version (CUDA Graph safe)
+        # Pure tensor version (RTRITON Graph safe)
         magnitude_bits = torch.sum(abs_vals.unsqueeze(-1) >= E2M1_BOUNDS, dim=-1)
 
         # Combine sign and magnitude

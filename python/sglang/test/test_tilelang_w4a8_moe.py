@@ -28,7 +28,7 @@ def pack_int4_values_to_int8(int4_values_interleaved: torch.Tensor) -> torch.Ten
 def pack_interleave(num_experts, ref_weight, ref_scale, alignment=4):
     n, k = ref_weight.shape[1], ref_weight.shape[2]
 
-    weight = pack_int4_values_to_int8(ref_weight.cpu()).cuda()
+    weight = pack_int4_values_to_int8(ref_weight.cpu()).rtriton()
     w_q = weight.view((num_experts, n, k // 2)).view(torch.int8)
     w_q = w_q.contiguous()
 
@@ -67,32 +67,32 @@ def test_tilelang_w4a8_moe(M, N, K, E, tp_size, use_ep_moe, topk, group_size, dt
 
     debug = False
     if debug:
-        a = torch.ones((M, K), dtype=dtype, device="cuda") * 0.001
-        ref_weight_1 = torch.ones((local_e, N * 2, K), dtype=torch.int8, device="cuda")
-        ref_weight_2 = torch.ones((local_e, K, N), dtype=torch.int8, device="cuda")
-        a1_scale = torch.ones(1, dtype=torch.float32, device="cuda")
-        a2_scale = torch.ones(1, dtype=torch.float32, device="cuda")
+        a = torch.ones((M, K), dtype=dtype, device="rtriton") * 0.001
+        ref_weight_1 = torch.ones((local_e, N * 2, K), dtype=torch.int8, device="rtriton")
+        ref_weight_2 = torch.ones((local_e, K, N), dtype=torch.int8, device="rtriton")
+        a1_scale = torch.ones(1, dtype=torch.float32, device="rtriton")
+        a2_scale = torch.ones(1, dtype=torch.float32, device="rtriton")
         scale_1 = torch.ones(
-            (local_e, N * 2, K // group_size), dtype=dtype, device="cuda"
+            (local_e, N * 2, K // group_size), dtype=dtype, device="rtriton"
         )
-        scale_2 = torch.ones((local_e, K, N // group_size), dtype=dtype, device="cuda")
+        scale_2 = torch.ones((local_e, K, N // group_size), dtype=dtype, device="rtriton")
     else:
-        a = torch.randn(M, K, dtype=dtype, device="cuda")
+        a = torch.randn(M, K, dtype=dtype, device="rtriton")
         ref_weight_1 = torch.randint(
-            -8, 8, (local_e, N * 2, K), dtype=torch.int8, device="cuda"
+            -8, 8, (local_e, N * 2, K), dtype=torch.int8, device="rtriton"
         )
         ref_weight_2 = torch.randint(
-            -8, 8, (local_e, K, N), dtype=torch.int8, device="cuda"
+            -8, 8, (local_e, K, N), dtype=torch.int8, device="rtriton"
         )
         affine_coeff = 0.005
-        a1_scale = torch.randn(1, dtype=torch.float32, device="cuda")
-        a2_scale = torch.randn(1, dtype=torch.float32, device="cuda")
+        a1_scale = torch.randn(1, dtype=torch.float32, device="rtriton")
+        a2_scale = torch.randn(1, dtype=torch.float32, device="rtriton")
         scale_1 = (
-            torch.randn(local_e, N * 2, K // group_size, dtype=dtype, device="cuda")
+            torch.randn(local_e, N * 2, K // group_size, dtype=dtype, device="rtriton")
             * affine_coeff
         )
         scale_2 = (
-            torch.randn(local_e, K, N // group_size, dtype=dtype, device="cuda")
+            torch.randn(local_e, K, N // group_size, dtype=dtype, device="rtriton")
             * affine_coeff
         )
 
@@ -102,7 +102,7 @@ def test_tilelang_w4a8_moe(M, N, K, E, tp_size, use_ep_moe, topk, group_size, dt
     else:
         w2_q, w2_scale = pack_interleave(local_e, ref_weight_2, scale_2, 1)
 
-    device = "cuda"
+    device = "rtriton"
     a_strides1 = torch.full((local_e, 3), K, device=device, dtype=torch.int64)
     c_strides1 = torch.full((local_e, 3), 2 * N, device=device, dtype=torch.int64)
     a_strides2 = torch.full((local_e, 3), N, device=device, dtype=torch.int64)
@@ -162,7 +162,7 @@ def test_tilelang_w4a8_moe(M, N, K, E, tp_size, use_ep_moe, topk, group_size, dt
     )
 
     # compare
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     # compare final output
     torch.testing.assert_close(output, ref_output, rtol=1e-2, atol=0.1)

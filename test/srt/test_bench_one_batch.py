@@ -20,13 +20,13 @@ class TestBenchOneBatch(CustomTestCase):
 
     def test_bs1_small(self):
         _, output_throughput, _ = run_bench_one_batch(
-            DEFAULT_SMALL_MODEL_NAME_FOR_TEST, ["--cuda-graph-max-bs", "2"]
+            DEFAULT_SMALL_MODEL_NAME_FOR_TEST, ["--rtriton-graph-max-bs", "2"]
         )
         self.assertGreater(output_throughput, 50)
 
     def test_bs1_default(self):
         output_throughput = run_bench_offline_throughput(
-            DEFAULT_MODEL_NAME_FOR_TEST, ["--cuda-graph-max-bs", "2"]
+            DEFAULT_MODEL_NAME_FOR_TEST, ["--rtriton-graph-max-bs", "2"]
         )
 
         if is_in_ci():
@@ -38,7 +38,7 @@ class TestBenchOneBatch(CustomTestCase):
 
     def test_moe_tp2_bs1(self):
         output_throughput = run_bench_offline_throughput(
-            DEFAULT_MOE_MODEL_NAME_FOR_TEST, ["--tp", "2", "--cuda-graph-max-bs", "2"]
+            DEFAULT_MOE_MODEL_NAME_FOR_TEST, ["--tp", "2", "--rtriton-graph-max-bs", "2"]
         )
 
         if is_in_ci():
@@ -54,7 +54,7 @@ class TestBenchOneBatch(CustomTestCase):
     def test_torch_compile_tp2_bs1(self):
         output_throughput = run_bench_offline_throughput(
             DEFAULT_MODEL_NAME_FOR_TEST,
-            ["--tp", "2", "--enable-torch-compile", "--cuda-graph-max-bs", "2"],
+            ["--tp", "2", "--enable-torch-compile", "--rtriton-graph-max-bs", "2"],
         )
 
         if is_in_ci():

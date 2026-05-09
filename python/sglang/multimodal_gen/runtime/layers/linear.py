@@ -151,9 +151,9 @@ class UnquantizedLinearMethod(LinearMethodBase):
     ) -> torch.Tensor:
         output = (
             F.linear(x, layer.weight, bias)
-            if torch.cuda.is_available() or bias is None
+            if torch.rtriton.is_available() or bias is None
             else F.linear(x, layer.weight, bias.to(x.dtype))
-        )  # NOTE: this line assumes that we are using amp when using cuda and is needed to account for the fact that amp isn't supported in mps
+        )  # NOTE: this line assumes that we are using amp when using rtriton and is needed to account for the fact that amp isn't supported in mps
         return output
 
 

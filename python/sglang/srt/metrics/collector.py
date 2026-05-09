@@ -238,8 +238,8 @@ class SchedulerStats:
     engine_load_weights_time: float = 0.0
     new_token_ratio: float = 0.0
 
-    # CUDA graph
-    is_cuda_graph: float = 0.0
+    # RTRITON graph
+    is_rtriton_graph: float = 0.0
 
     # LoRA pool metrics
     lora_pool_slots_used: int = 0
@@ -678,15 +678,15 @@ class SchedulerMetricsCollector:
         )
 
         # TODO maybe remove this old gauge in favor of the new counter
-        self.is_cuda_graph = Gauge(
-            name="sglang:is_cuda_graph",
-            documentation="Whether the batch is using CUDA graph.",
+        self.is_rtriton_graph = Gauge(
+            name="sglang:is_rtriton_graph",
+            documentation="Whether the batch is using RTRITON graph.",
             labelnames=labels.keys(),
             multiprocess_mode="mostrecent",
         )
-        self.cuda_graph_passes_total = Counter(
-            name="sglang:cuda_graph_passes_total",
-            documentation="Total number of forward passes categorized by CUDA graph.",
+        self.rtriton_graph_passes_total = Counter(
+            name="sglang:rtriton_graph_passes_total",
+            documentation="Total number of forward passes categorized by RTRITON graph.",
             labelnames=list(labels.keys()) + ["mode"],
         )
 
@@ -783,10 +783,10 @@ class SchedulerMetricsCollector:
             num_retracted_output_tokens
         )
 
-    def increment_cuda_graph_pass(self, value: bool) -> None:
-        # leave room for piecewise cuda graph, etc
-        mode = "decode_cuda_graph" if value else "decode_none"
-        self.cuda_graph_passes_total.labels(**self.labels, mode=mode).inc(1)
+    def increment_rtriton_graph_pass(self, value: bool) -> None:
+        # leave room for piecewise rtriton graph, etc
+        mode = "decode_rtriton_graph" if value else "decode_none"
+        self.rtriton_graph_passes_total.labels(**self.labels, mode=mode).inc(1)
 
     def increment_eplb_balancedness(
         self, forward_mode: str, balancedness: float
@@ -893,8 +893,8 @@ class SchedulerMetricsCollector:
             )
         self._log_gauge(self.new_token_ratio, stats.new_token_ratio)
 
-        # CUDA graph
-        self._log_gauge(self.is_cuda_graph, stats.is_cuda_graph)
+        # RTRITON graph
+        self._log_gauge(self.is_rtriton_graph, stats.is_rtriton_graph)
 
         # LoRA pool metrics (only logged if LoRA is enabled)
         if self.enable_lora:

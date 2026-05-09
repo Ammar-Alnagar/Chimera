@@ -48,7 +48,7 @@ class TestDeepseek(CustomTestCase):
                 "dynamic",
                 "--eplb-algorithm",
                 "deepseek",
-                "--cuda-graph-bs",
+                "--rtriton-graph-bs",
                 "256",
                 "--max-running-requests",
                 "2048",
@@ -108,7 +108,7 @@ class TestDeepseekMTP(CustomTestCase):
                 "dynamic",
                 "--eplb-algorithm",
                 "deepseek",
-                "--cuda-graph-bs",
+                "--rtriton-graph-bs",
                 "64",  # TODO: increase it to 128 when TBO is supported in draft_extend
                 "--max-running-requests",
                 "512",
@@ -172,7 +172,7 @@ class TestDeepseekV32TBO(CustomTestCase):
             "--enable-two-batch-overlap",
             "--moe-a2a-backend",
             "deepep",
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             "256",
         ]
         cls.process = popen_launch_server(

@@ -29,8 +29,8 @@ def get_open_port():
 
 
 def worker(world_size, rank, port):
-    device = torch.device(f"cuda:{rank}")
-    torch.cuda.set_device(device)
+    device = torch.device(f"rtriton:{rank}")
+    torch.rtriton.set_device(device)
 
     dist.init_process_group(
         backend="nccl",
@@ -126,7 +126,7 @@ def worker(world_size, rank, port):
         else:
             # For smaller inputs, use unregistered mode (copies to internal buffer)
             result = custom_ar.deterministic_all_reduce(inp, registered=False)
-        torch.cuda.synchronize()
+        torch.rtriton.synchronize()
 
         # Store checksum
         checksum = result.view(-1).sum().item()
@@ -194,7 +194,7 @@ def worker(world_size, rank, port):
                 result_flat = custom_ar.deterministic_all_reduce(
                     batch_flat, registered=False
                 )
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
 
             # Reshape back to (bs, hidden_dim)
             batch_out = result_flat.view(bs, hidden_dim)
@@ -235,7 +235,7 @@ def worker(world_size, rank, port):
 
 def main():
     world_size = 8
-    available_gpus = torch.cuda.device_count()
+    available_gpus = torch.rtriton.device_count()
 
     print("=" * 70)
     print("Deterministic Kernel All-Reduce Determinism Test")

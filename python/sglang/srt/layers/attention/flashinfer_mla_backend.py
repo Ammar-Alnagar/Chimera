@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Callable, Optional, Union
 
 import torch
 
-from sglang.srt.compilation.piecewise_context_manager import is_in_piecewise_cuda_graph
+from sglang.srt.compilation.piecewise_context_manager import is_in_piecewise_rtriton_graph
 from sglang.srt.environ import envs
 from sglang.srt.layers.attention.base_attn_backend import AttentionBackend
 from sglang.srt.layers.attention.flashinfer_backend import (
@@ -282,8 +282,8 @@ class FlashInferMLAAttnBackend(AttentionBackend):
 
         # Other metadata
         self.forward_metadata: Union[PrefillMetadata, DecodeMetadata] = None
-        self.decode_cuda_graph_metadata = {}
-        self.prefill_cuda_graph_metadata = {}  # For verify
+        self.decode_rtriton_graph_metadata = {}
+        self.prefill_rtriton_graph_metadata = {}  # For verify
 
     def init_forward_metadata(self, forward_batch: ForwardBatch):
         if forward_batch.forward_mode.is_decode_or_idle():
@@ -323,8 +323,8 @@ class FlashInferMLAAttnBackend(AttentionBackend):
             use_ragged = (
                 not get_global_server_args().flashinfer_mla_disable_ragged
                 and extend_no_prefix
-                # Piecewise cuda graph should use paged prefill to be compatible with prefix cache
-                and not is_in_piecewise_cuda_graph()
+                # Piecewise rtriton graph should use paged prefill to be compatible with prefix cache
+                and not is_in_piecewise_rtriton_graph()
             )
 
             self.indices_updater_prefill.update(
@@ -339,38 +339,38 @@ class FlashInferMLAAttnBackend(AttentionBackend):
                 self.prefill_wrapper_paged, use_ragged
             )
 
-    def init_cuda_graph_state(
+    def init_rtriton_graph_state(
         self,
         max_bs: int,
         max_num_tokens: int,
         kv_indices_buf: Optional[torch.Tensor] = None,
     ):
         if kv_indices_buf is None:
-            cuda_graph_kv_indices = torch.zeros(
+            rtriton_graph_kv_indices = torch.zeros(
                 (max_bs * self.max_context_len,),
                 dtype=torch.int32,
-                device="cuda",
+                device="rtriton",
             )
         else:
-            cuda_graph_kv_indices = kv_indices_buf
+            rtriton_graph_kv_indices = kv_indices_buf
 
-        self.cuda_graph_kv_indices = cuda_graph_kv_indices
-        self.cuda_graph_qo_indptr = self.q_indptr_decode.clone()
-        self.cuda_graph_kv_indptr = self.kv_indptr.clone()
-        self.cuda_graph_kv_lens = torch.ones(
+        self.rtriton_graph_kv_indices = rtriton_graph_kv_indices
+        self.rtriton_graph_qo_indptr = self.q_indptr_decode.clone()
+        self.rtriton_graph_kv_indptr = self.kv_indptr.clone()
+        self.rtriton_graph_kv_lens = torch.ones(
             (max_bs,), dtype=torch.int32, device=self.device
         )
 
         # For fast decode plan in graph replaying
-        self.cuda_graph_qo_indptr_cpu = self.cuda_graph_qo_indptr.to("cpu")
-        self.cuda_graph_kv_indptr_cpu = self.cuda_graph_kv_indptr.to("cpu")
+        self.rtriton_graph_qo_indptr_cpu = self.rtriton_graph_qo_indptr.to("cpu")
+        self.rtriton_graph_kv_indptr_cpu = self.rtriton_graph_kv_indptr.to("cpu")
         self.fast_decode_kwargs = {
-            "qo_indptr_cpu": self.cuda_graph_qo_indptr_cpu,
-            "kv_indptr_cpu": self.cuda_graph_kv_indptr_cpu,
-            "kv_indices": self.cuda_graph_kv_indices,
+            "qo_indptr_cpu": self.rtriton_graph_qo_indptr_cpu,
+            "kv_indptr_cpu": self.rtriton_graph_kv_indptr_cpu,
+            "kv_indices": self.rtriton_graph_kv_indices,
         }
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -383,11 +383,11 @@ class FlashInferMLAAttnBackend(AttentionBackend):
         if forward_mode.is_decode_or_idle():
             decode_wrapper = BatchMLAPagedAttentionWrapper(
                 self.workspace_buffer,
-                use_cuda_graph=True,
-                qo_indptr=self.cuda_graph_qo_indptr[: num_tokens + 1],
-                kv_indptr=self.cuda_graph_kv_indptr[: num_tokens + 1],
-                kv_indices=self.cuda_graph_kv_indices,
-                kv_len_arr=self.cuda_graph_kv_lens[:num_tokens],
+                use_rtriton_graph=True,
+                qo_indptr=self.rtriton_graph_qo_indptr[: num_tokens + 1],
+                kv_indptr=self.rtriton_graph_kv_indptr[: num_tokens + 1],
+                kv_indices=self.rtriton_graph_kv_indices,
+                kv_len_arr=self.rtriton_graph_kv_lens[:num_tokens],
                 backend="auto",
             )
 
@@ -400,17 +400,17 @@ class FlashInferMLAAttnBackend(AttentionBackend):
                 init_metadata_replay=False,
                 spec_info=spec_info,
             )
-            self.decode_cuda_graph_metadata[bs] = decode_wrapper
+            self.decode_rtriton_graph_metadata[bs] = decode_wrapper
             self.forward_metadata = DecodeMetadata(decode_wrapper)
             decode_wrapper.plan = partial(fast_mla_decode_plan, decode_wrapper)
         elif forward_mode.is_target_verify():
             verify_wrapper = BatchMLAPagedAttentionWrapper(
                 self.workspace_buffer,
-                use_cuda_graph=True,
-                qo_indptr=self.cuda_graph_qo_indptr[: bs + 1],
-                kv_indptr=self.cuda_graph_kv_indptr[: bs + 1],
-                kv_indices=self.cuda_graph_kv_indices,
-                kv_len_arr=self.cuda_graph_kv_lens[:bs],
+                use_rtriton_graph=True,
+                qo_indptr=self.rtriton_graph_qo_indptr[: bs + 1],
+                kv_indptr=self.rtriton_graph_kv_indptr[: bs + 1],
+                kv_indices=self.rtriton_graph_kv_indices,
+                kv_len_arr=self.rtriton_graph_kv_lens[:bs],
                 backend="auto",
             )
             seq_lens_sum = seq_lens.sum().item()
@@ -423,16 +423,16 @@ class FlashInferMLAAttnBackend(AttentionBackend):
                 use_ragged=False,
                 spec_info=spec_info,
             )
-            self.prefill_cuda_graph_metadata[bs] = verify_wrapper
+            self.prefill_rtriton_graph_metadata[bs] = verify_wrapper
             self.forward_metadata = PrefillMetadata(verify_wrapper, False)
         elif forward_mode.is_draft_extend():
             draft_extend_wrapper = BatchMLAPagedAttentionWrapper(
                 self.workspace_buffer,
-                use_cuda_graph=True,
-                qo_indptr=self.cuda_graph_qo_indptr[: bs + 1],
-                kv_indptr=self.cuda_graph_kv_indptr[: bs + 1],
-                kv_indices=self.cuda_graph_kv_indices,
-                kv_len_arr=self.cuda_graph_kv_lens[:bs],
+                use_rtriton_graph=True,
+                qo_indptr=self.rtriton_graph_qo_indptr[: bs + 1],
+                kv_indptr=self.rtriton_graph_kv_indptr[: bs + 1],
+                kv_indices=self.rtriton_graph_kv_indices,
+                kv_len_arr=self.rtriton_graph_kv_lens[:bs],
                 backend="auto",
             )
             seq_lens_sum = seq_lens.sum().item()
@@ -445,12 +445,12 @@ class FlashInferMLAAttnBackend(AttentionBackend):
                 use_ragged=False,
                 spec_info=spec_info,
             )
-            self.prefill_cuda_graph_metadata[bs] = draft_extend_wrapper
+            self.prefill_rtriton_graph_metadata[bs] = draft_extend_wrapper
             self.forward_metadata = PrefillMetadata(draft_extend_wrapper, False)
         else:
             raise ValueError(f"Invalid mode: {forward_mode=}")
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -464,13 +464,13 @@ class FlashInferMLAAttnBackend(AttentionBackend):
         if forward_mode.is_decode_or_idle():
             assert seq_lens_cpu is not None
             kv_len_arr_cpu = seq_lens_cpu[:bs]
-            self.cuda_graph_kv_indptr_cpu[1 : bs + 1] = torch.cumsum(
+            self.rtriton_graph_kv_indptr_cpu[1 : bs + 1] = torch.cumsum(
                 kv_len_arr_cpu, dim=0
             )
             self.fast_decode_kwargs.update(
                 {
-                    "qo_indptr_cpu": self.cuda_graph_qo_indptr_cpu[: bs + 1],
-                    "kv_indptr_cpu": self.cuda_graph_kv_indptr_cpu[: bs + 1],
+                    "qo_indptr_cpu": self.rtriton_graph_qo_indptr_cpu[: bs + 1],
+                    "kv_indptr_cpu": self.rtriton_graph_kv_indptr_cpu[: bs + 1],
                     "kv_len_arr_cpu": kv_len_arr_cpu,
                 }
             )
@@ -479,7 +479,7 @@ class FlashInferMLAAttnBackend(AttentionBackend):
                 req_pool_indices[:bs],
                 seq_lens[:bs],
                 seq_lens_sum,
-                decode_wrapper=self.decode_cuda_graph_metadata[bs],
+                decode_wrapper=self.decode_rtriton_graph_metadata[bs],
                 init_metadata_replay=True,
                 spec_info=spec_info,
                 **self.fast_decode_kwargs,
@@ -490,7 +490,7 @@ class FlashInferMLAAttnBackend(AttentionBackend):
                 seq_lens[:bs],
                 seq_lens_sum,
                 prefix_lens=None,
-                prefill_wrapper_paged=self.prefill_cuda_graph_metadata[bs],
+                prefill_wrapper_paged=self.prefill_rtriton_graph_metadata[bs],
                 use_ragged=False,
                 spec_info=spec_info,
             )
@@ -500,14 +500,14 @@ class FlashInferMLAAttnBackend(AttentionBackend):
                 seq_lens[:bs],
                 seq_lens_sum,
                 prefix_lens=None,
-                prefill_wrapper_paged=self.prefill_cuda_graph_metadata[bs],
+                prefill_wrapper_paged=self.prefill_rtriton_graph_metadata[bs],
                 use_ragged=False,
                 spec_info=spec_info,
             )
         else:
             raise ValueError(f"Invalid forward mode: {forward_mode=}")
 
-    def get_cuda_graph_seq_len_fill_value(self):
+    def get_rtriton_graph_seq_len_fill_value(self):
         return 1
 
     def init_mha_chunk_metadata(
@@ -714,7 +714,7 @@ class FlashInferMLAIndicesUpdaterDecode:
             kv_indptr[1 : bs + 1] = torch.cumsum(paged_kernel_lens, dim=0)
             kv_indptr = kv_indptr[: bs + 1]
             kv_indices = (
-                torch.empty(paged_kernel_lens_sum, dtype=torch.int32, device="cuda")
+                torch.empty(paged_kernel_lens_sum, dtype=torch.int32, device="rtriton")
                 if not init_metadata_replay
                 else fast_decode_kwargs["kv_indices"]
             )
@@ -992,7 +992,7 @@ class FlashInferMLAMultiStepDraftBackend:
                 forward_batch.batch_size * self.topk * self.max_context_len,
             ),
             dtype=torch.int32,
-            device="cuda",
+            device="rtriton",
         )
 
         def call_fn(i, forward_batch):
@@ -1006,21 +1006,21 @@ class FlashInferMLAMultiStepDraftBackend:
 
         self.common_template(forward_batch, kv_indices, call_fn)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
-        self.cuda_graph_kv_indices = torch.zeros(
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
+        self.rtriton_graph_kv_indices = torch.zeros(
             (self.speculative_num_steps, max_bs * self.max_context_len),
             dtype=torch.int32,
-            device="cuda",
+            device="rtriton",
         )
 
         for i in range(self.speculative_num_steps - 1):
-            self.attn_backends[i].init_cuda_graph_state(
-                max_bs, max_num_tokens, kv_indices_buf=self.cuda_graph_kv_indices[i]
+            self.attn_backends[i].init_rtriton_graph_state(
+                max_bs, max_num_tokens, kv_indices_buf=self.rtriton_graph_kv_indices[i]
             )
 
-    def init_forward_metadata_capture_cuda_graph(self, forward_batch: ForwardBatch):
+    def init_forward_metadata_capture_rtriton_graph(self, forward_batch: ForwardBatch):
         def call_fn(i, forward_batch):
-            self.attn_backends[i].init_forward_metadata_capture_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_capture_rtriton_graph(
                 forward_batch.batch_size,
                 forward_batch.batch_size * self.topk,
                 forward_batch.req_pool_indices,
@@ -1030,13 +1030,13 @@ class FlashInferMLAMultiStepDraftBackend:
                 spec_info=forward_batch.spec_info,
             )
 
-        self.common_template(forward_batch, self.cuda_graph_kv_indices, call_fn)
+        self.common_template(forward_batch, self.rtriton_graph_kv_indices, call_fn)
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self, forward_batch: ForwardBatch, bs: int
     ):
         def call_fn(i, forward_batch):
-            self.attn_backends[i].init_forward_metadata_replay_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_replay_rtriton_graph(
                 bs,
                 forward_batch.req_pool_indices,
                 forward_batch.seq_lens,
@@ -1047,7 +1047,7 @@ class FlashInferMLAMultiStepDraftBackend:
                 seq_lens_cpu=forward_batch.seq_lens_cpu,
             )
 
-        self.common_template(forward_batch, self.cuda_graph_kv_indices, call_fn)
+        self.common_template(forward_batch, self.rtriton_graph_kv_indices, call_fn)
 
 
 def fast_mla_decode_plan(
@@ -1067,7 +1067,7 @@ def fast_mla_decode_plan(
 ) -> None:
     """A faster version of BatchMLAPagedAttentionWrapper::plan,
     for skipping the stream synchronization in original plan function during
-    cuda graph replaying.
+    rtriton graph replaying.
     """
     self._causal = causal
     self._page_size = page_size

@@ -57,7 +57,7 @@ from sglang.srt.models.utils import (
     compute_cu_seqlens_from_grid_numpy,
 )
 from sglang.srt.multimodal.mm_utils import run_dp_sharded_mrope_vision_model
-from sglang.srt.multimodal.vit_cuda_graph_runner import ViTCudaGraphRunner
+from sglang.srt.multimodal.vit_rtriton_graph_runner import ViTRtritonGraphRunner
 from sglang.srt.server_args import get_global_server_args
 from sglang.srt.utils import add_prefix, get_int_env_var
 from sglang.srt.utils.hf_transformers_utils import get_processor
@@ -352,7 +352,7 @@ class Qwen3VLMoeVisionModel(nn.Module, RotaryPosMixin):
         self.tp_size = (
             1 if use_data_parallel else get_tensor_model_parallel_world_size()
         )
-        self.cuda_graph_runner: Optional[ViTCudaGraphRunner] = ViTCudaGraphRunner(self)
+        self.rtriton_graph_runner: Optional[ViTRtritonGraphRunner] = ViTRtritonGraphRunner(self)
 
     @property
     def dtype(self) -> torch.dtype:
@@ -412,8 +412,8 @@ class Qwen3VLMoeVisionModel(nn.Module, RotaryPosMixin):
         x: torch.Tensor,
         grid_thw: torch.Tensor,
     ) -> torch.Tensor:
-        if envs.SGLANG_VIT_ENABLE_CUDA_GRAPH.get():
-            return self.forward_with_cuda_graph(x, grid_thw)
+        if envs.SGLANG_VIT_ENABLE_RTRITON_GRAPH.get():
+            return self.forward_with_rtriton_graph(x, grid_thw)
 
         x = x.to(device=self.device, dtype=self.dtype)
         x = self.patch_embed(x)
@@ -458,7 +458,7 @@ class Qwen3VLMoeVisionModel(nn.Module, RotaryPosMixin):
         )  # [seq_len, hidden_size * (1 + depth_of_deepstack)]
         return hidden_states
 
-    def forward_with_cuda_graph(
+    def forward_with_rtriton_graph(
         self,
         x: torch.Tensor,
         grid_thw: torch.Tensor,
@@ -487,8 +487,8 @@ class Qwen3VLMoeVisionModel(nn.Module, RotaryPosMixin):
             cu_seqlens = cu_seqlens.to(device=x.device, dtype=torch.int32)
         cu_seqlens = cu_seqlens.contiguous()
 
-        # blocks + merger + deepstack(optional) via CUDA Graph Runner
-        return self.cuda_graph_runner.run(
+        # blocks + merger + deepstack(optional) via RTRITON Graph Runner
+        return self.rtriton_graph_runner.run(
             x=x,
             position_embeddings=None,
             rotary_pos_emb_cos=rotary_pos_emb_cos,

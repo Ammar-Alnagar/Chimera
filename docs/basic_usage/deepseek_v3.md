@@ -108,7 +108,7 @@ Please refer to [the example](https://github.com/sgl-project/sglang/tree/main/be
 
 - **FP8 Quantization**: W8A8 FP8 and KV Cache FP8 quantization enables efficient FP8 inference. Additionally, we have implemented Batched Matrix Multiplication (BMM) operator to facilitate FP8 inference in MLA with weight absorption.
 
-- **CUDA Graph & Torch.compile**: Both MLA and Mixture of Experts (MoE) are compatible with CUDA Graph and Torch.compile, which reduces latency and accelerates decoding speed for small batch sizes.
+- **RTRITON Graph & Torch.compile**: Both MLA and Mixture of Experts (MoE) are compatible with RTRITON Graph and Torch.compile, which reduces latency and accelerates decoding speed for small batch sizes.
 
 - **Chunked Prefix Cache**: Chunked prefix cache optimization can increase throughput by cutting prefix cache into chunks, processing them with multi-head attention and merging their states. Its improvement can be significant when doing chunked prefill on long sequences. Currently this optimization is only available for FlashAttention3 backend.
 
@@ -190,7 +190,7 @@ python3 -m sglang.launch_server \
 ```{note}
 To enable DeepSeek MTP for large batch sizes (>48), you need to adjust some parameters (Reference [this discussion](https://github.com/sgl-project/sglang/issues/4543#issuecomment-2737413756)):
 - Adjust `--max-running-requests` to a larger number. The default value is `48` for MTP. For larger batch sizes, you should increase this value beyond the default value.
-- Set `--cuda-graph-bs`. It's a list of batch sizes for cuda graph capture. The [default captured batch sizes for speculative decoding](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py#L888-L895) is 48. You can customize this by including more batch sizes.
+- Set `--rtriton-graph-bs`. It's a list of batch sizes for rtriton graph capture. The [default captured batch sizes for speculative decoding](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/server_args.py#L888-L895) is 48. You can customize this by including more batch sizes.
 ```
 
 
@@ -264,7 +264,7 @@ In SGLang, we can implement thinking budget with `CustomLogitProcessor`.
 Launch a server with `--enable-custom-logit-processor` flag on.
 
 ```
-python3 -m sglang.launch_server --model deepseek-ai/DeepSeek-R1 --tp 8 --port 30000 --host 0.0.0.0 --mem-fraction-static 0.9 --disable-cuda-graph --reasoning-parser deepseek-r1 --enable-custom-logit-processor
+python3 -m sglang.launch_server --model deepseek-ai/DeepSeek-R1 --tp 8 --port 30000 --host 0.0.0.0 --mem-fraction-static 0.9 --disable-rtriton-graph --reasoning-parser deepseek-r1 --enable-custom-logit-processor
 ```
 
 Sample Request:

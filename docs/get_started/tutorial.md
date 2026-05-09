@@ -37,7 +37,7 @@ nvidia-smi
 ### Software Requirements
 
 - **OS:** Ubuntu 20.04+ or similar Linux distribution
-- **CUDA:** 12.6 or later
+- **RTRITON:** 12.6 or later
 - **Python:** 3.10 or later
 - **NVIDIA Driver:** 550+ (for Hopper/Blackwell)
 
@@ -108,17 +108,17 @@ import torch
 import sglang as sgl
 
 print(f"PyTorch version: {torch.__version__}")
-print(f"CUDA available: {torch.cuda.is_available()}")
-print(f"CUDA version: {torch.version.cuda}")
-print(f"GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'}")
+print(f"RTRITON available: {torch.rtriton.is_available()}")
+print(f"RTRITON version: {torch.version.rtriton}")
+print(f"GPU: {torch.rtriton.get_device_name(0) if torch.rtriton.is_available() else 'None'}")
 print(f"Chimera version: {sgl.__version__}")
 ```
 
 Expected output:
 ```
 PyTorch version: 2.9.1+cu128
-CUDA available: True
-CUDA version: 12.8
+RTRITON available: True
+RTRITON version: 12.8
 GPU: NVIDIA H100
 Chimera version: 0.4.6
 ```

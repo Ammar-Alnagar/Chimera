@@ -33,7 +33,7 @@ def create_flashinfer_backend(runner):
                 not hasattr(runner, "plan_stream_for_flashinfer")
                 or not runner.plan_stream_for_flashinfer
             ):
-                runner.plan_stream_for_flashinfer = torch.cuda.Stream()
+                runner.plan_stream_for_flashinfer = torch.rtriton.Stream()
         return FlashInferAttnBackend(
             runner, init_new_workspace=runner.init_new_workspace
         )
@@ -128,8 +128,8 @@ def create_flashattention_v3_backend(runner):
     import torch
 
     assert (
-        torch.cuda.get_device_capability()[0] == 8 and not runner.use_mla_backend
-    ) or torch.cuda.get_device_capability()[0] == 9, (
+        torch.rtriton.get_device_capability()[0] == 8 and not runner.use_mla_backend
+    ) or torch.rtriton.get_device_capability()[0] == 9, (
         "FlashAttention v3 Backend requires SM>=80 and SM<=90. "
         "Please use `--attention-backend flashinfer`."
     )

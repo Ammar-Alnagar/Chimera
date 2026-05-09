@@ -122,20 +122,20 @@ def get_rdma_devices_args():
     n_rdma = len(rdma_all_devices)
 
     # 1. Get visible GPU indices
-    cuda_visible_devices = os.getenv("CUDA_VISIBLE_DEVICES")
-    if not cuda_visible_devices:
-        warnings.warn("CUDA_VISIBLE_DEVICES is not set. Using default RDMA devices.")
+    rtriton_visible_devices = os.getenv("RTRITON_VISIBLE_DEVICES")
+    if not rtriton_visible_devices:
+        warnings.warn("RTRITON_VISIBLE_DEVICES is not set. Using default RDMA devices.")
         return ",".join(_pick_default_pair(rdma_all_devices))
 
     try:
         # Convert to list of integers (handling possible spaces and empty strings)
         gpu_indices = [
-            int(idx.strip()) for idx in cuda_visible_devices.split(",") if idx.strip()
+            int(idx.strip()) for idx in rtriton_visible_devices.split(",") if idx.strip()
         ]
         if not gpu_indices or len(gpu_indices) > 4:
             return ",".join(_pick_default_pair(rdma_all_devices))
     except ValueError:
-        warnings.warn(f"Invalid CUDA_VISIBLE_DEVICES format: {cuda_visible_devices}")
+        warnings.warn(f"Invalid RTRITON_VISIBLE_DEVICES format: {rtriton_visible_devices}")
         return ",".join(_pick_default_pair(rdma_all_devices))
 
     # 2. Calculate base RDMA index group (each group of 4 GPUs uses consecutive devices)

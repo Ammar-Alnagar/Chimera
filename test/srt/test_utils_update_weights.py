@@ -67,7 +67,7 @@ class TestUtilsUpdateWeights(unittest.TestCase):
         if not dist.is_initialized():
             try:
                 dist.init_process_group(
-                    backend="nccl" if torch.cuda.is_available() else "gloo"
+                    backend="nccl" if torch.rtriton.is_available() else "gloo"
                 )
             except Exception as e:
                 raise unittest.SkipTest(
@@ -77,14 +77,14 @@ class TestUtilsUpdateWeights(unittest.TestCase):
         cls.rank = dist.get_rank()
         cls.world_size = dist.get_world_size()
 
-        if torch.cuda.is_available():
-            torch.cuda.set_device(cls.rank % torch.cuda.device_count())
+        if torch.rtriton.is_available():
+            torch.rtriton.set_device(cls.rank % torch.rtriton.device_count())
 
         # Set up environment variables
         os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
         os.environ["NCCL_CUMEM_ENABLE"] = "0"
-        os.environ["CUDA_DEVICE_MAX_CONNECTIONS"] = "4"
-        os.environ["CUDA_MODULE_LOADING"] = "AUTO"
+        os.environ["RTRITON_DEVICE_MAX_CONNECTIONS"] = "4"
+        os.environ["RTRITON_MODULE_LOADING"] = "AUTO"
 
     @classmethod
     def setup_test_engine(cls):
@@ -96,7 +96,7 @@ class TestUtilsUpdateWeights(unittest.TestCase):
                 mem_fraction_static=0.3,
                 enable_memory_saver=True,
                 tp_size=cls.world_size,
-                disable_cuda_graph=False,
+                disable_rtriton_graph=False,
             )
         else:
             cls.engine = None
@@ -111,7 +111,7 @@ class TestUtilsUpdateWeights(unittest.TestCase):
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
                 torch_dtype=(
-                    torch.float16 if torch.cuda.is_available() else torch.float32
+                    torch.float16 if torch.rtriton.is_available() else torch.float32
                 ),
             )
         except Exception as e:
@@ -120,12 +120,12 @@ class TestUtilsUpdateWeights(unittest.TestCase):
     @classmethod
     def setup_device_mesh(cls):
         """Create device mesh for testing"""
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("CUDA not available for device mesh")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("RTRITON not available for device mesh")
 
         cls.device_mesh_key = "tp"
         cls.mesh = init_device_mesh(
-            "cuda", (cls.world_size,), mesh_dim_names=(cls.device_mesh_key,)
+            "rtriton", (cls.world_size,), mesh_dim_names=(cls.device_mesh_key,)
         )
 
     def create_test_params_batch(self, model, num_params=64):
@@ -139,7 +139,7 @@ class TestUtilsUpdateWeights(unittest.TestCase):
                 break
             param_names.append(name)
             # Create test tensor with known values, matching original shape and dtype
-            test_tensor = torch.full_like(tensor, 1.5, dtype=tensor.dtype).cuda()
+            test_tensor = torch.full_like(tensor, 1.5, dtype=tensor.dtype).rtriton()
             test_tensors.append(test_tensor)
 
         return list(zip(param_names, test_tensors))

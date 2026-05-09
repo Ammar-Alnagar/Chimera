@@ -183,7 +183,7 @@ class Phi4MMImageEncoder(nn.Module):
 
         # eg
         # pixel_values: torch.Size([1, 7, 3, 448, 448])
-        # image_sizes: tensor([[ 896, 1344]], device='cuda:0')
+        # image_sizes: tensor([[ 896, 1344]], device='rtriton:0')
         # output: torch.Size([1, 1841, 3072])
 
         img_projection_params = next(self.img_projection.parameters())

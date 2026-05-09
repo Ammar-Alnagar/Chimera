@@ -72,7 +72,7 @@ class TestEnableMetrics(CustomTestCase):
                 _MODEL_NAME,
                 DEFAULT_URL_FOR_TEST,
                 timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
-                other_args=["--enable-metrics", "--cuda-graph-max-bs", 2, *other_args],
+                other_args=["--enable-metrics", "--rtriton-graph-max-bs", 2, *other_args],
             )
 
         try:

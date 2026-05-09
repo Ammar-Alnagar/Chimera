@@ -293,7 +293,7 @@ class TestDisaggregationMooncakeSpec(PDDisaggregationServerBase):
             "4",
             "--speculative-num-draft-tokens",
             "16",
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             "8",
         ]
         print(f"{cls.base_host=} {cls.lb_port=} {cls.prefill_port=} {cls.decode_port=}")

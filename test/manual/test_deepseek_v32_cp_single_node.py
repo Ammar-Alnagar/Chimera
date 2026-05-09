@@ -45,7 +45,7 @@ class TestDeepseekV32CP(CustomTestCase):
             "4",
             "--mem-frac",
             "0.7",
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             "32",
             "--max-running-requests",
             "32",

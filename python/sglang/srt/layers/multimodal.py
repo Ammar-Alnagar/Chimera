@@ -118,7 +118,7 @@ def add_tree_reduce_u64_kernel(in_ptr, out_ptr, n_elems, CHUNK: tl.constexpr):
 
 
 def _as_uint32_words(t: torch.Tensor) -> torch.Tensor:
-    assert t.is_cuda, "Use .cuda() first"
+    assert t.is_rtriton, "Use .rtriton() first"
     tb = t.contiguous().view(torch.uint8)
     nbytes = tb.numel()
     pad = (4 - (nbytes & 3)) & 3
@@ -153,7 +153,7 @@ def gpu_tensor_hash(
     num_stages: int = 4,
     use_cg: bool = True,
 ) -> int:
-    assert tensor.is_cuda, "Use .cuda() first"
+    assert tensor.is_rtriton, "Use .rtriton() first"
     u32 = _as_uint32_words(tensor)
     n = u32.numel()
     if n == 0:

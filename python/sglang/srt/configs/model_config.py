@@ -332,7 +332,7 @@ class ModelConfig:
                 reason = "Target model's" if is_draft_model else "User-specified"
                 msg = (
                     f"Warning: {reason} context_length ({context_length}) is greater than the derived context_length ({derived_context_len}). "
-                    f"This may lead to incorrect model outputs or CUDA errors. Note that the derived context_length may differ from max_position_embeddings in the model's config."
+                    f"This may lead to incorrect model outputs or RTRITON errors. Note that the derived context_length may differ from max_position_embeddings in the model's config."
                 )
                 if (
                     envs.SGLANG_ALLOW_OVERWRITE_LONGER_CONTEXT_LEN.get()

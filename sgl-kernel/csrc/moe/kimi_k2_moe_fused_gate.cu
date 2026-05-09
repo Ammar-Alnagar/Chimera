@@ -1,5 +1,5 @@
-#include <ATen/cuda/CUDAContext.h>
-#include <cuda_runtime.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <rtriton_runtime.h>
 #include <torch/all.h>
 
 #include <cfloat>
@@ -271,11 +271,11 @@ std::vector<at::Tensor> kimi_k2_moe_fused_gate(
   TORCH_CHECK(num_experts == 384, "kimi_k2_moe_fused_gate only supports 384 experts, but got ", num_experts);
   TORCH_CHECK(input.dtype() == bias.dtype(), "input and bias should have the same dtype");
 
-  auto options = torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA);
+  auto options = torch::TensorOptions().dtype(torch::kFloat32).device(torch::kRTRITON);
   auto output = torch::empty({num_rows, topk}, options);
   auto indices = torch::empty({num_rows, topk}, options.dtype(torch::kInt32));
 
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
 
   // Only support float32
   TORCH_CHECK(input.scalar_type() == at::kFloat, "kimi_k2_moe_fused_gate only supports float32 input");

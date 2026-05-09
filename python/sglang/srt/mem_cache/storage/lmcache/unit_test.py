@@ -32,11 +32,11 @@ def test_load_store_metadata():
     input_id_len = 16
 
     k_buffer = [
-        torch.randn(buffer_size, head_num, head_dim, dtype=torch.bfloat16).cuda()
+        torch.randn(buffer_size, head_num, head_dim, dtype=torch.bfloat16).rtriton()
         for _ in range(layer_num)
     ]
     v_buffer = [
-        torch.randn(buffer_size, head_num, head_dim, dtype=torch.bfloat16).cuda()
+        torch.randn(buffer_size, head_num, head_dim, dtype=torch.bfloat16).rtriton()
         for _ in range(layer_num)
     ]
 
@@ -59,7 +59,7 @@ def test_load_store_metadata():
         offset=offset,
     )
 
-    current_stream = torch.cuda.current_stream()
+    current_stream = torch.rtriton.current_stream()
 
     retrieve_token_num = connector.start_load_kv(load_metadata)
     assert retrieve_token_num == 0
@@ -69,11 +69,11 @@ def test_load_store_metadata():
 
     # check retrieve
     gt_key_buffer = [
-        torch.zeros(input_id_len, head_num, head_dim, dtype=torch.bfloat16).cuda()
+        torch.zeros(input_id_len, head_num, head_dim, dtype=torch.bfloat16).rtriton()
         for _ in range(layer_num)
     ]
     gt_value_buffer = [
-        torch.zeros(input_id_len, head_num, head_dim, dtype=torch.bfloat16).cuda()
+        torch.zeros(input_id_len, head_num, head_dim, dtype=torch.bfloat16).rtriton()
         for _ in range(layer_num)
     ]
 
@@ -95,11 +95,11 @@ def test_load_store_metadata():
 
     current_stream.synchronize()
     test_key_buffer = [
-        torch.zeros(input_id_len, head_num, head_dim, dtype=torch.bfloat16).cuda()
+        torch.zeros(input_id_len, head_num, head_dim, dtype=torch.bfloat16).rtriton()
         for _ in range(layer_num)
     ]
     test_value_buffer = [
-        torch.zeros(input_id_len, head_num, head_dim, dtype=torch.bfloat16).cuda()
+        torch.zeros(input_id_len, head_num, head_dim, dtype=torch.bfloat16).rtriton()
         for _ in range(layer_num)
     ]
 

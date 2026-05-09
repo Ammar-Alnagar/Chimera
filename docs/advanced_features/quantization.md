@@ -79,7 +79,7 @@ autoround.quantize_and_save(quant_path, format=format) # quantize and save
 
 ```
 
-- Command Line Usage (Gaudi/CPU/Intel GPU/CUDA)
+- Command Line Usage (Gaudi/CPU/Intel GPU/RTRITON)
 
 ```bash
 auto-round \
@@ -250,7 +250,7 @@ load_config = LoadConfig(
     modelopt_export_path="./exported_model",
     modelopt_checkpoint_save_path="./checkpoint.pth",  # optional, fake quantized checkpoint
 )
-device_config = DeviceConfig(device="cuda")
+device_config = DeviceConfig(device="rtriton")
 
 # Load and quantize the model (export happens automatically)
 model_loader = get_model_loader(load_config, model_config)
@@ -364,13 +364,13 @@ python3 -m sglang.launch_server \
 
 SGLang supports the following quantization methods based on torchao `["int8dq", "int8wo", "fp8wo", "fp8dq-per_tensor", "fp8dq-per_row", "int4wo-32", "int4wo-64", "int4wo-128", "int4wo-256"]`.
 
-Note: According to [this issue](https://github.com/sgl-project/sglang/issues/2219#issuecomment-2561890230), `"int8dq"` method currently has some bugs when using together with cuda graph capture. So we suggest to disable cuda graph capture when using `"int8dq"` method. Namely, please use the following command:
+Note: According to [this issue](https://github.com/sgl-project/sglang/issues/2219#issuecomment-2561890230), `"int8dq"` method currently has some bugs when using together with rtriton graph capture. So we suggest to disable rtriton graph capture when using `"int8dq"` method. Namely, please use the following command:
 
 ```bash
 python3 -m sglang.launch_server \
     --model-path meta-llama/Meta-Llama-3.1-8B-Instruct \
     --torchao-config int8dq \
-    --disable-cuda-graph \
+    --disable-rtriton-graph \
     --port 30000 --host 0.0.0.0
 ```
 

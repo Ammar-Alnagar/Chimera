@@ -7,13 +7,13 @@ import torch.fx as fx
 
 from sglang.srt.compilation.compilation_config import CompilationConfig
 from sglang.srt.compilation.compilation_counter import compilation_counter
-from sglang.srt.compilation.cuda_piecewise_backend import (
-    CUDAPiecewiseBackend,
+from sglang.srt.compilation.rtriton_piecewise_backend import (
+    RTRITONPiecewiseBackend,
     weak_ref_tensors,
 )
 
 
-class NPUPiecewiseBackend(CUDAPiecewiseBackend):
+class NPUPiecewiseBackend(RTRITONPiecewiseBackend):
     def __init__(
         self,
         graph: fx.GraphModule,
@@ -49,7 +49,7 @@ class NPUPiecewiseBackend(CUDAPiecewiseBackend):
         if entry.runnable is None:
             entry.runnable = self.compiled_graph_for_general_shape
 
-        if entry.cudagraph is None:
+        if entry.rtritongraph is None:
             if entry.num_finished_warmup < 1:  # noqa
                 entry.num_finished_warmup += 1
                 return entry.runnable(*args)
@@ -64,9 +64,9 @@ class NPUPiecewiseBackend(CUDAPiecewiseBackend):
             with ExitStack() as stack:
                 if not self.is_first_graph:
                     # during every model forward, we will capture
-                    # many pieces of cudagraphs (roughly one per layer).
+                    # many pieces of rtritongraphs (roughly one per layer).
                     # running gc again and again across layers will
-                    # make the cudagraph capture very slow.
+                    # make the rtritongraph capture very slow.
                     # therefore, we only run gc for the first graph,
                     # and disable gc for the rest of the graphs.
                     stack.enter_context(patch("gc.collect", lambda: None))
@@ -74,26 +74,26 @@ class NPUPiecewiseBackend(CUDAPiecewiseBackend):
 
                 # mind-exploding: carefully manage the reference and memory.
                 with torch.npu.graph(npugraph, pool=self.graph_pool):
-                    # `output` is managed by pytorch's cudagraph pool
+                    # `output` is managed by pytorch's rtritongraph pool
                     output = entry.runnable(*args)
                     if self.is_last_graph:
                         # by converting it to weak ref,
                         # the original `output` will immediately be released
                         # to save memory. It is only safe to do this for
                         # the last graph, because the output of the last graph
-                        # will not be used by any other cuda graph.
+                        # will not be used by any other rtriton graph.
                         output = weak_ref_tensors(output)
 
             # here we always use weak ref for the output
             # to save memory
             entry.output = weak_ref_tensors(output)
-            entry.cudagraph = npugraph
+            entry.rtritongraph = npugraph
 
-            compilation_counter.num_cudagraph_captured += 1
+            compilation_counter.num_rtritongraph_captured += 1
 
             # important: we need to return the output, rather than
             # the weak ref of the output, so that pytorch can correctly
-            # manage the memory during cuda graph capture
+            # manage the memory during rtriton graph capture
             return output
 
         if self.compile_config.get_enable_debug_mode():
@@ -102,8 +102,8 @@ class NPUPiecewiseBackend(CUDAPiecewiseBackend):
                 x.data_ptr() for x in args if isinstance(x, torch.Tensor)
             ]
             assert new_input_addresses == entry.input_addresses, (
-                "Input addresses for cudagraphs are different during replay."
+                "Input addresses for rtritongraphs are different during replay."
                 f" Expected {entry.input_addresses}, got {new_input_addresses}"
             )
-        entry.cudagraph.replay()
+        entry.rtritongraph.replay()
         return entry.output

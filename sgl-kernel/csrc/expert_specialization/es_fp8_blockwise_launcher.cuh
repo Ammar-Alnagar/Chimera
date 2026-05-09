@@ -1,6 +1,6 @@
 #pragma once
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 #include <torch/all.h>
 
 #include <cassert>
@@ -37,7 +37,7 @@ void es_sm90_fp8_blockwise_scaled_group_mm_pre_compute(
     torch::Tensor const& problem_sizes,
     torch::Tensor const& expert_offsets,
     bool is_h20_device,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   TORCH_CHECK(a_tensors.dtype() == torch::kFloat8_e4m3fn);
   TORCH_CHECK(b_tensors.dtype() == torch::kFloat8_e4m3fn);
   TORCH_CHECK(a_scales.dtype() == torch::kFloat32);
@@ -99,7 +99,7 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
     const torch::Tensor& layout_sfb,
     const torch::Tensor& problem_sizes,
     const torch::Tensor& workspace,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   using ElementA = typename GemmTraits::ElementA;
   using StrideA = typename GemmTraits::StrideA;
   using ElementB = typename GemmTraits::ElementB;
@@ -127,8 +127,8 @@ void launch_sm90_fp8_blockwise_scaled_group_mm(
       reinterpret_cast<LayoutSFB*>(layout_sfb.data_ptr())};
 
   tilelang::KernelHardwareInfo hw_info;
-  hw_info.device_id = c10::cuda::current_device();
-  hw_info.sm_count = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+  hw_info.device_id = c10::rtriton::current_device();
+  hw_info.sm_count = at::rtriton::getCurrentDeviceProperties()->multiProcessorCount;
 
   typename GemmKernel::EpilogueArguments epilogue_args{
       {}, nullptr, nullptr, static_cast<ElementD**>(out_ptrs.data_ptr()), static_cast<StrideD*>(stride_d.data_ptr())};
@@ -168,7 +168,7 @@ void es_sm90_fp8_blockwise_scaled_group_mm_distpatch_out_dtype(
     const torch::Tensor& hm_problem_sizes,
     const torch::Tensor& workspace,
     bool is_h20_device,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   using LowMGemmH20Traits =
       ExpertSpecializationSm90FP8BlockwiseGroupedGemmTraits<OutType, tilelang::layout::ColumnMajor, PerfConfigLowMH20>;
   using LowMGemmHx00Traits =

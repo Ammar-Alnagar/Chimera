@@ -25,8 +25,8 @@ def execute():
 
 class _GemmExecutor:
     def __init__(self):
-        self.lhs = torch.randn((8192, 8192), dtype=torch.bfloat16, device="cuda")
-        self.rhs = torch.randn((8192, 8192), dtype=torch.bfloat16, device="cuda")
+        self.lhs = torch.randn((8192, 8192), dtype=torch.bfloat16, device="rtriton")
+        self.rhs = torch.randn((8192, 8192), dtype=torch.bfloat16, device="rtriton")
 
     def __call__(self):
         self.lhs @ self.rhs
@@ -35,7 +35,7 @@ class _GemmExecutor:
 class _ElementwiseExecutor:
     def __init__(self):
         self.value = torch.randint(
-            0, 10000, (128 * 1024**2,), dtype=torch.int32, device="cuda"
+            0, 10000, (128 * 1024**2,), dtype=torch.int32, device="rtriton"
         )
 
     def __call__(self):
@@ -52,7 +52,7 @@ _BENCH_NAMES = list(_EXECUTOR_CLS_OF_BENCH.keys())
 
 def _compute_local_metric(bench_name):
     executor = _EXECUTOR_CLS_OF_BENCH[bench_name]()
-    ms = triton.testing.do_bench_cudagraph(executor, return_mode="mean", rep=20)
+    ms = triton.testing.do_bench_rtritongraph(executor, return_mode="mean", rep=20)
     return ms
 
 

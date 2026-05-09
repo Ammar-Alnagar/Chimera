@@ -3,7 +3,7 @@ import pytest
 import tabulate
 import torch
 from diffusers.models.embeddings import get_timestep_embedding
-from sgl_kernel.elementwise import timestep_embedding as timestep_embedding_cuda
+from sgl_kernel.elementwise import timestep_embedding as timestep_embedding_rtriton
 
 from sglang.multimodal_gen.runtime.layers.visual_embedding import timestep_embedding
 
@@ -16,11 +16,11 @@ from sglang.multimodal_gen.runtime.layers.visual_embedding import timestep_embed
     "dtype", [torch.int32, torch.int64, torch.bfloat16, torch.float16]
 )
 def test_timestep_embedding_correctness_with_sgld(batch_size, dim, dtype):
-    device = "cuda"
+    device = "rtriton"
     t = torch.randint(low=0, high=1000, size=(batch_size,), device=device).to(dtype)
     torch_output = timestep_embedding(t, dim)
-    cuda_output = timestep_embedding_cuda(t, dim, flip_sin_to_cos=True)
-    torch.testing.assert_close(torch_output, cuda_output, atol=1e-3, rtol=1e-3)
+    rtriton_output = timestep_embedding_rtriton(t, dim, flip_sin_to_cos=True)
+    torch.testing.assert_close(torch_output, rtriton_output, atol=1e-3, rtol=1e-3)
 
 
 @pytest.mark.parametrize("batch_size", [1, 2, 8, 128, 256, 512, 1536, 2048, 16384])
@@ -32,7 +32,7 @@ def test_timestep_embedding_correctness_with_sgld(batch_size, dim, dtype):
 def test_timestep_embedding_correctness_with_diffusers(
     batch_size, dim, flip_sin_to_cos, downscale_freq_shift, scale, dtype
 ):
-    device = "cuda"
+    device = "rtriton"
     t = torch.randint(low=0, high=1000, size=(batch_size,), device=device).to(dtype)
     torch_output = get_timestep_embedding(
         t,
@@ -42,7 +42,7 @@ def test_timestep_embedding_correctness_with_diffusers(
         scale=scale,
         max_period=10000,
     )
-    cuda_output = timestep_embedding_cuda(
+    rtriton_output = timestep_embedding_rtriton(
         t,
         dim,
         flip_sin_to_cos=flip_sin_to_cos,
@@ -50,7 +50,7 @@ def test_timestep_embedding_correctness_with_diffusers(
         scale=scale,
         max_period=10000,
     )
-    torch.testing.assert_close(torch_output, cuda_output, atol=1e-3, rtol=1e-3)
+    torch.testing.assert_close(torch_output, rtriton_output, atol=1e-3, rtol=1e-3)
 
 
 def test_timestep_embedding_perf():
@@ -60,12 +60,12 @@ def test_timestep_embedding_perf():
     def perf_kernel_fn(kernel_fn: callable, *args, **kwargs):
         warmup_times = 4
         repeat_times = 20
-        start = torch.cuda.Event(enable_timing=True)
-        end = torch.cuda.Event(enable_timing=True)
+        start = torch.rtriton.Event(enable_timing=True)
+        end = torch.rtriton.Event(enable_timing=True)
 
         for _ in range(warmup_times):
             output_fn = kernel_fn(*args, **kwargs)
-        torch.cuda.synchronize()
+        torch.rtriton.synchronize()
 
         start.record()
         for _ in range(repeat_times):
@@ -74,29 +74,29 @@ def test_timestep_embedding_perf():
         end.synchronize()
         return start.elapsed_time(end) / repeat_times
 
-    device = "cuda"
+    device = "rtriton"
     results = []
 
-    cuda_speedups = []
+    rtriton_speedups = []
     for B in NUM_BATCH:
         for dim in NUM_DIM:
             t = torch.linspace(0, max(100000, B), steps=B, device=device).to(
                 torch.int32
             )
             time_torch = perf_kernel_fn(timestep_embedding, t, dim)
-            time_cuda = perf_kernel_fn(timestep_embedding_cuda, t, dim)
-            speedup_cuda = time_torch / time_cuda
+            time_rtriton = perf_kernel_fn(timestep_embedding_rtriton, t, dim)
+            speedup_rtriton = time_torch / time_rtriton
 
             results.append(
                 {
                     "Batch Size": B,
                     "Dimension": dim,
                     "Torch Time (ms)": time_torch,
-                    "CUDA Time (ms)": time_cuda,
-                    "Speedup (CUDA)": speedup_cuda,
+                    "RTRITON Time (ms)": time_rtriton,
+                    "Speedup (RTRITON)": speedup_rtriton,
                 }
             )
-            cuda_speedups.append(speedup_cuda)
+            rtriton_speedups.append(speedup_rtriton)
 
     print("=== Timestep Embedding Benchmark Results ===")
     print(
@@ -107,7 +107,7 @@ def test_timestep_embedding_perf():
             floatfmt=(".0f", ".0f", ".6f", ".6f", ".5f"),
         )
     )
-    print(f"Average Speedup(cuda): {np.mean(cuda_speedups):.4f}")
+    print(f"Average Speedup(rtriton): {np.mean(rtriton_speedups):.4f}")
 
 
 if __name__ == "__main__":

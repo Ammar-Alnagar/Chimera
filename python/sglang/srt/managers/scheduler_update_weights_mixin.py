@@ -8,7 +8,7 @@ import torch
 
 from sglang.srt.constants import (
     GPU_MEMORY_ALL_TYPES,
-    GPU_MEMORY_TYPE_CUDA_GRAPH,
+    GPU_MEMORY_TYPE_RTRITON_GRAPH,
     GPU_MEMORY_TYPE_KV_CACHE,
     GPU_MEMORY_TYPE_WEIGHTS,
 )
@@ -144,8 +144,8 @@ class SchedulerUpdateWeightsMixin:
             torch.distributed.barrier(self.tp_cpu_group)
             self.memory_saver_adapter.pause(GPU_MEMORY_TYPE_WEIGHTS)
 
-        if GPU_MEMORY_TYPE_CUDA_GRAPH in tags:
-            self.memory_saver_adapter.pause(GPU_MEMORY_TYPE_CUDA_GRAPH)
+        if GPU_MEMORY_TYPE_RTRITON_GRAPH in tags:
+            self.memory_saver_adapter.pause(GPU_MEMORY_TYPE_RTRITON_GRAPH)
 
         torch.get_device_module().synchronize()
 
@@ -162,8 +162,8 @@ class SchedulerUpdateWeightsMixin:
         for tag in tags:
             self.offload_tags.remove(tag)
 
-        if GPU_MEMORY_TYPE_CUDA_GRAPH in tags:
-            self.memory_saver_adapter.resume(GPU_MEMORY_TYPE_CUDA_GRAPH)
+        if GPU_MEMORY_TYPE_RTRITON_GRAPH in tags:
+            self.memory_saver_adapter.resume(GPU_MEMORY_TYPE_RTRITON_GRAPH)
 
         if GPU_MEMORY_TYPE_WEIGHTS in tags:
             self.memory_saver_adapter.resume(GPU_MEMORY_TYPE_WEIGHTS)

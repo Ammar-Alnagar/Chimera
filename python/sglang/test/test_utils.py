@@ -191,11 +191,11 @@ def _use_cached_default_models(model_repo: str):
 
 if is_in_ci():
     DEFAULT_PORT_FOR_SRT_TEST_RUNNER = (
-        10000 + int(os.environ.get("CUDA_VISIBLE_DEVICES", "0")[0]) * 2000
+        10000 + int(os.environ.get("RTRITON_VISIBLE_DEVICES", "0")[0]) * 2000
     )
 else:
     DEFAULT_PORT_FOR_SRT_TEST_RUNNER = (
-        20000 + int(os.environ.get("CUDA_VISIBLE_DEVICES", "0")[0]) * 1000
+        20000 + int(os.environ.get("RTRITON_VISIBLE_DEVICES", "0")[0]) * 1000
     )
 DEFAULT_URL_FOR_TEST = f"http://127.0.0.1:{DEFAULT_PORT_FOR_SRT_TEST_RUNNER + 1000}"
 
@@ -426,8 +426,8 @@ def add_common_sglang_args_and_parse(parser: argparse.ArgumentParser):
         "--device",
         type=str,
         default="auto",
-        choices=["auto", "cuda", "rocm", "cpu"],
-        help="Device type (auto/cuda/rocm/cpu). Auto will detect available platforms",
+        choices=["auto", "rtriton", "rocm", "cpu"],
+        help="Device type (auto/rtriton/rocm/cpu). Auto will detect available platforms",
     )
     parser.add_argument("--result-file", type=str, default="result.jsonl")
     parser.add_argument("--raw-result-file", type=str)
@@ -573,7 +573,7 @@ def popen_launch_server(
     """Launch a server process with automatic device detection.
 
     Args:
-        device: Device type ("auto", "cuda", "rocm" or "cpu").
+        device: Device type ("auto", "rtriton", "rocm" or "cpu").
                 If "auto", will detect available platforms automatically.
     """
     other_args = other_args or []
@@ -1194,7 +1194,7 @@ def run_bench_one_batch(model, other_args):
     """Launch a offline process with automatic device detection.
 
     Args:
-        device: Device type ("auto", "cuda", "rocm" or "cpu").
+        device: Device type ("auto", "rtriton", "rocm" or "cpu").
                 If "auto", will detect available platforms automatically.
     """
     # Auto-detect device if needed

@@ -13,7 +13,7 @@
 # ==============================================================================
 """Run the model with cpu torch compile."""
 
-# The implementation of CPUGraphRunner follows the CudaGraphRunner
+# The implementation of CPUGraphRunner follows the RtritonGraphRunner
 
 from __future__ import annotations
 
@@ -350,7 +350,7 @@ class CPUGraphRunner:
         self.graphs = {}
         self.output_buffers = {}
         self.enable_torch_compile = model_runner.server_args.enable_torch_compile
-        self.disable_padding = model_runner.server_args.disable_cuda_graph_padding
+        self.disable_padding = model_runner.server_args.disable_rtriton_graph_padding
         self.is_encoder_decoder = model_runner.model_config.is_encoder_decoder
         self.require_gathered_buffer = require_gathered_buffer(model_runner.server_args)
         self.require_mlp_tp_gather = require_mlp_tp_gather(model_runner.server_args)
@@ -360,8 +360,8 @@ class CPUGraphRunner:
             model_runner.server_args.enable_two_batch_overlap
         )
         self.speculative_algorithm = model_runner.server_args.speculative_algorithm
-        self.enable_profile_cuda_graph = (
-            model_runner.server_args.enable_profile_cuda_graph
+        self.enable_profile_rtriton_graph = (
+            model_runner.server_args.enable_profile_rtriton_graph
         )
         self.tp_size = model_runner.server_args.tp_size
         self.dp_size = model_runner.server_args.dp_size

@@ -42,7 +42,7 @@ def _test_accuracy_once(M, N, K, with_bias, out_dtype, device):
 @pytest.mark.parametrize("with_bias", [True, False])
 @pytest.mark.parametrize("out_dtype", [torch.bfloat16, torch.float16])
 def test_accuracy(M, N, K, with_bias, out_dtype):
-    _test_accuracy_once(M, N, K, with_bias, out_dtype, "cuda")
+    _test_accuracy_once(M, N, K, with_bias, out_dtype, "rtriton")
 
 
 if __name__ == "__main__":

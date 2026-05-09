@@ -1,7 +1,7 @@
 #ifndef _data_types_cuh
 #define _data_types_cuh
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
+#include <rtriton_bf16.h>
+#include <rtriton_fp16.h>
 
 #include "marlin.cuh"
 
@@ -22,7 +22,7 @@ class ScalarType<half> {
 
   // Matrix fragments for tensor core instructions; their precise layout is
   // documented here:
-  // https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#matrix-fragments-for-mma-m16n8k16-with-floating-point-type
+  // https://docs.nvidia.com/rtriton/parallel-thread-execution/index.html#matrix-fragments-for-mma-m16n8k16-with-floating-point-type
   using FragA = Vec<half2, 4>;
   using FragB = Vec<half2, 2>;
   using FragC = Vec<float, 4>;
@@ -58,7 +58,7 @@ class ScalarType<nv_bfloat16> {
   using FragS = Vec<nv_bfloat162, 1>;
   using FragZP = Vec<nv_bfloat162, 4>;
 
-#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 800
+#if !defined(__RTRITON_ARCH__) || __RTRITON_ARCH__ >= 800
   static __device__ float inline num2float(const nv_bfloat16 x) {
     return __bfloat162float(x);
   }

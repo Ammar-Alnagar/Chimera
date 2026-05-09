@@ -101,7 +101,7 @@ void downcast_fp8_impl(
     at::Tensor& loc,
     int64_t mult,
     int64_t offset,
-    cudaStream_t stream) {
+    rtritonStream_t stream) {
   CHECK_INPUT(k);
   CHECK_INPUT(v);
   CHECK_INPUT(k_out);
@@ -137,8 +137,8 @@ void downcast_fp8_impl(
       offset,
       static_cast<const int64_t*>(loc.data_ptr()));
 
-  cudaError_t status = cudaGetLastError();
-  TORCH_CHECK(status == cudaSuccess, "Kernel launch failed: " + std::string(cudaGetErrorString(status)));
+  rtritonError_t status = rtritonGetLastError();
+  TORCH_CHECK(status == rtritonSuccess, "Kernel launch failed: " + std::string(rtritonGetErrorString(status)));
 }
 
 void downcast_fp8(
@@ -156,7 +156,7 @@ void downcast_fp8(
   CHECK_INPUT(k_out);
   CHECK_INPUT(v_out);
 
-  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   switch (k.scalar_type()) {
     case at::ScalarType::BFloat16:
       downcast_fp8_impl<__nv_bfloat16>(k, v, k_out, v_out, k_scale, v_scale, loc, mult, offset, stream);

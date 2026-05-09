@@ -36,7 +36,7 @@ class MarlinWorkspace:
 
         max_workspace_size = (out_features // min_thread_n) * max_parallel
 
-        self.scratch = torch.zeros(max_workspace_size, dtype=torch.int, device="cuda")
+        self.scratch = torch.zeros(max_workspace_size, dtype=torch.int, device="rtriton")
 
 
 def marlin_permute_weights(q_w, size_k, size_n, perm, tile=GPTQ_MARLIN_TILE):

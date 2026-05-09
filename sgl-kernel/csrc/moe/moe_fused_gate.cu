@@ -1,5 +1,5 @@
-#include <ATen/cuda/CUDAContext.h>
-#include <cuda_runtime.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <rtriton_runtime.h>
 #include <tilelang/array.h>
 #include <tilelang/tilelang.h>
 #include <tilelang/numeric_types.h>
@@ -389,7 +389,7 @@ std::vector<at::Tensor> moe_fused_gate(
 
   int64_t num_rows = input.size(0);
   int32_t num_experts = input.size(1);
-  auto options = torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCUDA);
+  auto options = torch::TensorOptions().dtype(torch::kFloat32).device(torch::kRTRITON);
   auto output = torch::empty({num_rows, topk}, options);
   auto indices = torch::empty({num_rows, topk}, options.dtype(torch::kInt32));
 
@@ -397,7 +397,7 @@ std::vector<at::Tensor> moe_fused_gate(
   int64_t rows_per_warp = std::max<int64_t>(1, WARP_SIZE / num_expert_group);
   int64_t num_warps = (num_rows + rows_per_warp - 1) / rows_per_warp;
   int64_t num_blocks = (num_warps + WARPS_PER_CTA - 1) / WARPS_PER_CTA;
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
   dim3 block_dim(WARP_SIZE, WARPS_PER_CTA);
 
   // Check 1: Ensure that num_experts is a power of 2.

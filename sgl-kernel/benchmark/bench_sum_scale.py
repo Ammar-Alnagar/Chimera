@@ -3,7 +3,7 @@ import os
 import torch
 import triton
 import triton.language as tl
-from sgl_kernel import moe_sum_reduce as moe_sum_reduce_cuda
+from sgl_kernel import moe_sum_reduce as moe_sum_reduce_rtriton
 from triton.testing import do_bench
 
 # CI environment detection
@@ -125,8 +125,8 @@ def get_benchmark(dtype=torch.bfloat16):
             x_names=["num_tokens"],
             x_vals=num_tokens_range,
             line_arg="version",
-            line_vals=["baseline", "compiled", "triton", "cuda"],
-            line_names=["Original", "TorchCompile", "TritonKernel", "CudaKernel"],
+            line_vals=["baseline", "compiled", "triton", "rtriton"],
+            line_names=["Original", "TorchCompile", "TritonKernel", "RtritonKernel"],
             styles=[("blue", "-"), ("green", "-"), ("red", "-"), ("yellow", "-")],
             ylabel="us",
             plot_name=f"sum_scaled_performance_{str(dtype).split('.')[-1]}",
@@ -139,8 +139,8 @@ def get_benchmark(dtype=torch.bfloat16):
         dtype = torch.bfloat16
         scaling_factor = 0.3
 
-        x = torch.randn(num_tokens, topk, hidden_size, dtype=dtype, device="cuda")
-        out = torch.empty(num_tokens, hidden_size, dtype=dtype, device="cuda")
+        x = torch.randn(num_tokens, topk, hidden_size, dtype=dtype, device="rtriton")
+        out = torch.empty(num_tokens, hidden_size, dtype=dtype, device="rtriton")
 
         # Warmup
         for _ in range(3):
@@ -151,7 +151,7 @@ def get_benchmark(dtype=torch.bfloat16):
             elif version == "triton":
                 moe_sum_reduce_triton(x, out, scaling_factor)
             else:
-                moe_sum_reduce_cuda(x, out, scaling_factor)
+                moe_sum_reduce_rtriton(x, out, scaling_factor)
 
         # Benchmark
         quantiles = [0.5, 0.2, 0.8]
@@ -172,7 +172,7 @@ def get_benchmark(dtype=torch.bfloat16):
             )
         else:
             ms, min_ms, max_ms = do_bench(
-                lambda: moe_sum_reduce_cuda(x, out, scaling_factor),
+                lambda: moe_sum_reduce_rtriton(x, out, scaling_factor),
                 quantiles=quantiles,
             )
 
@@ -182,7 +182,7 @@ def get_benchmark(dtype=torch.bfloat16):
 
 
 def verify_correctness(num_tokens=1024, dtype=torch.bfloat16):
-    x = torch.randn(num_tokens, 9, 4096, device="cuda", dtype=dtype)
+    x = torch.randn(num_tokens, 9, 4096, device="rtriton", dtype=dtype)
     scaling_factor = 0.3
 
     out_baseline = torch.empty_like(x[:, 0])
@@ -191,8 +191,8 @@ def verify_correctness(num_tokens=1024, dtype=torch.bfloat16):
     out_compiled = torch.empty_like(out_baseline)
     compute_sum_scaled_compiled(x, out_compiled, scaling_factor)
 
-    out_cuda = torch.empty_like(out_baseline)
-    moe_sum_reduce_cuda(x, out_cuda, scaling_factor)
+    out_rtriton = torch.empty_like(out_baseline)
+    moe_sum_reduce_rtriton(x, out_rtriton, scaling_factor)
 
     triton_skipped = dtype == torch.float64
     if not triton_skipped:
@@ -207,14 +207,14 @@ def verify_correctness(num_tokens=1024, dtype=torch.bfloat16):
         atol, rtol = 1e-2, 1e-2
 
     ok_compiled = torch.allclose(out_baseline, out_compiled, atol=atol, rtol=rtol)
-    ok_cuda = torch.allclose(out_baseline, out_cuda, atol=atol, rtol=rtol)
+    ok_rtriton = torch.allclose(out_baseline, out_rtriton, atol=atol, rtol=rtol)
     ok_triton = (
         True
         if triton_skipped
         else torch.allclose(out_baseline, out_triton, atol=atol, rtol=rtol)
     )
 
-    if ok_compiled and ok_triton and ok_cuda:
+    if ok_compiled and ok_triton and ok_rtriton:
         msg = "✅ All implementations match"
         if triton_skipped:
             msg += " (Triton skipped for float64)"
@@ -228,7 +228,7 @@ def verify_correctness(num_tokens=1024, dtype=torch.bfloat16):
             print(
                 f"Baseline vs Triton: {(out_baseline - out_triton).abs().max().item()}"
             )
-        print(f"Baseline vs Cuda: {(out_baseline - out_cuda).abs().max().item()}")
+        print(f"Baseline vs Rtriton: {(out_baseline - out_rtriton).abs().max().item()}")
 
 
 if __name__ == "__main__":

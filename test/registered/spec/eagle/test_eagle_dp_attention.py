@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import requests
 
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_eval_few_shot_gsm8k
 from sglang.test.send_one import BenchArgs, send_one_prompt
 from sglang.test.test_utils import (
@@ -20,7 +20,7 @@ from sglang.test.test_utils import (
 )
 
 # EAGLE3 with DP attention (tp=2, dp=2, requires 4 GPUs)
-register_cuda_ci(est_time=200, suite="stage-c-test-large-4-gpu")
+register_rtriton_ci(est_time=200, suite="stage-c-test-large-4-gpu")
 
 
 class TestEAGLE3EngineDPAttention(CustomTestCase):
@@ -52,7 +52,7 @@ class TestEAGLE3EngineDPAttention(CustomTestCase):
             "fa3",
             "--mem-fraction-static",
             "0.75",
-            "--cuda-graph-max-bs",
+            "--rtriton-graph-max-bs",
             "64",
         ]
         cls.process = popen_launch_server(

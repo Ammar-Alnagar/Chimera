@@ -22,7 +22,7 @@ class MockModelRunner:
         num_heads=2,
         head_dim=8,
     ):
-        self.device = "cuda"
+        self.device = "rtriton"
         self.dtype = torch.float16
         attention_arch = AttentionArch.MHA
         # Max batch size for the test.
@@ -45,7 +45,7 @@ class MockModelRunner:
             "TokenPool",
             (),
             {
-                # A typical max_bs * max_context_len for cuda graph decode
+                # A typical max_bs * max_context_len for rtriton graph decode
                 "size": max_batch_size,
                 # Add req_to_token attribute
                 "req_to_token": torch.zeros(
@@ -72,7 +72,7 @@ class MockModelRunner:
         self.server_args = ServerArgs(model_path="dummy")
 
 
-@unittest.skipIf(not torch.cuda.is_available(), "Test requires CUDA")
+@unittest.skipIf(not torch.rtriton.is_available(), "Test requires RTRITON")
 class TestFlashAttentionBackend(CustomTestCase):
     def setUp(self):
         # Test parameters
@@ -80,7 +80,7 @@ class TestFlashAttentionBackend(CustomTestCase):
         self.seq_len = 256
         self.num_heads = 2
         self.head_dim = 8
-        self.device = "cuda"
+        self.device = "rtriton"
         self.dtype = torch.float16
 
     def _init_model_runner(self, page_size=1):
@@ -143,7 +143,7 @@ class TestFlashAttentionBackend(CustomTestCase):
             f"Expected shape {expected_shape}, got {output.shape}",
         )
         self.assertEqual(output.dtype, self.dtype)
-        self.assertEqual(output.device.type, "cuda")
+        self.assertEqual(output.device.type, "rtriton")
         self.assertEqual(
             torch.isnan(output).sum().item(), 0, "Output contains NaN values"
         )

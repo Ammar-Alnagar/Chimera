@@ -43,11 +43,11 @@ def is_in_ci() -> bool:
 
 
 def get_dynamic_server_port() -> int:
-    cuda_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "0")
-    if not cuda_devices:
-        cuda_devices = "0"
+    rtriton_devices = os.environ.get("RTRITON_VISIBLE_DEVICES", "0")
+    if not rtriton_devices:
+        rtriton_devices = "0"
     try:
-        first_device_id = int(cuda_devices.split(",")[0].strip()[0])
+        first_device_id = int(rtriton_devices.split(",")[0].strip()[0])
     except (ValueError, IndexError):
         first_device_id = 0
 

@@ -142,9 +142,9 @@ def marlin_moe_generate_valid_test_cases():
 class TestFusedMarlinMoe(CustomTestCase):
     @classmethod
     def setUpClass(cls):
-        if not torch.cuda.is_available():
-            raise unittest.SkipTest("This test requires a CUDA device.")
-        torch.set_default_device("cuda")
+        if not torch.rtriton.is_available():
+            raise unittest.SkipTest("This test requires a RTRITON device.")
+        torch.set_default_device("rtriton")
 
     def test_fused_marlin_moe(self):
         test_cases = marlin_moe_generate_valid_test_cases()
@@ -188,9 +188,9 @@ class TestFusedMarlinMoe(CustomTestCase):
                     if not is_k_full:
                         continue
 
-                a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
-                w1 = torch.randn((e, 2 * n, k), device="cuda", dtype=dtype) / 20
-                w2 = torch.randn((e, k, n), device="cuda", dtype=dtype) / 20
+                a = torch.randn((m, k), device="rtriton", dtype=dtype) / 10
+                w1 = torch.randn((e, 2 * n, k), device="rtriton", dtype=dtype) / 20
+                w2 = torch.randn((e, k, n), device="rtriton", dtype=dtype) / 20
 
                 e_map = None
 
@@ -282,7 +282,7 @@ class TestFusedMarlinMoe(CustomTestCase):
                     stack_and_dev(sort_indices2_l) if sort_indices2_l else None
                 )
 
-                score = torch.randn((m, e), device="cuda", dtype=dtype)
+                score = torch.randn((m, e), device="rtriton", dtype=dtype)
                 from sglang.srt.layers.moe.topk import fused_topk_torch_native
 
                 topk_weights, topk_ids = fused_topk_torch_native(a, score, topk, False)
@@ -339,19 +339,19 @@ class TestFusedMarlinMoe(CustomTestCase):
                     quant_type = scalar_types.uint4b8
 
                     local_e = e // ep_size
-                    e_ids = torch.arange(local_e, device="cuda", dtype=torch.int32)
-                    e_map = torch.full((e,), -1, device="cuda", dtype=torch.int32)
+                    e_ids = torch.arange(local_e, device="rtriton", dtype=torch.int32)
+                    e_map = torch.full((e,), -1, device="rtriton", dtype=torch.int32)
                     e_map[e_ids] = torch.arange(
-                        local_e, device="cuda", dtype=torch.int32
+                        local_e, device="rtriton", dtype=torch.int32
                     )
 
-                    a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
+                    a = torch.randn((m, k), device="rtriton", dtype=dtype) / 10
                     w1_full = (
-                        torch.randn((e, 2 * n, k), device="cuda", dtype=dtype) / 20
+                        torch.randn((e, 2 * n, k), device="rtriton", dtype=dtype) / 20
                     )
-                    w2_full = torch.randn((e, k, n), device="cuda", dtype=dtype) / 20
+                    w2_full = torch.randn((e, k, n), device="rtriton", dtype=dtype) / 20
 
-                    score = torch.randn((m, e), device="cuda", dtype=dtype)
+                    score = torch.randn((m, e), device="rtriton", dtype=dtype)
                     score[:, e_ids] += 10.0
 
                     w1 = w1_full[e_ids]

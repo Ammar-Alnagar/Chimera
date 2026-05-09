@@ -1,4 +1,4 @@
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/rtriton/RTRITONContext.h>
 
 #include <cmath>
 #include <flashinfer/vec_dtypes.cuh>
@@ -172,8 +172,8 @@ void sgl_per_token_quant_fp8(torch::Tensor input, torch::Tensor output_q, torch:
   const int64_t hidden_dim = input_sizes[1];
   TORCH_CHECK(hidden_dim % 4 == 0, "Hidden dimension must be divisible by 4, but got ", hidden_dim);
 
-  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
-  const int sm_count = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+  rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
+  const int sm_count = at::rtriton::getCurrentDeviceProperties()->multiProcessorCount;
   const int TOKENS_PER_CTA = 8;
   const bool use_warp_kernel = (num_tokens >= sm_count * 2 * TOKENS_PER_CTA);
   const bool use_vec16 = (hidden_dim % 16 == 0);

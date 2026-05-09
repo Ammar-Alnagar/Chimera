@@ -158,19 +158,19 @@ class ChunkedSgmvLoRABackend(BaseLoRABackend):
             chunk_size = 16
         return min(self.max_chunk_size, chunk_size)
 
-    def init_cuda_graph_batch_info(
+    def init_rtriton_graph_batch_info(
         self,
-        max_bs_in_cuda_graph: int,
+        max_bs_in_rtriton_graph: int,
         num_tokens_per_bs: int,
     ):
         max_num_segments = (
             (num_tokens_per_bs + MIN_CHUNK_SIZE - 1) // MIN_CHUNK_SIZE
-        ) * max_bs_in_cuda_graph
-        max_num_tokens = max_bs_in_cuda_graph * num_tokens_per_bs
-        with torch.device("cuda"):
-            self.cuda_graph_batch_info = LoRABatchInfo(
-                bs=max_bs_in_cuda_graph,
-                use_cuda_graph=True,
+        ) * max_bs_in_rtriton_graph
+        max_num_tokens = max_bs_in_rtriton_graph * num_tokens_per_bs
+        with torch.device("rtriton"):
+            self.rtriton_graph_batch_info = LoRABatchInfo(
+                bs=max_bs_in_rtriton_graph,
+                use_rtriton_graph=True,
                 seg_lens=torch.zeros(max_num_segments, dtype=torch.int32),
                 seg_indptr=torch.zeros(max_num_segments + 1, dtype=torch.int32),
                 weight_indices=torch.zeros(max_num_segments, dtype=torch.int32),
@@ -187,7 +187,7 @@ class ChunkedSgmvLoRABackend(BaseLoRABackend):
         weight_indices: list[int],
         lora_ranks: list[int],
         scalings: list[float],
-        use_cuda_graph: bool,
+        use_rtriton_graph: bool,
     ):
         chunk_size = self._determine_chunk_size(forward_batch)
 
@@ -209,12 +209,12 @@ class ChunkedSgmvLoRABackend(BaseLoRABackend):
             scalings, dtype=torch.float, pin_memory=True, device="cpu"
         )
 
-        if not use_cuda_graph:
+        if not use_rtriton_graph:
             batch_info = LoRABatchInfo(
                 bs=forward_batch.batch_size,
                 num_segments=num_segments,
                 max_len=chunk_size,
-                use_cuda_graph=False,
+                use_rtriton_graph=False,
                 seg_indptr=torch.empty(
                     (num_segments + 1,), dtype=torch.int32, device=self.device
                 ),
@@ -234,7 +234,7 @@ class ChunkedSgmvLoRABackend(BaseLoRABackend):
                 seg_lens=None,
             )
         else:
-            batch_info = self.cuda_graph_batch_info
+            batch_info = self.rtriton_graph_batch_info
             batch_info.bs = forward_batch.batch_size
             batch_info.num_segments = num_segments
             batch_info.max_len = chunk_size

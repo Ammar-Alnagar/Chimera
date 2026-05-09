@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class PPBatchMetadata:
-    can_run_cuda_graph: bool
+    can_run_rtriton_graph: bool
 
 
 class SchedulerPPMixin:
@@ -123,7 +123,7 @@ class SchedulerPPMixin:
                     self.last_mbs[next_mb_id] = self.mbs[next_mb_id]
                 if not self.pp_group.is_last_rank:
                     if self.cur_batch:
-                        torch.cuda.current_stream().wait_event(self.launch_event)
+                        torch.rtriton.current_stream().wait_event(self.launch_event)
                         with torch.profiler.record_function(
                             "send_proxy_dict_to_next_stage"
                         ):
@@ -297,7 +297,7 @@ class SchedulerPPMixin:
                         transferred_rids, async_send=True
                     )
                     if self.cur_batch:
-                        torch.cuda.current_stream().wait_event(self.launch_event)
+                        torch.rtriton.current_stream().wait_event(self.launch_event)
                         self.send_proxy_work = self._pp_send_dict_to_next_stage(
                             result.pp_hidden_states_proxy_tensors.tensors,
                             async_send=True,
@@ -477,7 +477,7 @@ class SchedulerPPMixin:
                         transferred_rids, async_send=True
                     )
                     if self.cur_batch and not self.cur_batch.forward_mode.is_prebuilt():
-                        torch.cuda.current_stream().wait_event(self.launch_event)
+                        torch.rtriton.current_stream().wait_event(self.launch_event)
                         self.send_proxy_work = self._pp_send_dict_to_next_stage(
                             result.pp_hidden_states_proxy_tensors.tensors,
                             async_send=True,
@@ -512,7 +512,7 @@ class SchedulerPPMixin:
         ]
         self.mb_metadata: List[Optional[PPBatchMetadata]] = [None] * self.pp_loop_size
         self.pp_outputs: Optional[PPProxyTensors] = None
-        self.last_rank_comm_queue: deque[Tuple[torch.cuda.Event, PPProxyTensors]] = (
+        self.last_rank_comm_queue: deque[Tuple[torch.rtriton.Event, PPProxyTensors]] = (
             deque()
         )
 
@@ -585,7 +585,7 @@ class SchedulerPPMixin:
                             self.tp_worker.model_runner.model_config.hidden_size,
                         ),
                         dtype=self.tp_worker.model_runner.model_config.dtype,
-                        device="cuda",
+                        device="rtriton",
                     ),
                     "residual": torch.zeros(
                         (
@@ -593,17 +593,17 @@ class SchedulerPPMixin:
                             self.tp_worker.model_runner.model_config.hidden_size,
                         ),
                         dtype=self.tp_worker.model_runner.model_config.dtype,
-                        device="cuda",
+                        device="rtriton",
                     ),
                 }
                 from sglang.srt.managers.scheduler_pp_mixin import PPProxyTensors
 
                 pp_proxy = PPProxyTensors(proxy_tensors)
 
-                # Measure latency with CUDA synchronization for accurate timing
+                # Measure latency with RTRITON synchronization for accurate timing
                 # Synchronize before starting timing to ensure clean measurement
-                if torch.cuda.is_available():
-                    torch.cuda.synchronize()
+                if torch.rtriton.is_available():
+                    torch.rtriton.synchronize()
 
                 start = time.perf_counter()
                 batch.prepare_for_extend()
@@ -618,8 +618,8 @@ class SchedulerPPMixin:
                 )
 
                 # Synchronize after forward to ensure GPU operations complete
-                if torch.cuda.is_available():
-                    torch.cuda.synchronize()
+                if torch.rtriton.is_available():
+                    torch.rtriton.synchronize()
 
                 latency_seconds = time.perf_counter() - start
                 latency_ms = latency_seconds * 1e3  # Convert to milliseconds
@@ -828,7 +828,7 @@ class SchedulerPPMixin:
         self: Scheduler,
         next_first_rank_mb_id: int,
         next_mb_id: int,
-    ) -> Tuple[PPProxyTensors, GenerationBatchResult, torch.cuda.Event]:
+    ) -> Tuple[PPProxyTensors, GenerationBatchResult, torch.rtriton.Event]:
         self._pp_commit_comm_work(work=self.send_output_work)
         (
             next_pp_outputs,
@@ -953,7 +953,7 @@ class SchedulerPPMixin:
             next_token_ids=pp_outputs["next_token_ids"],
             extend_input_len_per_req=extend_input_len_per_req,
             extend_logprob_start_len_per_req=extend_logprob_start_len_per_req,
-            can_run_cuda_graph=mb_metadata.can_run_cuda_graph,
+            can_run_rtriton_graph=mb_metadata.can_run_rtriton_graph,
         )
         return output_result
 
@@ -969,7 +969,7 @@ class SchedulerPPMixin:
         self: Scheduler,
         next_first_rank_mb_id: int,
         mbs: List[ScheduleBatch],
-        last_rank_comm_queue: deque[Tuple[torch.cuda.Event, PPProxyTensors]],
+        last_rank_comm_queue: deque[Tuple[torch.rtriton.Event, PPProxyTensors]],
         pp_outputs: PPProxyTensors | None,
     ) -> List[P2PWork]:
         send_output_work = []
@@ -978,7 +978,7 @@ class SchedulerPPMixin:
             if mbs[next_first_rank_mb_id] is not None:
                 q_event, pp_outputs_to_send = last_rank_comm_queue.popleft()
                 if not mbs[next_first_rank_mb_id].forward_mode.is_prebuilt():
-                    torch.cuda.current_stream().wait_event(q_event)
+                    torch.rtriton.current_stream().wait_event(q_event)
                     with torch.profiler.record_function("send_res_dict_to_next_stage"):
                         send_output_work = self._pp_send_dict_to_next_stage(
                             pp_outputs_to_send.tensors,
@@ -1000,9 +1000,9 @@ class SchedulerPPMixin:
         next_mb_id: int,
         mbs: List[ScheduleBatch],
         mb_metadata: List[PPBatchMetadata],
-        last_rank_comm_queue: deque[Tuple[torch.cuda.Event, PPProxyTensors]],
+        last_rank_comm_queue: deque[Tuple[torch.rtriton.Event, PPProxyTensors]],
         pp_outputs: PPProxyTensors | None,
-    ) -> Tuple[PPProxyTensors, List[P2PWork], torch.cuda.Event]:
+    ) -> Tuple[PPProxyTensors, List[P2PWork], torch.rtriton.Event]:
         next_pp_outputs = None
         d2h_event = None
         batch_result = None
@@ -1026,8 +1026,8 @@ class SchedulerPPMixin:
                     batch_result = self._pp_prep_batch_result(
                         mbs[next_mb_id], mb_metadata[next_mb_id], next_pp_outputs
                     )
-                    d2h_event = torch.cuda.Event()
-                    d2h_event.record(torch.cuda.current_stream())
+                    d2h_event = torch.rtriton.Event()
+                    d2h_event.record(torch.rtriton.current_stream())
 
         return next_pp_outputs, batch_result, d2h_event, send_output_work
 
@@ -1036,17 +1036,17 @@ class SchedulerPPMixin:
         mb_id: int,
         pp_proxy_tensors: PPProxyTensors,
         mb_metadata: List[Optional[PPBatchMetadata]],
-        last_rank_comm_queue: deque[Tuple[torch.cuda.Event, PPProxyTensors]],
+        last_rank_comm_queue: deque[Tuple[torch.rtriton.Event, PPProxyTensors]],
     ):
         with torch.profiler.record_function("run_batch"):
             with self.forward_stream_ctx:
                 self.forward_stream.wait_stream(self.default_stream)
                 result = self.run_batch(self.cur_batch, pp_proxy_tensors)
                 mb_metadata[mb_id] = PPBatchMetadata(
-                    can_run_cuda_graph=result.can_run_cuda_graph,
+                    can_run_rtriton_graph=result.can_run_rtriton_graph,
                 )
-                event = torch.cuda.Event()
-                event.record(torch.cuda.current_stream())
+                event = torch.rtriton.Event()
+                event.record(torch.rtriton.current_stream())
                 if self.pp_group.is_last_rank:
                     # (last rank) buffer the outputs for async batch depth
                     last_rank_comm_queue.append(

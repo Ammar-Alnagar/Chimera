@@ -3,7 +3,7 @@
 ## Overview
 This document summarizes the complete migration of the Chimera project from the deprecated `CuteDSL` and `CUTLASS 4.x` infrastructure to the new **TileLang** Pythonic DSL.
 
-TileLang enables rapid iteration of high-performance GPU kernels directly in Python by compiling to optimized CUDA via Apache TVM. This eliminates the heavy C++ build times previously required by CuteDSL/CUTLASS, while maintaining or exceeding performance on modern NVIDIA architectures (Hopper, Blackwell).
+TileLang enables rapid iteration of high-performance GPU kernels directly in Python by compiling to optimized RTRITON via Apache TVM. This eliminates the heavy C++ build times previously required by CuteDSL/CUTLASS, while maintaining or exceeding performance on modern NVIDIA architectures (Hopper, Blackwell).
 
 ## Key Components Migrated
 

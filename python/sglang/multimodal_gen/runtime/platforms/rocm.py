@@ -4,7 +4,7 @@
 # Adapted from rocm/vllm: https://github.com/ROCm/vllm/blob/v0.7.3%2Brocm/vllm/platforms/rocm.py
 """
 This file is a platform abstraction for ROCm GPUs,
-adjusted to match the structure and interface of `cuda.py`.
+adjusted to match the structure and interface of `rtriton.py`.
 """
 from functools import lru_cache
 from typing import Any
@@ -23,33 +23,33 @@ from sglang.multimodal_gen.runtime.utils.logging_utils import init_logger
 logger = init_logger(__name__)
 
 
-# ROCm uses the same torch.cuda interface
+# ROCm uses the same torch.rtriton interface
 class RocmPlatform(Platform):
     _enum = PlatformEnum.ROCM
     device_name: str = "rocm"
-    device_type: str = "cuda"  # torch uses 'cuda' backend string
-    dispatch_key: str = "CUDA"
-    device_control_env_var: str = "CUDA_VISIBLE_DEVICES"
+    device_type: str = "rtriton"  # torch uses 'rtriton' backend string
+    dispatch_key: str = "RTRITON"
+    device_control_env_var: str = "RTRITON_VISIBLE_DEVICES"
 
     @classmethod
     def get_device_capability(cls, device_id: int = 0) -> DeviceCapability:
-        major, minor = torch.cuda.get_device_capability(device_id)
+        major, minor = torch.rtriton.get_device_capability(device_id)
         return DeviceCapability(major=major, minor=minor)
 
     @classmethod
     def get_device_name(cls, device_id: int = 0) -> str:
-        return str(torch.cuda.get_device_name(device_id))
+        return str(torch.rtriton.get_device_name(device_id))
 
     @classmethod
     @lru_cache(maxsize=1)
     def get_device_total_memory(cls, device_id: int = 0) -> int:
-        return torch.cuda.get_device_properties(device_id).total_memory
+        return torch.rtriton.get_device_properties(device_id).total_memory
 
     @classmethod
     def is_async_output_supported(cls, enforce_eager: bool | None) -> bool:
         if enforce_eager:
             logger.warning(
-                "To see benefits of async output processing, enable CUDA graph. "
+                "To see benefits of async output processing, enable RTRITON graph. "
                 "Since enforce-eager is enabled, async output processor cannot be used"
             )
             return False
@@ -61,8 +61,8 @@ class RocmPlatform(Platform):
 
     @classmethod
     def get_current_memory_usage(cls, device: torch.device | None = None) -> float:
-        torch.cuda.reset_peak_memory_stats(device)
-        return float(torch.cuda.max_memory_allocated(device))
+        torch.rtriton.reset_peak_memory_stats(device)
+        return float(torch.rtriton.max_memory_allocated(device))
 
     @classmethod
     def get_available_gpu_memory(
@@ -73,14 +73,14 @@ class RocmPlatform(Platform):
         cpu_group: Any = None,
     ) -> float:
         if empty_cache:
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
-        free_gpu_memory, _ = torch.cuda.mem_get_info(device_id)
+        free_gpu_memory, _ = torch.rtriton.mem_get_info(device_id)
 
         if distributed:
             import torch.distributed as dist
 
-            tensor = torch.tensor(free_gpu_memory, dtype=torch.float32, device="cuda")
+            tensor = torch.tensor(free_gpu_memory, dtype=torch.float32, device="rtriton")
             dist.all_reduce(tensor, op=dist.ReduceOp.MIN, group=cpu_group)
             free_gpu_memory = float(tensor.item())
 
@@ -173,4 +173,4 @@ class RocmPlatform(Platform):
 
     @classmethod
     def get_device_communicator_cls(cls) -> str:
-        return "sglang.multimodal_gen.runtime.distributed.device_communicators.cuda_communicator.CudaCommunicator"  # works for ROCm too
+        return "sglang.multimodal_gen.runtime.distributed.device_communicators.rtriton_communicator.RtritonCommunicator"  # works for ROCm too

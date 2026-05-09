@@ -23,7 +23,7 @@ def pack_int4_values_to_int8(int4_values_interleaved: torch.Tensor) -> torch.Ten
 def pack_interleave(num_experts, ref_weight, ref_scale):
     n, k = ref_weight.shape[1], ref_weight.shape[2]
 
-    weight = pack_int4_values_to_int8(ref_weight.cpu()).cuda()
+    weight = pack_int4_values_to_int8(ref_weight.cpu()).rtriton()
     w_q = weight.view((num_experts, n, k // 2)).view(torch.int8)
     w_q = w_q.contiguous()
 
@@ -58,7 +58,7 @@ def test_int4_fp8_grouped_gemm_single_expert(batch_size):
     n = 1024  # output dimension
     torch.manual_seed(0)
     dtype = torch.bfloat16
-    device = "cuda"
+    device = "rtriton"
     debug = False
 
     print(f"\nTesting with batch_size={batch_size}")
@@ -163,7 +163,7 @@ def _per_tensor_quant_fp8(
 def test_int4_fp8_grouped_gemm_multi_experts(batch_size, k, n, num_experts):
     torch.manual_seed(0)
     dtype = torch.bfloat16
-    device = "cuda"
+    device = "rtriton"
     debug = False
 
     print(

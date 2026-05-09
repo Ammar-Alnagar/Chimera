@@ -30,7 +30,7 @@ from sglang.test.test_utils import CustomTestCase
 
 # Global configuration for all tests
 DEFAULT_CONFIG = {
-    "device": "cuda",
+    "device": "rtriton",
     "dtype": torch.bfloat16,
     "kv_cache_dtype": torch.bfloat16,
     "context_len": 2048,
@@ -313,8 +313,8 @@ def compare_outputs(trtllm_out, reference_out, tolerance=1e-2):
 
 
 @unittest.skipIf(
-    not torch.cuda.is_available() or not is_flashinfer_available(),
-    "CUDA + flashinfer required",
+    not torch.rtriton.is_available() or not is_flashinfer_available(),
+    "RTRITON + flashinfer required",
 )
 class TestTRTLLMMLA(CustomTestCase):
     """Test suite for TRTLLM MLA backend with centralized configuration."""
@@ -802,7 +802,7 @@ class TestTRTLLMMLA(CustomTestCase):
                     f"Output shape mismatch for {test_case['name']}",
                 )
                 self.assertEqual(output.dtype, config["dtype"])
-                self.assertEqual(output.device.type, "cuda")
+                self.assertEqual(output.device.type, "rtriton")
                 self.assertFalse(
                     torch.isnan(output).any(),
                     f"Output contains NaN for {test_case['name']}",
@@ -863,7 +863,7 @@ class TestTRTLLMMLA(CustomTestCase):
                 )
 
                 # Test block KV indices properties
-                self.assertEqual(metadata.block_kv_indices.device.type, "cuda")
+                self.assertEqual(metadata.block_kv_indices.device.type, "rtriton")
                 self.assertEqual(metadata.block_kv_indices.dtype, torch.int32)
                 self.assertEqual(metadata.block_kv_indices.shape[0], batch_size)
 
@@ -1001,9 +1001,9 @@ class TestTRTLLMMLA(CustomTestCase):
                             f"All block indices should be < {max_possible_blocks}",
                         )
 
-    def test_metadata_cuda_graph_compatibility(self):
-        """Test metadata compatibility with CUDA graph capture/replay."""
-        print(f"\nRunning CUDA graph compatibility tests...")
+    def test_metadata_rtriton_graph_compatibility(self):
+        """Test metadata compatibility with RTRITON graph capture/replay."""
+        print(f"\nRunning RTRITON graph compatibility tests...")
 
         config = self._merge_config(
             {"batch_size": 4, "max_seq_len": 64, "page_size": 32}
@@ -1012,13 +1012,13 @@ class TestTRTLLMMLA(CustomTestCase):
         model_runner, _, backend, _, layer = self._create_model_components(config)
         batch_size = config["batch_size"]
 
-        # Initialize CUDA graph state
-        backend.init_cuda_graph_state(
+        # Initialize RTRITON graph state
+        backend.init_rtriton_graph_state(
             max_bs=batch_size, max_num_tokens=config["max_seq_len"] * batch_size
         )
 
-        # Verify CUDA graph buffers are allocated
-        self.assertIsNotNone(backend.decode_cuda_graph_kv_indices)
+        # Verify RTRITON graph buffers are allocated
+        self.assertIsNotNone(backend.decode_rtriton_graph_kv_indices)
 
         # Test capture metadata
         seq_lens = torch.full(
@@ -1026,7 +1026,7 @@ class TestTRTLLMMLA(CustomTestCase):
         )
         req_pool_indices = torch.arange(batch_size, device=config["device"])
 
-        backend.init_forward_metadata_capture_cuda_graph(
+        backend.init_forward_metadata_capture_rtriton_graph(
             bs=batch_size,
             num_tokens=batch_size,
             req_pool_indices=req_pool_indices,
@@ -1037,8 +1037,8 @@ class TestTRTLLMMLA(CustomTestCase):
         )
 
         # Verify capture metadata
-        self.assertIn(batch_size, backend.decode_cuda_graph_metadata)
-        capture_metadata = backend.decode_cuda_graph_metadata[batch_size]
+        self.assertIn(batch_size, backend.decode_rtriton_graph_metadata)
+        capture_metadata = backend.decode_rtriton_graph_metadata[batch_size]
 
         self.assertIsNotNone(capture_metadata.block_kv_indices)
 
@@ -1050,7 +1050,7 @@ class TestTRTLLMMLA(CustomTestCase):
             device=config["device"],
         )
 
-        backend.init_forward_metadata_replay_cuda_graph(
+        backend.init_forward_metadata_replay_rtriton_graph(
             bs=batch_size,
             req_pool_indices=req_pool_indices,
             seq_lens=new_seq_lens,
@@ -1272,7 +1272,7 @@ class TestTRTLLMMLA(CustomTestCase):
             self, batch_size, max_seq_len, num_heads, head_dim, dtype=torch.float32
         ):
             """Create test data for kernel testing."""
-            device = torch.device("cuda")
+            device = torch.device("rtriton")
 
             # Create sequence lengths (varying lengths for each batch)
             seq_lens = torch.randint(
@@ -1305,7 +1305,7 @@ class TestTRTLLMMLA(CustomTestCase):
             dtype=torch.float32,
         ):
             """Create test data for unpad kernel testing."""
-            device = torch.device("cuda")
+            device = torch.device("rtriton")
 
             # Create accept lengths (varying lengths for each batch)
             accept_lengths = torch.randint(

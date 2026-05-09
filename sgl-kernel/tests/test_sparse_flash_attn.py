@@ -202,8 +202,8 @@ def test_sparse_attention(
     dtype,
     NNZ_S,
 ) -> None:
-    torch.set_default_device("cuda")
-    torch.cuda.manual_seed_all(0)
+    torch.set_default_device("rtriton")
+    torch.rtriton.manual_seed_all(0)
     block_size_M = 64
     block_size_N = 64
     seqlen_q, seqlen_k = seq_lens
@@ -267,19 +267,19 @@ def test_sparse_attention(
 @pytest.mark.parametrize("causal", [True, False])
 def test_convert_vertical_slash_indexes(causal):
     # Prepare small, hand-checkable inputs
-    q_seqlens = torch.tensor([4], dtype=torch.int32, device="cuda")  # [BATCH]
-    kv_seqlens = torch.tensor([4], dtype=torch.int32, device="cuda")
+    q_seqlens = torch.tensor([4], dtype=torch.int32, device="rtriton")  # [BATCH]
+    kv_seqlens = torch.tensor([4], dtype=torch.int32, device="rtriton")
     vertical_indexes = torch.tensor(
-        [[[1, 3]]], dtype=torch.int32, device="cuda"
+        [[[1, 3]]], dtype=torch.int32, device="rtriton"
     )  # [BATCH, N_HEADS, NNZ_V]
     slash_indexes = torch.tensor(
-        [[[2]]], dtype=torch.int32, device="cuda"
+        [[[2]]], dtype=torch.int32, device="rtriton"
     )  # [BATCH, N_HEADS, NNZ_S]
     context_size = 4
     block_size_M = 2
     block_size_N = 2
 
-    # Call your CUDA kernel wrapper
+    # Call your RTRITON kernel wrapper
     block_count, block_offset, column_count, column_index = (
         convert_vertical_slash_indexes(
             q_seqlens,
@@ -295,7 +295,7 @@ def test_convert_vertical_slash_indexes(causal):
 
     # Manually create expected outputs for this input
     # There are 2 rows (blocks): row0 (tokens 0-1), row1 (tokens 2-3)
-    # Fill these expected tensors based on your CUDA kernel's logic
+    # Fill these expected tensors based on your RTRITON kernel's logic
     # For demonstration, we assume:
     # - block_count: how many slash indices fall into each block
     # - block_offset: the value of those indices
@@ -303,14 +303,14 @@ def test_convert_vertical_slash_indexes(causal):
     # - column_index: the actual vertical indices
 
     expected_column_index = torch.tensor(
-        [[[[0, 0], [0, 0]]]], dtype=torch.int32, device="cuda"
+        [[[[0, 0], [0, 0]]]], dtype=torch.int32, device="rtriton"
     )
 
     # If causal=False, update these tensors according to expected behavior
     if not causal:
         # Update these values if your kernel produces different output in non-causal mode
         expected_column_index = torch.tensor(
-            [[[[1, 0], [1, 3]]]], dtype=torch.int32, device="cuda"
+            [[[[1, 0], [1, 3]]]], dtype=torch.int32, device="rtriton"
         )
 
     # Assert that outputs match expectations
@@ -325,8 +325,8 @@ def test_convert_vertical_slash_indexes(causal):
 @pytest.mark.parametrize("causal", [True, False])
 def test_convert_vertical_slash_indexes_mergehead(causal):
     # Prepare small, hand-checkable inputs for mergehead version
-    q_seqlens = torch.tensor([4], dtype=torch.int32, device="cuda")
-    kv_seqlens = torch.tensor([4], dtype=torch.int32, device="cuda")
+    q_seqlens = torch.tensor([4], dtype=torch.int32, device="rtriton")
+    kv_seqlens = torch.tensor([4], dtype=torch.int32, device="rtriton")
     vertical_indexes = torch.tensor(
         [
             [
@@ -335,7 +335,7 @@ def test_convert_vertical_slash_indexes_mergehead(causal):
             ]
         ],
         dtype=torch.int32,
-        device="cuda",
+        device="rtriton",
     )  # [BATCH, N_HEADS, NNZ_V]
     slash_indexes = torch.tensor(
         [
@@ -345,15 +345,15 @@ def test_convert_vertical_slash_indexes_mergehead(causal):
             ]
         ],
         dtype=torch.int32,
-        device="cuda",
+        device="rtriton",
     )  # [BATCH, N_HEADS, NNZ_S]
-    vertical_indices_count = torch.tensor([2, 1], dtype=torch.int32, device="cuda")
-    slash_indices_count = torch.tensor([1, 2], dtype=torch.int32, device="cuda")
+    vertical_indices_count = torch.tensor([2, 1], dtype=torch.int32, device="rtriton")
+    slash_indices_count = torch.tensor([1, 2], dtype=torch.int32, device="rtriton")
     context_size = 4
     block_size_M = 2
     block_size_N = 2
 
-    # Call your CUDA kernel wrapper
+    # Call your RTRITON kernel wrapper
     block_count, block_offset, column_count, column_index = (
         convert_vertical_slash_indexes_mergehead(
             q_seqlens,
@@ -377,7 +377,7 @@ def test_convert_vertical_slash_indexes_mergehead(causal):
     expected_column_index = torch.tensor(
         [[[[1, 0], [1, 3]], [[-1079459945, -1077788999], [-1080050043, -1104625879]]]],
         dtype=torch.int32,
-        device="cuda",
+        device="rtriton",
     )
 
     if not causal:
@@ -385,7 +385,7 @@ def test_convert_vertical_slash_indexes_mergehead(causal):
         expected_column_index = torch.tensor(
             [[[[1, 0], [1, 3]], [[2, -1077788999], [2, -1104625879]]]],
             dtype=torch.int32,
-            device="cuda",
+            device="rtriton",
         )
 
     # Assert that outputs match expectations
@@ -406,8 +406,8 @@ def test_convert_vertical_slash_indexes_mergehead(causal):
 #         head_size,
 #         dtype,
 # ) -> None:
-#     torch.set_default_device("cuda")
-#     torch.cuda.manual_seed_all(0)
+#     torch.set_default_device("rtriton")
+#     torch.rtriton.manual_seed_all(0)
 #     block_size_M = 64
 #     block_size_N = 64
 #     num_seqs = len(seq_lens)

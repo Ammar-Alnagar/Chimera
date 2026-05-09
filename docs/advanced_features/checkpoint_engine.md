@@ -7,7 +7,7 @@ The SGLang checkpoint engine integration provides an efficient way to load model
 The checkpoint engine integration allows SGLang to:
 - Load model weights in parallel using multiple processes
 - Distribute weight loading across multiple nodes to increase effective disk bandwidth
-- Overlap weight loading with other initialization tasks like CUDA graph capture
+- Overlap weight loading with other initialization tasks like RTRITON graph capture
 - Support both single-node and multi-node deployments
 
 ## Installation
@@ -239,7 +239,7 @@ The checkpoint engine provides significant time savings in two main aspects:
 
 1. **Multi-node Loading**: Each node only loads a portion of weights from disk, effectively increasing disk bandwidth. More participating nodes provide greater acceleration. Preliminary tests show 20-second acceleration when loading DeepSeek-R1 on H20-3e with two nodes.
 
-2. **Single Process Optimization**: Using dummy format allows overlapping disk-to-CPU transfer with CUDA graph capture and other initialization tasks, providing additional time savings.
+2. **Single Process Optimization**: Using dummy format allows overlapping disk-to-CPU transfer with RTRITON graph capture and other initialization tasks, providing additional time savings.
 
 ## Troubleshooting
 

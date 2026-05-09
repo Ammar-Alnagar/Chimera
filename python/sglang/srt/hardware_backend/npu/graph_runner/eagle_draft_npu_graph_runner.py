@@ -25,8 +25,8 @@ import torch
 from sglang.srt.configs.model_config import AttentionArch, is_deepseek_nsa
 from sglang.srt.layers.dp_attention import get_attention_tp_size
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
-from sglang.srt.speculative.eagle_draft_cuda_graph_runner import (
-    EAGLEDraftCudaGraphRunner,
+from sglang.srt.speculative.eagle_draft_rtriton_graph_runner import (
+    EAGLEDraftRtritonGraphRunner,
 )
 
 if TYPE_CHECKING:
@@ -37,15 +37,15 @@ from sglang.srt.utils import is_npu
 logger = logging.getLogger(__name__)
 
 if is_npu():
-    torch.cuda.CUDAGraph = torch.npu.NPUGraph
-    torch.cuda.synchronize = torch.npu.synchronize
-    torch.cuda.graph = torch.npu.graph
-    torch.cuda.stream = torch.npu.stream
-    torch.cuda.Stream = torch.npu.Stream
-    torch.cuda.current_stream = torch.npu.current_stream
+    torch.rtriton.RTRITONGraph = torch.npu.NPUGraph
+    torch.rtriton.synchronize = torch.npu.synchronize
+    torch.rtriton.graph = torch.npu.graph
+    torch.rtriton.stream = torch.npu.stream
+    torch.rtriton.Stream = torch.npu.Stream
+    torch.rtriton.current_stream = torch.npu.current_stream
 
 
-class EAGLEDraftNpuGraphRunner(EAGLEDraftCudaGraphRunner):
+class EAGLEDraftNpuGraphRunner(EAGLEDraftRtritonGraphRunner):
     def __init__(self, eagle_worker: EAGLEWorker):
         super().__init__(eagle_worker)
         self.update_attr_name = None

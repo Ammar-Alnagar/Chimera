@@ -1,5 +1,5 @@
-#include <c10/cuda/CUDAGuard.h>
-#include <cudaTypedefs.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <rtritonTypedefs.h>
 #include <torch/all.h>
 
 #include <flashinfer/vec_dtypes.cuh>
@@ -102,7 +102,7 @@ void get_moe_prepare_input_caller(
     const int64_t num_experts,
     const int64_t n,
     const int64_t k) {
-  auto stream = at::cuda::getCurrentCUDAStream(topk_ids.device().index());
+  auto stream = at::rtriton::getCurrentRTRITONStream(topk_ids.device().index());
   auto options_int32 = torch::TensorOptions().dtype(torch::kInt32).device(topk_ids.device());
   torch::Tensor atomic_buffer = torch::zeros(num_experts, options_int32);
 
@@ -220,9 +220,9 @@ DECLARE_SHUFFLE_ROWS(uint8_t);
       num_dst_rows,                                        \
       num_cols)
 
-#define DTYPE_DISPATCH_CASE(T, CUDA_T) \
+#define DTYPE_DISPATCH_CASE(T, RTRITON_T) \
   case T:                              \
-    SHUFFLE_ROWS(CUDA_T);              \
+    SHUFFLE_ROWS(RTRITON_T);              \
     break;
 
 void shuffle_rows_caller(
@@ -230,7 +230,7 @@ void shuffle_rows_caller(
   TORCH_CHECK(
       input_tensor.scalar_type() == output_tensor.scalar_type(),
       "Input and output tensors must have the same data type");
-  auto stream = at::cuda::getCurrentCUDAStream().stream();
+  auto stream = at::rtriton::getCurrentRTRITONStream().stream();
   uint32_t blocks = static_cast<uint32_t>(output_tensor.size(0));
   uint32_t threads = 256;
   int64_t num_dst_rows = output_tensor.size(0);
@@ -342,7 +342,7 @@ void get_apply_shuffle_mul_sum_caller(
   dim3 block(blockDim);
 
   dim3 grid(m);  // blockIdx.x = j, blockIdx.y = i
-  auto stream = at::cuda::getCurrentCUDAStream(input_tensor.device().index());
+  auto stream = at::rtriton::getCurrentRTRITONStream(input_tensor.device().index());
 
   const int32_t* perm_ptr = permutation.data_ptr<int32_t>();
 

@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from urllib.parse import urlparse
 
 from sglang.srt.utils import get_device_sm, kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_eval_few_shot_gsm8k
 from sglang.test.test_utils import (
     DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
@@ -12,10 +12,10 @@ from sglang.test.test_utils import (
 )
 
 # FlashAttention4 integration test (requires SM 100+ / Blackwell B200)
-register_cuda_ci(est_time=200, suite="stage-b-test-large-1-gpu")
+register_rtriton_ci(est_time=200, suite="stage-b-test-large-1-gpu")
 
 
-@unittest.skipIf(get_device_sm() < 100, "Test requires CUDA SM 100 or higher")
+@unittest.skipIf(get_device_sm() < 100, "Test requires RTRITON SM 100 or higher")
 class TestFlashAttention4(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

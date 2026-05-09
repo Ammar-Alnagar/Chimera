@@ -11,7 +11,7 @@ def test_verify_tree_greedy():
             [7, 8, 9, 10, 11, 12],
         ],
         dtype=torch.int64,
-        device="cuda",
+        device="rtriton",
     )
     retrive_index = torch.tensor(
         [
@@ -19,7 +19,7 @@ def test_verify_tree_greedy():
             [6, 7, 8, 9, 10, 11],
         ],
         dtype=torch.int64,
-        device="cuda",
+        device="rtriton",
     )
     retrive_next_token = torch.tensor(
         [
@@ -27,7 +27,7 @@ def test_verify_tree_greedy():
             [4, 2, 3, -1, 5, -1],
         ],
         dtype=torch.int64,
-        device="cuda",
+        device="rtriton",
     )
     retrive_next_sibling = torch.tensor(
         [
@@ -35,10 +35,10 @@ def test_verify_tree_greedy():
             [-1, -1, -1, -1, 1, -1],
         ],
         dtype=torch.int64,
-        device="cuda",
+        device="rtriton",
     )
 
-    target_logits = torch.full((2, 6, 20), 1, dtype=torch.float32, device="cuda")
+    target_logits = torch.full((2, 6, 20), 1, dtype=torch.float32, device="rtriton")
     target_logits[0, 0, 3] = 10
     target_logits[0, 3, 4] = 10
     target_logits[0, 4, 5] = 10
@@ -56,12 +56,12 @@ def test_verify_tree_greedy():
     num_spec_step = 4
 
     predicts = torch.full(
-        predict_shape, -1, dtype=torch.int32, device="cuda"
+        predict_shape, -1, dtype=torch.int32, device="rtriton"
     )  # mutable
     accept_index = torch.full(
-        (bs, num_spec_step), -1, dtype=torch.int32, device="cuda"
+        (bs, num_spec_step), -1, dtype=torch.int32, device="rtriton"
     )  # mutable
-    accept_token_num = torch.full((bs,), 0, dtype=torch.int32, device="cuda")  # mutable
+    accept_token_num = torch.full((bs,), 0, dtype=torch.int32, device="rtriton")  # mutable
 
     verify_tree_greedy(
         predicts=predicts,

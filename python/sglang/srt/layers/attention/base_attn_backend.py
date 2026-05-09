@@ -22,11 +22,11 @@ class AttentionBackend(ABC):
         """Init the metadata for a forward pass."""
         raise NotImplementedError()
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
-        """Init the global shared states for cuda graph."""
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
+        """Init the global shared states for rtriton graph."""
         raise NotImplementedError()
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -36,10 +36,10 @@ class AttentionBackend(ABC):
         forward_mode: ForwardMode,
         spec_info: Optional[SpecInput],
     ):
-        """Init the metadata for a forward pass for capturing a cuda graph."""
+        """Init the metadata for a forward pass for capturing a rtriton graph."""
         raise NotImplementedError()
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -50,10 +50,10 @@ class AttentionBackend(ABC):
         spec_info: Optional[SpecInput],
         seq_lens_cpu: Optional[torch.Tensor],
     ):
-        """Init the metadata for a forward pass for replaying a cuda graph."""
+        """Init the metadata for a forward pass for replaying a rtriton graph."""
         raise NotImplementedError()
 
-    def get_cuda_graph_seq_len_fill_value(self):
+    def get_rtriton_graph_seq_len_fill_value(self):
         """Get the fill value for padded seq lens. Typically, it is 0 or 1."""
         raise NotImplementedError()
 
@@ -66,7 +66,7 @@ class AttentionBackend(ABC):
         return [None, None]
 
     def update_verify_buffers_to_fill_after_draft(
-        self, spec_info: SpecInput, cuda_graph_bs: Optional[int]
+        self, spec_info: SpecInput, rtriton_graph_bs: Optional[int]
     ):
         """
         Update the buffers returned by get_verify_fill_after_draft_buffers if needed.

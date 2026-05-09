@@ -54,17 +54,17 @@ class HybridAttnBackend(AttentionBackend):
         backend = self._select_backend(forward_batch.forward_mode)
         backend.init_forward_metadata(forward_batch)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
-        self.decode_backend.init_cuda_graph_state(max_bs, max_num_tokens)
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
+        self.decode_backend.init_rtriton_graph_state(max_bs, max_num_tokens)
         if (
             self.model_runner.server_args.speculative_algorithm is not None
             and self.model_runner.server_args.speculative_attention_mode == "prefill"
         ):
             # When speculative decoding is enabled, we need to initialize the backend
             # that will be used for target_verify.
-            self.prefill_backend.init_cuda_graph_state(max_bs, max_num_tokens)
+            self.prefill_backend.init_rtriton_graph_state(max_bs, max_num_tokens)
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -75,7 +75,7 @@ class HybridAttnBackend(AttentionBackend):
         spec_info: Optional[SpecInput],
     ):
         backend = self._select_backend(forward_mode)
-        backend.init_forward_metadata_capture_cuda_graph(
+        backend.init_forward_metadata_capture_rtriton_graph(
             bs,
             num_tokens,
             req_pool_indices,
@@ -85,7 +85,7 @@ class HybridAttnBackend(AttentionBackend):
             spec_info,
         )
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -97,7 +97,7 @@ class HybridAttnBackend(AttentionBackend):
         seq_lens_cpu: Optional[torch.Tensor],
     ):
         backend = self._select_backend(forward_mode)
-        backend.init_forward_metadata_replay_cuda_graph(
+        backend.init_forward_metadata_replay_rtriton_graph(
             bs,
             req_pool_indices,
             seq_lens,
@@ -108,8 +108,8 @@ class HybridAttnBackend(AttentionBackend):
             seq_lens_cpu,
         )
 
-    def get_cuda_graph_seq_len_fill_value(self):
-        return self.decode_backend.get_cuda_graph_seq_len_fill_value()
+    def get_rtriton_graph_seq_len_fill_value(self):
+        return self.decode_backend.get_rtriton_graph_seq_len_fill_value()
 
     def forward_decode(
         self,

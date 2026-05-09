@@ -17,7 +17,7 @@ class TestVLMModels(CustomTestCase):
     mmmu_accuracy = 0.00
     other_args = [
         "--trust-remote-code",
-        "--cuda-graph-max-bs",
+        "--rtriton-graph-max-bs",
         "32",
         "--enable-multimodal",
         "--mem-fraction-static",
@@ -26,7 +26,7 @@ class TestVLMModels(CustomTestCase):
         "info",
         "--attention-backend",
         "ascend",
-        "--disable-cuda-graph",
+        "--disable-rtriton-graph",
         "--tp-size",
         4,
     ]

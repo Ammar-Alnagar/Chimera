@@ -21,9 +21,9 @@ def test_kimi_k2_moe_fused_gate(
     routed_scaling_factor = 2.872  # Kimi K2's routed scaling factor
 
     torch.manual_seed(seq_length)
-    tensor = torch.rand((seq_length, num_experts), dtype=dtype, device="cuda")
+    tensor = torch.rand((seq_length, num_experts), dtype=dtype, device="rtriton")
     scores = tensor.clone()
-    bias = torch.rand(num_experts, dtype=dtype, device="cuda")
+    bias = torch.rand(num_experts, dtype=dtype, device="rtriton")
 
     # Test our fused kernel
     output, indices = kimi_k2_moe_fused_gate(
@@ -72,9 +72,9 @@ def test_kimi_k2_specific_case(seq_length, num_experts, topk):
     routed_scaling_factor = 2.872
 
     torch.manual_seed(42)
-    tensor = torch.rand((seq_length, num_experts), dtype=dtype, device="cuda")
+    tensor = torch.rand((seq_length, num_experts), dtype=dtype, device="rtriton")
     scores = tensor.clone()
-    bias = torch.rand(num_experts, dtype=dtype, device="cuda")
+    bias = torch.rand(num_experts, dtype=dtype, device="rtriton")
 
     output, indices = kimi_k2_moe_fused_gate(
         tensor,

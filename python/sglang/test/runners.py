@@ -122,7 +122,7 @@ def _get_sentence_transformer_embedding_model(
             modules=[word_embedding_model, pooling_model], truncate_dim=matryoshka_dim
         )
 
-    return model.cuda()
+    return model.rtriton()
 
 
 @dataclass
@@ -271,7 +271,7 @@ class HFRunner:
                 torch_dtype=torch_dtype,
                 trust_remote_code=self.trust_remote_code,
                 low_cpu_mem_usage=True,
-            ).cuda()
+            ).rtriton()
         elif self.model_type == "embedding":
             if "gme-qwen2-vl" in model_path.lower():
                 self.model = AutoModelForVision2Seq.from_pretrained(
@@ -279,10 +279,10 @@ class HFRunner:
                     torch_dtype=torch_dtype,
                     trust_remote_code=False,
                     low_cpu_mem_usage=True,
-                ).cuda()
+                ).rtriton()
                 self.processor = AutoProcessor.from_pretrained(model_path)
             elif "clip" in model_path.lower():
-                self.model = AutoModel.from_pretrained(model_path).cuda()
+                self.model = AutoModel.from_pretrained(model_path).rtriton()
                 self.processor = AutoProcessor.from_pretrained(model_path)
             else:
                 self.model = _get_sentence_transformer_embedding_model(
@@ -295,7 +295,7 @@ class HFRunner:
                 model_path,
                 torch_dtype=torch_dtype,
                 trust_remote_code=self.needs_trust_remote_code(model_path),
-            ).cuda()
+            ).rtriton()
         else:
             raise Exception(f"Unrecognized model type {self.model_type}")
         self.tokenizer = get_tokenizer(
@@ -338,15 +338,15 @@ class HFRunner:
                                 images=image[0], return_tensors="pt"
                             )
                             logits = self.model.get_image_features(
-                                pixel_values=inputs.data["pixel_values"].cuda(),
+                                pixel_values=inputs.data["pixel_values"].rtriton(),
                             ).tolist()
                         else:
                             inputs = self.tokenizer(
                                 prompts, padding=True, return_tensors="pt"
                             )
                             logits = self.model.get_text_features(
-                                input_ids=inputs.data["input_ids"].cuda(),
-                                attention_mask=inputs.data["attention_mask"].cuda(),
+                                input_ids=inputs.data["input_ids"].rtriton(),
+                                attention_mask=inputs.data["attention_mask"].rtriton(),
                             ).tolist()
                     else:
                         logits = self.model.encode(prompts).tolist()
@@ -354,7 +354,7 @@ class HFRunner:
                 elif self.model_type == "cross_encoder":
                     inputs = self.tokenizer(
                         prompts, padding=True, return_tensors="pt"
-                    ).to("cuda")
+                    ).to("rtriton")
                     scores = self.model(**inputs).logits
                     scores = scores.squeeze().tolist()
                     if not isinstance(scores, list):
@@ -369,7 +369,7 @@ class HFRunner:
                         )
                         conv_tokenized = self.tokenizer(
                             conv_formatted, return_tensors="pt"
-                        ).to("cuda")
+                        ).to("rtriton")
                         scores.append(
                             float(self.model(**conv_tokenized).logits[0][0].item())
                         )
@@ -426,9 +426,9 @@ class HFRunner:
 
         for i, p in enumerate(prompts):
             if isinstance(p, str):
-                input_ids = tokenizer.encode(p, return_tensors="pt").cuda()
+                input_ids = tokenizer.encode(p, return_tensors="pt").rtriton()
             else:
-                input_ids = torch.tensor([p], device="cuda")
+                input_ids = torch.tensor([p], device="rtriton")
 
             if lora_paths is not None and lora_paths[i] is not None:
                 from peft import PeftModel
@@ -526,7 +526,7 @@ class SRTRunner:
         prefill_attention_backend: Optional[str] = None,
         decode_attention_backend: Optional[str] = None,
         lora_backend: str = "csgmv",
-        disable_cuda_graph: bool = False,
+        disable_rtriton_graph: bool = False,
         disable_radix_cache: bool = False,
         chunked_prefill_size: Optional[int] = None,
         context_length: Optional[int] = None,
@@ -547,7 +547,7 @@ class SRTRunner:
         disable_overlap_schedule: bool = False,
         disable_custom_all_reduce: bool = False,
         torchao_config: Optional[str] = None,
-        cuda_graph_max_bs: int = 4,
+        rtriton_graph_max_bs: int = 4,
         sleep_on_idle=False,
         max_lora_rank: Optional[int] = None,
         lora_target_modules: Optional[List[str]] = None,
@@ -596,7 +596,7 @@ class SRTRunner:
             attention_backend=attention_backend,
             prefill_attention_backend=prefill_attention_backend,
             decode_attention_backend=decode_attention_backend,
-            disable_cuda_graph=disable_cuda_graph,
+            disable_rtriton_graph=disable_rtriton_graph,
             disable_radix_cache=disable_radix_cache,
             chunked_prefill_size=chunked_prefill_size,
             context_length=context_length,
@@ -606,7 +606,7 @@ class SRTRunner:
             dp_size=dp_size,
             tokenizer_path=tokenizer_path,
             disable_overlap_schedule=disable_overlap_schedule,
-            cuda_graph_max_bs=cuda_graph_max_bs,
+            rtriton_graph_max_bs=rtriton_graph_max_bs,
             disable_custom_all_reduce=disable_custom_all_reduce,
             sleep_on_idle=sleep_on_idle,
             max_lora_rank=max_lora_rank,

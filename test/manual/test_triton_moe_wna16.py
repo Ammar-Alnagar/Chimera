@@ -159,10 +159,10 @@ def test_fused_moe_wn16(
     weight_bits: int,
 ):
     print(m, n, k, e, topk, dtype, group_size, has_zp, weight_bits)
-    a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
-    w1 = torch.randn((e, 2 * n, k), device="cuda", dtype=dtype) / 10
-    w2 = torch.randn((e, k, n), device="cuda", dtype=dtype) / 10
-    score = torch.randn((m, e), device="cuda", dtype=dtype)
+    a = torch.randn((m, k), device="rtriton", dtype=dtype) / 10
+    w1 = torch.randn((e, 2 * n, k), device="rtriton", dtype=dtype) / 10
+    w2 = torch.randn((e, k, n), device="rtriton", dtype=dtype) / 10
+    score = torch.randn((m, e), device="rtriton", dtype=dtype)
 
     if weight_bits == 4:
         pack_factor = 2
@@ -174,16 +174,16 @@ def test_fused_moe_wn16(
     w1_ref = w1.clone()
     w2_ref = w2.clone()
     w1_qweight = torch.empty(
-        (e, 2 * n, k // pack_factor), device="cuda", dtype=torch.uint8
+        (e, 2 * n, k // pack_factor), device="rtriton", dtype=torch.uint8
     )
-    w2_qweight = torch.empty((e, k, n // pack_factor), device="cuda", dtype=torch.uint8)
-    w1_scales = torch.empty((e, 2 * n, k // group_size), device="cuda", dtype=dtype)
-    w2_scales = torch.empty((e, k, n // group_size), device="cuda", dtype=dtype)
+    w2_qweight = torch.empty((e, k, n // pack_factor), device="rtriton", dtype=torch.uint8)
+    w1_scales = torch.empty((e, 2 * n, k // group_size), device="rtriton", dtype=dtype)
+    w2_scales = torch.empty((e, k, n // group_size), device="rtriton", dtype=dtype)
     w1_qzeros = torch.empty(
-        (e, 2 * n // pack_factor, k // group_size), device="cuda", dtype=torch.uint8
+        (e, 2 * n // pack_factor, k // group_size), device="rtriton", dtype=torch.uint8
     )
     w2_qzeros = torch.empty(
-        (e, k // pack_factor, n // group_size), device="cuda", dtype=torch.uint8
+        (e, k // pack_factor, n // group_size), device="rtriton", dtype=torch.uint8
     )
 
     for i in range(e * 2):

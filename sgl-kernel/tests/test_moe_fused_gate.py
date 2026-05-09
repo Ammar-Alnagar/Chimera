@@ -27,9 +27,9 @@ def test_moe_fused_gate_combined(
     dtype = torch.float32
 
     torch.manual_seed(seq_length)
-    tensor = torch.rand((seq_length, num_experts), dtype=dtype, device="cuda")
+    tensor = torch.rand((seq_length, num_experts), dtype=dtype, device="rtriton")
     scores = tensor.clone()
-    bias = torch.rand(num_experts, dtype=dtype, device="cuda")
+    bias = torch.rand(num_experts, dtype=dtype, device="rtriton")
     topk = topk + num_fused_shared_experts
 
     output, indices = moe_fused_gate(

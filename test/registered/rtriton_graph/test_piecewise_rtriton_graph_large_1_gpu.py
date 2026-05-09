@@ -1,7 +1,7 @@
 import unittest
 
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.run_eval import run_eval
 from sglang.test.test_utils import (
     DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
@@ -12,11 +12,11 @@ from sglang.test.test_utils import (
 )
 
 # CI Registration - Large 1-GPU tests (80GB GPU required)
-register_cuda_ci(est_time=480, suite="stage-b-test-large-1-gpu")
+register_rtriton_ci(est_time=480, suite="stage-b-test-large-1-gpu")
 
 
-class TestPiecewiseCudaGraphQwen3MoE(CustomTestCase):
-    """Test piecewise CUDA graph with Qwen3-Coder-30B-A3B-Instruct MoE model"""
+class TestPiecewiseRtritonGraphQwen3MoE(CustomTestCase):
+    """Test piecewise RTRITON graph with Qwen3-Coder-30B-A3B-Instruct MoE model"""
 
     @classmethod
     def setUpClass(cls):
@@ -27,8 +27,8 @@ class TestPiecewiseCudaGraphQwen3MoE(CustomTestCase):
             cls.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
             other_args=[
-                "--enable-piecewise-cuda-graph",
-                "--piecewise-cuda-graph-compiler",
+                "--enable-piecewise-rtriton-graph",
+                "--piecewise-rtriton-graph-compiler",
                 "eager",
             ],
         )
@@ -55,7 +55,7 @@ class TestPiecewiseCudaGraphQwen3MoE(CustomTestCase):
         self.assertGreaterEqual(metrics["score"], 0.90)
 
 
-class TestPiecewiseCudaGraphGPTQ(CustomTestCase):
+class TestPiecewiseRtritonGraphGPTQ(CustomTestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -65,7 +65,7 @@ class TestPiecewiseCudaGraphGPTQ(CustomTestCase):
             cls.model,
             cls.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
-            other_args=["--enable-piecewise-cuda-graph"],
+            other_args=["--enable-piecewise-rtriton-graph"],
         )
 
     @classmethod
@@ -90,8 +90,8 @@ class TestPiecewiseCudaGraphGPTQ(CustomTestCase):
         self.assertGreaterEqual(metrics["score"], 0.92)
 
 
-class TestPiecewiseCudaGraphAWQ(CustomTestCase):
-    """Test piecewise CUDA graph with AWQ quantized model"""
+class TestPiecewiseRtritonGraphAWQ(CustomTestCase):
+    """Test piecewise RTRITON graph with AWQ quantized model"""
 
     @classmethod
     def setUpClass(cls):
@@ -101,7 +101,7 @@ class TestPiecewiseCudaGraphAWQ(CustomTestCase):
             cls.model,
             cls.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
-            other_args=["--enable-piecewise-cuda-graph"],
+            other_args=["--enable-piecewise-rtriton-graph"],
         )
 
     @classmethod

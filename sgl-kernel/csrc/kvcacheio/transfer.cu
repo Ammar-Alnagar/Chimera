@@ -1,5 +1,5 @@
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAException.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONException.h>
 #include <c10/util/irange.h>
 
 #include <cstdint>
@@ -273,8 +273,8 @@ void transfer_kv_launcher(
     int64_t num_warps_per_block,
     const int64_t page_size = 16,
     const int64_t head_num = 1) {
-  TORCH_CHECK(src_indices.is_cuda(), "Source indices must be a CUDA tensor");
-  TORCH_CHECK(dst_indices.is_cuda(), "Destination indices must be a CUDA tensor");
+  TORCH_CHECK(src_indices.is_rtriton(), "Source indices must be a RTRITON tensor");
+  TORCH_CHECK(dst_indices.is_rtriton(), "Destination indices must be a RTRITON tensor");
   TORCH_CHECK(src_indices.scalar_type() == at::kLong, "Source indices must be of type long");
   TORCH_CHECK(dst_indices.scalar_type() == at::kLong, "Destination indices must be of type long");
   TORCH_CHECK(src_indices.numel() == dst_indices.numel(), "Source and destination indices must have the same length");
@@ -296,7 +296,7 @@ void transfer_kv_launcher(
   const uintptr_t* src_v_tbl_ptr = IsMLA || !src_v_layers.defined() ? nullptr : src_v_layers.data_ptr<uintptr_t>();
   const uintptr_t* dst_v_tbl_ptr = IsMLA || !dst_v_layers.defined() ? nullptr : dst_v_layers.data_ptr<uintptr_t>();
 
-  cudaStream_t torch_current_stream = at::cuda::getCurrentCUDAStream();
+  rtritonStream_t torch_current_stream = at::rtriton::getCurrentRTRITONStream();
   if constexpr (PageHeadLayout) {
     transfer_page_head_kernel_impl<SrcOffsetFn, DstOffsetFn><<<grid_dim, threads_per_block, 0, torch_current_stream>>>(
         src_k_ptr,
@@ -338,7 +338,7 @@ void transfer_kv_launcher(
         src_v_tbl_ptr,
         dst_v_tbl_ptr);
   }
-  C10_CUDA_KERNEL_LAUNCH_CHECK();
+  C10_RTRITON_KERNEL_LAUNCH_CHECK();
 }
 
 void transfer_kv_per_layer(

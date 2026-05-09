@@ -292,7 +292,7 @@ class Rope2DPosEmb(nn.Module):
     """
 
     def __init__(
-        self, dim: int, max_height: int, max_width: int, theta_base=10000, device="cuda"
+        self, dim: int, max_height: int, max_width: int, theta_base=10000, device="rtriton"
     ):
         super().__init__()
         self.dim = dim

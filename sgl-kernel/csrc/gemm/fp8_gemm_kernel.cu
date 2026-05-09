@@ -18,8 +18,8 @@ limitations under the License.
 // https://github.com/NVIDIA/TensorRT-LLM/blob/v0.16.0/cpp/tensorrt_llm/kernels/tilelang_kernels/fp8_rowwise_gemm/fp8_rowwise_gemm_kernel_template_sm89.h
 // https://github.com/NVIDIA/TensorRT-LLM/blob/v0.16.0/cpp/tensorrt_llm/kernels/tilelang_kernels/fp8_rowwise_gemm/fp8_rowwise_gemm_kernel_template_sm90.h
 
-#include <ATen/cuda/CUDAContext.h>
-#include <cudaTypedefs.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <rtritonTypedefs.h>
 #include <tilelang/arch/arch.h>
 #include <tilelang/arch/memory.h>
 #include <tilelang/arch/mma.h>
@@ -53,7 +53,7 @@ limitations under the License.
 
 using namespace cute;
 
-#if defined CUDA_VERSION && CUDA_VERSION >= 12040
+#if defined RTRITON_VERSION && RTRITON_VERSION >= 12040
 template <
     typename ElementType,
     typename OutElementType,
@@ -257,7 +257,7 @@ void launch_sm89_fp8_scaled_mm(
   size_t workspace_size = gemm_op.get_workspace_size(args);
   auto const workspace_options = torch::TensorOptions().dtype(torch::kUInt8).device(a.device());
   auto workspace = torch::empty(workspace_size, workspace_options);
-  auto stream = at::cuda::getCurrentCUDAStream(a.get_device());
+  auto stream = at::rtriton::getCurrentRTRITONStream(a.get_device());
 
   auto can_implement = gemm_op.can_implement(args);
   TORCH_CHECK(can_implement == tilelang::Status::kSuccess)
@@ -437,7 +437,7 @@ void sm89_fp8_dispatch_shape(
 }
 #endif
 
-#if defined CUDA_VERSION && CUDA_VERSION >= 12000
+#if defined RTRITON_VERSION && RTRITON_VERSION >= 12000
 template <
     typename ElementType,
     typename OutElementType,
@@ -679,7 +679,7 @@ void launch_sm90_fp8_scaled_mm(
   size_t workspace_size = gemm_op.get_workspace_size(args);
   auto const workspace_options = torch::TensorOptions().dtype(torch::kUInt8).device(a.device());
   auto workspace = torch::empty(workspace_size, workspace_options);
-  auto stream = at::cuda::getCurrentCUDAStream(a.get_device());
+  auto stream = at::rtriton::getCurrentRTRITONStream(a.get_device());
 
   auto can_implement = gemm_op.can_implement(args);
   TORCH_CHECK(can_implement == tilelang::Status::kSuccess)
@@ -793,7 +793,7 @@ void sm90_fp8_dispatch_shape(
 }
 #endif
 
-#if defined CUDA_VERSION && CUDA_VERSION >= 12080
+#if defined RTRITON_VERSION && RTRITON_VERSION >= 12080
 template <
     typename ElementType,
     typename OutElementType,
@@ -1005,7 +1005,7 @@ void launch_sm100_fp8_scaled_mm(
   size_t workspace_size = gemm_op.get_workspace_size(args);
   auto const workspace_options = torch::TensorOptions().dtype(torch::kUInt8).device(a.device());
   auto workspace = torch::empty(workspace_size, workspace_options);
-  auto stream = at::cuda::getCurrentCUDAStream(a.get_device());
+  auto stream = at::rtriton::getCurrentRTRITONStream(a.get_device());
   auto can_implement = gemm_op.can_implement(args);
   TORCH_CHECK(can_implement == tilelang::Status::kSuccess)
   auto status = gemm_op.run(args, workspace.data_ptr(), stream);
@@ -1380,7 +1380,7 @@ void launch_sm120_fp8_scaled_mm(
   size_t workspace_size = gemm_op.get_workspace_size(args);
   auto const workspace_options = torch::TensorOptions().dtype(torch::kUInt8).device(a.device());
   auto workspace = torch::empty(workspace_size, workspace_options);
-  auto stream = at::cuda::getCurrentCUDAStream(a.get_device());
+  auto stream = at::rtriton::getCurrentRTRITONStream(a.get_device());
   auto can_implement = gemm_op.can_implement(args);
   TORCH_CHECK(can_implement == tilelang::Status::kSuccess)
   auto status = gemm_op.run(args, workspace.data_ptr(), stream);
@@ -1454,8 +1454,8 @@ torch::Tensor fp8_scaled_mm(
     const torch::Tensor& scales_b,
     const torch::Dtype& out_dtype,
     const c10::optional<torch::Tensor>& bias) {
-  TORCH_CHECK(mat_a.is_cuda(), "mat_a must be a CUDA tensor");
-  TORCH_CHECK(mat_b.is_cuda(), "mat_b must be a CUDA tensor");
+  TORCH_CHECK(mat_a.is_rtriton(), "mat_a must be a RTRITON tensor");
+  TORCH_CHECK(mat_b.is_rtriton(), "mat_b must be a RTRITON tensor");
   TORCH_CHECK(mat_a.dim() == 2, "mat_a must be a 2D tensor");
   TORCH_CHECK(mat_b.dim() == 2, "mat_b must be a 2D tensor");
   TORCH_CHECK(mat_a.stride(1) == 1, "mat_a must be a row major tensor");
@@ -1488,7 +1488,7 @@ torch::Tensor fp8_scaled_mm(
 
   auto sm_version = getSMVersion();
 
-#if defined CUDA_VERSION && CUDA_VERSION >= 12080
+#if defined RTRITON_VERSION && RTRITON_VERSION >= 12080
   if (sm_version >= 120) {
     if (out_dtype == torch::kBFloat16) {
       sm120_fp8_dispatch_shape<tilelang::bfloat16_t>(out, mat_a, mat_b, scales_a, scales_b, bias);
@@ -1506,7 +1506,7 @@ torch::Tensor fp8_scaled_mm(
   }
 #endif
 
-#if defined CUDA_VERSION && CUDA_VERSION >= 12000
+#if defined RTRITON_VERSION && RTRITON_VERSION >= 12000
   if (sm_version >= 90) {
     if (out_dtype == torch::kBFloat16) {
       sm90_fp8_dispatch_shape<tilelang::bfloat16_t>(out, mat_a, mat_b, scales_a, scales_b, bias);
@@ -1517,7 +1517,7 @@ torch::Tensor fp8_scaled_mm(
   }
 #endif
 
-#if defined CUDA_VERSION && CUDA_VERSION >= 12040
+#if defined RTRITON_VERSION && RTRITON_VERSION >= 12040
   if (sm_version == 89) {
     if (out_dtype == torch::kBFloat16) {
       sm89_fp8_dispatch_shape<tilelang::bfloat16_t>(out, mat_a, mat_b, scales_a, scales_b, bias);

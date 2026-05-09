@@ -74,7 +74,7 @@ from sglang.srt.utils import (
     configure_logger,
     get_bool_env_var,
     get_zmq_socket,
-    is_cuda,
+    is_rtriton,
     kill_process_tree,
     launch_dummy_health_check_server,
     maybe_reindex_device_id,
@@ -88,7 +88,7 @@ from sglang.version import __version__
 logger = logging.getLogger(__name__)
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
 
 def init_tokenizer_manager(
@@ -751,8 +751,8 @@ def _set_envs_and_config(server_args: ServerArgs):
         os.environ["NCCL_NVLS_ENABLE"] = str(
             int(server_args.enable_nccl_nvls or server_args.enable_symm_mem)
         )
-    os.environ["CUDA_DEVICE_MAX_CONNECTIONS"] = "8"
-    os.environ["CUDA_MODULE_LOADING"] = "AUTO"
+    os.environ["RTRITON_DEVICE_MAX_CONNECTIONS"] = "8"
+    os.environ["RTRITON_MODULE_LOADING"] = "AUTO"
 
     if os.environ.get("TRTLLM_ENABLE_PDL", "1") != "0":
         # flashinfer uses this environment variable for various kernels from MoE to quant kernels
@@ -788,7 +788,7 @@ def _set_envs_and_config(server_args: ServerArgs):
                 "reinstall the latest version by following the instructions "
                 "at https://docs.flashinfer.ai/installation.html.",
             )
-        if _is_cuda:
+        if _is_rtriton:
             assert_pkg_version(
                 "sgl-kernel",
                 "0.3.20",

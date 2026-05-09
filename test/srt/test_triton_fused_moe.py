@@ -17,8 +17,8 @@ class TestFusedMOE(CustomTestCase):
     TOP_KS = [2, 4]
 
     @staticmethod
-    def create_random_cuda_tensor(shape, dtype, mean=0, std=0.01):
-        """Create a random CUDA tensor
+    def create_random_rtriton_tensor(shape, dtype, mean=0, std=0.01):
+        """Create a random RTRITON tensor
 
         Args:
             shape: Tensor shape
@@ -27,9 +27,9 @@ class TestFusedMOE(CustomTestCase):
             std: Standard deviation
 
         Returns:
-            torch.Tensor: Randomly initialized CUDA tensor
+            torch.Tensor: Randomly initialized RTRITON tensor
         """
-        return torch.empty(shape, dtype=dtype, device="cuda").normal_(mean, std)
+        return torch.empty(shape, dtype=dtype, device="rtriton").normal_(mean, std)
 
     def get_tolerance(self, dtype):
         """Get tolerance values for different data types
@@ -92,14 +92,14 @@ class TestFusedMOE(CustomTestCase):
     def _test_case(self, m, n, k, e, topk, dtype):
         rtol, atol = self.get_tolerance(dtype)
 
-        a = self.create_random_cuda_tensor((m, k), dtype)
-        w1 = self.create_random_cuda_tensor((e, 2 * n, k), dtype)
-        w2 = self.create_random_cuda_tensor((e, k, n), dtype)
+        a = self.create_random_rtriton_tensor((m, k), dtype)
+        w1 = self.create_random_rtriton_tensor((e, 2 * n, k), dtype)
+        w2 = self.create_random_rtriton_tensor((e, k, n), dtype)
         w1_tri = w1.clone()
         w2_tri = w2.clone()
         w1_tri = w1_tri.transpose(-2, -1).contiguous()
         w2_tri = w2_tri.transpose(-2, -1).contiguous()
-        score = self.create_random_cuda_tensor((m, e), dtype)
+        score = self.create_random_rtriton_tensor((m, e), dtype)
 
         topk_op = TopK(
             top_k=topk,
@@ -107,7 +107,7 @@ class TestFusedMOE(CustomTestCase):
             use_grouped_topk=False,
         )
         topk_op.topk_config.output_format = TopKOutputFormat.TRITON_KERNEL
-        triton_topk_output = topk_op.forward_cuda(
+        triton_topk_output = topk_op.forward_rtriton(
             hidden_states=a,
             router_logits=score,
         )
@@ -184,7 +184,7 @@ class TestFusedMOE(CustomTestCase):
                                             topk,
                                             dtype,
                                         )
-                                        torch.cuda.empty_cache()
+                                        torch.rtriton.empty_cache()
                                     pbar.update(1)
 
 

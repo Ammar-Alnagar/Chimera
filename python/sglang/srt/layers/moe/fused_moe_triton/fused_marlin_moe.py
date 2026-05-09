@@ -2,12 +2,12 @@ from typing import Optional
 
 import torch
 
-from sglang.srt.utils import is_cuda
+from sglang.srt.utils import is_rtriton
 from sglang.srt.utils.custom_op import register_custom_op
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import moe_sum_reduce, silu_and_mul
 
 
@@ -113,7 +113,7 @@ def fused_marlin_moe(
             sorted_token_ids.size(0) // block_size_m
         )
         device = hidden_states.device
-        sms = torch.cuda.get_device_properties(device).multi_processor_count
+        sms = torch.rtriton.get_device_properties(device).multi_processor_count
         max_workspace_size = min(max_workspace_size, sms * 4)
         workspace = torch.zeros(
             max_workspace_size, dtype=torch.int, device=device, requires_grad=False
@@ -139,7 +139,7 @@ def fused_marlin_moe(
 
     use_atomic_add = (
         hidden_states.dtype == torch.half
-        or torch.cuda.get_device_capability(hidden_states.device)[0] >= 9
+        or torch.rtriton.get_device_capability(hidden_states.device)[0] >= 9
     )
 
     intermediate_cache1 = torch.ops.sgl_kernel.moe_wna16_marlin_gemm.default(

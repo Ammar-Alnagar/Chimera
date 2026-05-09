@@ -52,12 +52,12 @@ from sglang.srt.models.deepseek_v2 import (
     enable_nextn_moe_bf16_cast_to_fp8,
 )
 from sglang.srt.server_args import get_global_server_args
-from sglang.srt.utils import BumpAllocator, add_prefix, is_cuda, is_npu
+from sglang.srt.utils import BumpAllocator, add_prefix, is_rtriton, is_npu
 
 logger = logging.getLogger(__name__)
 
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_npu = is_npu()
 
 
@@ -99,8 +99,8 @@ class DeepseekModelNextN(nn.Module):
         self.eh_proj = nn.Linear(2 * config.hidden_size, config.hidden_size, bias=False)
 
         self.alt_stream = (
-            torch.cuda.Stream()
-            if _is_cuda or envs.SGLANG_NPU_USE_MULTI_STREAM.get()
+            torch.rtriton.Stream()
+            if _is_rtriton or envs.SGLANG_NPU_USE_MULTI_STREAM.get()
             else None
         )
 
@@ -184,7 +184,7 @@ class DeepseekModelNextN(nn.Module):
                     hidden_states,
                     self.cp_size,
                     forward_batch,
-                    torch.cuda.current_stream(),
+                    torch.rtriton.current_stream(),
                 )
 
         return hidden_states

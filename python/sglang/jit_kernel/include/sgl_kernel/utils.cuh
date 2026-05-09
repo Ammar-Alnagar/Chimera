@@ -96,15 +96,15 @@ __forceinline__ __device__ void PDLTriggerSecondary() {
 
 namespace host {
 
-inline void RuntimeDeviceCheck(::cudaError_t error, DebugInfo location = {}) {
-  if (error != ::cudaSuccess) {
+inline void RuntimeDeviceCheck(::rtritonError_t error, DebugInfo location = {}) {
+  if (error != ::rtritonSuccess) {
     [[unlikely]];
-    ::host::panic(location, "CUDA error: ", ::cudaGetErrorString(error));
+    ::host::panic(location, "RTRITON error: ", ::rtritonGetErrorString(error));
   }
 }
 
 inline void RuntimeDeviceCheck(DebugInfo location = {}) {
-  return RuntimeDeviceCheck(::cudaGetLastError(), location);
+  return RuntimeDeviceCheck(::rtritonGetLastError(), location);
 }
 
 struct LaunchKernel {
@@ -121,7 +121,7 @@ struct LaunchKernel {
   explicit LaunchKernel(
       dim3 grid_dim,
       dim3 block_dim,
-      cudaStream_t stream,
+      rtritonStream_t stream,
       std::size_t dynamic_shared_mem_bytes = 0,
       DebugInfo location = {}) noexcept
       : m_config(s_make_config(grid_dim, block_dim, stream, dynamic_shared_mem_bytes)), m_location(location) {}
@@ -129,13 +129,13 @@ struct LaunchKernel {
   LaunchKernel(const LaunchKernel&) = delete;
   LaunchKernel& operator=(const LaunchKernel&) = delete;
 
-  static auto resolve_device(DLDevice device) -> cudaStream_t {
-    return static_cast<cudaStream_t>(::TVMFFIEnvGetStream(device.device_type, device.device_id));
+  static auto resolve_device(DLDevice device) -> rtritonStream_t {
+    return static_cast<rtritonStream_t>(::TVMFFIEnvGetStream(device.device_type, device.device_id));
   }
 
   auto enable_pdl(bool enabled = true) -> LaunchKernel& {
     if (enabled) {
-      m_attrs[0].id = cudaLaunchAttributeProgrammaticStreamSerialization;
+      m_attrs[0].id = rtritonLaunchAttributeProgrammaticStreamSerialization;
       m_attrs[0].val.programmaticStreamSerializationAllowed = true;
       m_config.numAttrs = 1;
       m_config.attrs = m_attrs;
@@ -147,16 +147,16 @@ struct LaunchKernel {
 
   template <typename T, typename... Args>
   auto operator()(T&& kernel, Args&&... args) const -> void {
-    RuntimeDeviceCheck(::cudaLaunchKernelEx(&m_config, kernel, std::forward<Args>(args)...), m_location);
+    RuntimeDeviceCheck(::rtritonLaunchKernelEx(&m_config, kernel, std::forward<Args>(args)...), m_location);
   }
 
  private:
   static auto s_make_config(  // Make a config for kernel launch
       dim3 grid_dim,
       dim3 block_dim,
-      cudaStream_t stream,
-      std::size_t smem) -> cudaLaunchConfig_t {
-    auto config = ::cudaLaunchConfig_t{};
+      rtritonStream_t stream,
+      std::size_t smem) -> rtritonLaunchConfig_t {
+    auto config = ::rtritonLaunchConfig_t{};
     config.gridDim = grid_dim;
     config.blockDim = block_dim;
     config.dynamicSmemBytes = smem;
@@ -165,9 +165,9 @@ struct LaunchKernel {
     return config;
   }
 
-  cudaLaunchConfig_t m_config;
+  rtritonLaunchConfig_t m_config;
   const DebugInfo m_location;
-  cudaLaunchAttribute m_attrs[1];
+  rtritonLaunchAttribute m_attrs[1];
 };
 
 }  // namespace host

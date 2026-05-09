@@ -186,8 +186,8 @@ def rmsnorm_sglang(
 
 def calculate_diff(batch_size, seq_len, hidden_size, use_residual=True):
     dtype = torch.bfloat16
-    x = torch.randn(batch_size, seq_len, hidden_size, dtype=dtype, device="cuda")
-    weight = torch.ones(hidden_size, dtype=dtype, device="cuda")
+    x = torch.randn(batch_size, seq_len, hidden_size, dtype=dtype, device="rtriton")
+    weight = torch.ones(hidden_size, dtype=dtype, device="rtriton")
     residual = torch.randn_like(x) if use_residual else None
 
     output_naive = rmsnorm_naive(
@@ -282,7 +282,7 @@ if VLLM_AVAILABLE:
     )
 )
 def benchmark(batch_size, seq_len, hidden_size, provider, use_residual):
-    device = torch.device("cuda")
+    device = torch.device("rtriton")
     dtype = torch.bfloat16
 
     x = torch.randn(batch_size, seq_len, hidden_size, dtype=dtype, device=device)
@@ -293,8 +293,8 @@ def benchmark(batch_size, seq_len, hidden_size, provider, use_residual):
     def timed(fn):
         for _ in range(5):
             fn()
-        torch.cuda.synchronize()
-        ms, qmin, qmax = triton.testing.do_bench_cudagraph(
+        torch.rtriton.synchronize()
+        ms, qmin, qmax = triton.testing.do_bench_rtritongraph(
             fn, quantiles=[0.5, 0.2, 0.8]
         )
         return 1000 * ms, 1000 * qmax, 1000 * qmin

@@ -35,16 +35,16 @@ class CustomOp(nn.Module):
         """
         raise NotImplementedError
 
-    def forward_cuda(self, *args, **kwargs) -> Any:
+    def forward_rtriton(self, *args, **kwargs) -> Any:
         raise NotImplementedError
 
     def forward_hip(self, *args, **kwargs) -> Any:
-        # ROCm kernels follow the CUDA path by default.
-        return self.forward_cuda(*args, **kwargs)
+        # ROCm kernels follow the RTRITON path by default.
+        return self.forward_rtriton(*args, **kwargs)
 
     def forward_cpu(self, *args, **kwargs) -> Any:
-        # By default, we assume that CPU ops are compatible with CUDA ops.
-        return self.forward_cuda(*args, **kwargs)
+        # By default, we assume that CPU ops are compatible with RTRITON ops.
+        return self.forward_rtriton(*args, **kwargs)
 
     def forward_tpu(self, *args, **kwargs) -> Any:
         # By default, we assume that TPU ops are compatible with the
@@ -58,8 +58,8 @@ class CustomOp(nn.Module):
         return self.forward_native(*args, **kwargs)
 
     def dispatch_forward(self) -> Callable:
-        if current_platform.is_cuda():
-            return self.forward_cuda
+        if current_platform.is_rtriton():
+            return self.forward_rtriton
         elif current_platform.is_hip():
             return self.forward_hip
         elif current_platform.is_npu():

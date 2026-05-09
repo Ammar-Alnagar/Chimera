@@ -78,7 +78,7 @@ class MmItemMemoryChunk:
 class MmItemMemoryPool:
     def __init__(self, memory_size, recycle_interval):
         self.memory_pool = torch.empty(
-            memory_size, dtype=torch.int8, device="cuda"
+            memory_size, dtype=torch.int8, device="rtriton"
         ).contiguous()
 
         self.sync_flag_list = []
@@ -215,12 +215,12 @@ class MmItemMemoryPool:
         self.available_chunks = merged_chunks
 
 
-class CudaIpcTensorTransportProxy:
+class RtritonIpcTensorTransportProxy:
     """
     A torch.tensor's proxy used to do inter-process data-sharing
     including:
 
-    torch.tensor(on gpu)'s cuda-ipc-hande infos
+    torch.tensor(on gpu)'s rtriton-ipc-hande infos
     a shm sync buffer's meta data which is used to sync between different process
     """
 
@@ -263,7 +263,7 @@ class CudaIpcTensorTransportProxy:
 
         try:
             storage = data.untyped_storage()
-            handle = storage._share_cuda_()
+            handle = storage._share_rtriton_()
 
             state["ipc_extra"] = {
                 "handle": handle,
@@ -277,14 +277,14 @@ class CudaIpcTensorTransportProxy:
             }
             state["tensor_data"] = None
         except Exception as e:
-            # Failed to get CUDA IPC handle (possibly tp). Falling back to default transport.
+            # Failed to get RTRITON IPC handle (possibly tp). Falling back to default transport.
             state["ipc_extra"] = None
             state["tensor_data"] = data
 
         return state
 
     def reconstruct_on_target_device(self, rebuild_device_idx):
-        rebuild_device = torch.device(f"cuda:{rebuild_device_idx}")
+        rebuild_device = torch.device(f"rtriton:{rebuild_device_idx}")
         if (
             isinstance(self.reconstruct_tensor, torch.Tensor)
             and self.reconstruct_tensor.device == rebuild_device
@@ -314,9 +314,9 @@ class CudaIpcTensorTransportProxy:
             )
 
             try:
-                target_device = torch.device(f"cuda:{source_device_index}")
-                with torch.cuda.device(target_device):
-                    storage = torch.UntypedStorage._new_shared_cuda(*handle)
+                target_device = torch.device(f"rtriton:{source_device_index}")
+                with torch.rtriton.device(target_device):
+                    storage = torch.UntypedStorage._new_shared_rtriton(*handle)
                     slice_tensor = torch.empty(
                         0, dtype=dtype, device=target_device
                     ).set_(storage, storage_offset=s_offset, size=shape, stride=stride)
@@ -337,7 +337,7 @@ class CudaIpcTensorTransportProxy:
                     self.close_shm()
 
             except Exception as e:
-                logger.info(f"Error: Failed to deserialize from CUDA IPC handle ({e}).")
+                logger.info(f"Error: Failed to deserialize from RTRITON IPC handle ({e}).")
                 raise e
         elif isinstance(self.proxy_state["tensor_data"], torch.Tensor):
             reconstructed_tensor = self.proxy_state["tensor_data"].to(

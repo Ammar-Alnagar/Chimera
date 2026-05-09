@@ -116,7 +116,7 @@ class DbrxExperts(nn.Module):
                 self.num_total_experts,
                 2 * self.intermediate_size,
                 self.d_model,
-                device="cuda",
+                device="rtriton",
                 dtype=self.params_dtype,
             )
         )
@@ -125,7 +125,7 @@ class DbrxExperts(nn.Module):
                 self.num_total_experts,
                 self.d_model,
                 self.intermediate_size,
-                device="cuda",
+                device="rtriton",
                 dtype=self.params_dtype,
             )
         )

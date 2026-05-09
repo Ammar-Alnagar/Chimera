@@ -9,7 +9,7 @@ __all__ = [
     "CIRegistry",
     "collect_tests",
     "register_cpu_ci",
-    "register_cuda_ci",
+    "register_rtriton_ci",
     "register_amd_ci",
     "register_npu_ci",
     "ut_parse_one_file",
@@ -21,7 +21,7 @@ _UNSET = object()
 
 class HWBackend(Enum):
     CPU = auto()
-    CUDA = auto()
+    RTRITON = auto()
     AMD = auto()
     NPU = auto()
 
@@ -43,10 +43,10 @@ def register_cpu_ci(
     return None
 
 
-def register_cuda_ci(
+def register_rtriton_ci(
     est_time: float, suite: str, nightly: bool = False, disabled: Optional[str] = None
 ):
-    """Marker for CUDA CI registration (parsed via AST; runtime no-op)."""
+    """Marker for RTRITON CI registration (parsed via AST; runtime no-op)."""
     return None
 
 
@@ -72,7 +72,7 @@ def register_npu_ci(
 
 REGISTER_MAPPING = {
     "register_cpu_ci": HWBackend.CPU,
-    "register_cuda_ci": HWBackend.CUDA,
+    "register_rtriton_ci": HWBackend.RTRITON,
     "register_amd_ci": HWBackend.AMD,
     "register_npu_ci": HWBackend.NPU,
 }

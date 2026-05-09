@@ -66,8 +66,8 @@ SHAREGPT_URL = (
 )
 
 # Hardware-specific configuration
-if torch.version.cuda is not None:
-    print("Running on NVIDIA CUDA GPU")
+if torch.version.rtriton is not None:
+    print("Running on NVIDIA RTRITON GPU")
     DENSE_TOLERANCE_MAX_DIFF = 1e-5
     DENSE_TOLERANCE_MEAN_DIFF = 1e-5
 else:
@@ -214,7 +214,7 @@ def generate_baseline(
 
     finally:
         engine.shutdown()
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
 
 class TestLogprobsDense(unittest.TestCase):
@@ -229,14 +229,14 @@ class TestLogprobsDense(unittest.TestCase):
     def tearDownClass(cls):
         """Clean up after all tests - shutdown the engine."""
         cls.engine.shutdown()
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
     @classmethod
     def restart_engine_with_config(cls, **kwargs):
         """Create engine with custom configuration"""
         # Safely shutdown existing engine
         cls.engine.shutdown()
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
         # Set chunk size
         chunk_size = kwargs.pop("chunk_size", None)

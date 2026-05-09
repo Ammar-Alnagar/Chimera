@@ -18,8 +18,8 @@ from sglang.multimodal_gen.utils import resolve_obj_by_qualname
 logger = init_logger(__name__)
 
 
-def cuda_platform_plugin() -> str | None:
-    is_cuda = False
+def rtriton_platform_plugin() -> str | None:
+    is_rtriton = False
 
     try:
         from sglang.multimodal_gen.utils import import_pynvml
@@ -30,9 +30,9 @@ def cuda_platform_plugin() -> str | None:
             # NOTE: Edge case: sgl_diffusion cpu build on a GPU machine.
             # Third-party pynvml can be imported in cpu build,
             # we need to check if sgl_diffusion is built with cpu too.
-            # Otherwise, sgl_diffusion will always activate cuda plugin
+            # Otherwise, sgl_diffusion will always activate rtriton plugin
             # on a GPU machine, even if in a cpu build.
-            is_cuda = pynvml.nvmlDeviceGetCount() > 0
+            is_rtriton = pynvml.nvmlDeviceGetCount() > 0
         finally:
             pynvml.nvmlShutdown()
     except Exception as e:
@@ -40,21 +40,21 @@ def cuda_platform_plugin() -> str | None:
             # If the error is not related to NVML, re-raise it.
             raise e
 
-        # CUDA is supported on Jetson, but NVML may not be.
+        # RTRITON is supported on Jetson, but NVML may not be.
         import os
 
-        def cuda_is_jetson() -> bool:
+        def rtriton_is_jetson() -> bool:
             return os.path.isfile("/etc/nv_tegra_release") or os.path.exists(
                 "/sys/class/tegra-firmware"
             )
 
-        if cuda_is_jetson():
-            is_cuda = True
-    if is_cuda:
-        logger.info("CUDA is available")
+        if rtriton_is_jetson():
+            is_rtriton = True
+    if is_rtriton:
+        logger.info("RTRITON is available")
 
     return (
-        "sglang.multimodal_gen.runtime.platforms.cuda.CudaPlatform" if is_cuda else None
+        "sglang.multimodal_gen.runtime.platforms.rtriton.RtritonPlatform" if is_rtriton else None
     )
 
 
@@ -102,7 +102,7 @@ def rocm_platform_plugin() -> str | None:
 
 
 builtin_platform_plugins = {
-    "cuda": cuda_platform_plugin,
+    "rtriton": rtriton_platform_plugin,
     "rocm": rocm_platform_plugin,
     "mps": mps_platform_plugin,
     "cpu": cpu_platform_plugin,
@@ -123,8 +123,8 @@ def resolve_current_platform_cls_qualname() -> str:
     if platform_cls_qualname is not None:
         return platform_cls_qualname
 
-    # Fall back to CUDA
-    platform_cls_qualname = cuda_platform_plugin()
+    # Fall back to RTRITON
+    platform_cls_qualname = rtriton_platform_plugin()
     if platform_cls_qualname is not None:
         return platform_cls_qualname
 

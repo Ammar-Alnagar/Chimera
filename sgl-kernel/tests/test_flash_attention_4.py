@@ -27,7 +27,7 @@ flash_attn_varlen_func = partial(flash_attn_varlen_func, ver=4)
 flash_attn_with_kvcache = partial(flash_attn_with_kvcache, ver=4)
 
 # Skip this test on Hopper machine
-skip_condition = torch.cuda.get_device_capability() < (10, 0)
+skip_condition = torch.rtriton.get_device_capability() < (10, 0)
 
 
 def unpad_input(hidden_states, attention_mask, unused_mask=None):
@@ -571,7 +571,7 @@ def test_flash_attn_varlen_output(
         causal or local
     ):  # Right now we only support causal attention with seqlen_k == seqlen_q
         seqlen_k = seqlen_q
-    device = "cuda"
+    device = "rtriton"
     # set seed
     torch.random.manual_seed(seqlen_q + seqlen_k + d + int(causal) * 2 + int(local))
     batch_size = 49 if seqlen_q <= 1024 else 7
@@ -801,8 +801,8 @@ def test_flash_attn_varlen_output(
         ):
             g_unpad = torch.randn_like(out_unpad)
             do_o = ((g_unpad.float() * out_unpad.float()).sum(-1)).transpose(-1, -2)
-            # import flash_attn_3_cuda
-            # dq_unpad, dk_unpad, dv_unpad, softmax_d, dq_accum, lse_log2 = flash_attn_3_cuda.bwd_varlen(
+            # import flash_attn_3_rtriton
+            # dq_unpad, dk_unpad, dv_unpad, softmax_d, dq_accum, lse_log2 = flash_attn_3_rtriton.bwd_varlen(
             #     g_unpad,
             #     q_unpad,
             #     k_unpad,
@@ -974,7 +974,7 @@ def test_flash_attn_kvcache(
         pytest.skip()
     if rotary_fraction == 0.0 and has_rotary_seqlens:
         pytest.skip()
-    device = "cuda"
+    device = "rtriton"
     # set seed
     torch.random.manual_seed(0)
     batch_size = 5

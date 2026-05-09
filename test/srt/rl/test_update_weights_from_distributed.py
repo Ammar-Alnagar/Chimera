@@ -74,7 +74,7 @@ def init_process(
     barrier,
     pause_generation_mode,
 ):
-    torch.cuda.set_device(rank)
+    torch.rtriton.set_device(rank)
 
     if rank == 0:
         init_process_hf(
@@ -120,7 +120,7 @@ def init_process_hf(
     barrier,
 ):
     # These two environment variables are very important
-    # to avoid unexpected behaviors of CUDA and NCCL.
+    # to avoid unexpected behaviors of RTRITON and NCCL.
     os.environ["NCCL_CUMEM_ENABLE"] = "0"
     os.environ["NCCL_NVLS_ENABLE"] = "0"
 
@@ -129,13 +129,13 @@ def init_process_hf(
         model_name,
         torch_dtype="bfloat16",
         tie_word_embeddings=tie_word_embeddings,
-    ).to("cuda:0")
+    ).to("rtriton:0")
     base_model_name = model_name.replace("-Instruct", "")
     hf_base_model = AutoModelForCausalLM.from_pretrained(
         base_model_name,
         torch_dtype="bfloat16",
         tie_word_embeddings=tie_word_embeddings,
-    ).to("cuda:0")
+    ).to("rtriton:0")
 
     hf_instruct_params = []
     hf_base_params = []
@@ -163,7 +163,7 @@ def init_process_hf(
     param_queue.put(("hf_base_params", hf_base_params))
 
     # Init weight update group for rank 0 (the training engine in RLHF).
-    port = 60000 + int(os.environ.get("CUDA_VISIBLE_DEVICES", "0")[0]) * 100
+    port = 60000 + int(os.environ.get("RTRITON_VISIBLE_DEVICES", "0")[0]) * 100
     init_method = f"tcp://localhost:{port}"
     print(f"[hf] {rank=} {world_size=} init custom process group. {init_method=}")
     group = init_custom_process_group(
@@ -173,7 +173,7 @@ def init_process_hf(
         rank=rank,
         group_name="test_parameter_update_group",
     )
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     barrier.wait()
     time_begin_broadcast = time.perf_counter()
 
@@ -201,7 +201,7 @@ def init_process_hf(
                 src=0,
                 group=group,
             )
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     time_end_broadcast = time.perf_counter()
 
     # Measure the latency of broadcasting/weights update.
@@ -216,7 +216,7 @@ def init_process_hf(
     del hf_instruct_model
     del hf_base_model
     gc.collect()
-    torch.cuda.empty_cache()
+    torch.rtriton.empty_cache()
 
 
 def init_process_sgl(
@@ -234,8 +234,8 @@ def init_process_sgl(
     barrier,
     pause_generation_mode,
 ):
-    torch.cuda.set_device(rank)
-    torch.cuda.synchronize()
+    torch.rtriton.set_device(rank)
+    torch.rtriton.synchronize()
     base_gpu_id = 1 if rank == 1 else 1 + tp_size
     if backend == "Engine":
         print(f"[sgl] rank {rank} init engine")
@@ -243,7 +243,7 @@ def init_process_sgl(
             model_path=model_name,
             base_gpu_id=base_gpu_id,
             tp_size=tp_size,
-            cuda_graph_max_bs=2,
+            rtriton_graph_max_bs=2,
         )
     else:
         if rank == 1:
@@ -262,11 +262,11 @@ def init_process_sgl(
                 str(base_gpu_id),
                 "--tp-size",
                 str(tp_size),
-                "--cuda-graph-max-bs",
+                "--rtriton-graph-max-bs",
                 2,
             ),
         )
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     # Get weights of instruct model, i.e. pre-training weights.
     instruct_params = []
@@ -282,7 +282,7 @@ def init_process_sgl(
 
     param_queue.put((f"sgl_dp_{rank}_instruct_params", instruct_params))
 
-    port = 60000 + int(os.environ.get("CUDA_VISIBLE_DEVICES", "0")[0]) * 100
+    port = 60000 + int(os.environ.get("RTRITON_VISIBLE_DEVICES", "0")[0]) * 100
 
     # Init weight update group with the training engine.
     if backend == "Engine":
@@ -347,7 +347,7 @@ def init_process_sgl(
             url + "/pause_generation",
             json={"mode": pause_generation_mode},
         )
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     barrier.wait()
     time_begin_update = time.perf_counter()
     if backend == "Engine":
@@ -370,7 +370,7 @@ def init_process_sgl(
                 "flush_cache": not (pause_generation_mode == "in_place"),
             },
         )
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     time_end_update = time.perf_counter()
     if pause_generation_mode in ["in_place", "retract"]:
         requests.post(
@@ -618,14 +618,14 @@ def test_update_weights_from_distributed(
     param_queue.close()
     param_queue.join_thread()
     gc.collect()
-    torch.cuda.empty_cache()
+    torch.rtriton.empty_cache()
 
 
 class TestUpdateWeightsFromDistributed(CustomTestCase):
 
     def test_update_weights_from_distributed(self):
 
-        assert torch.cuda.device_count() >= 2, "At least 2 GPUs are required"
+        assert torch.rtriton.device_count() >= 2, "At least 2 GPUs are required"
         # test_suits : tp, dp, model_name, backend
         if is_in_ci():
             mode = random.choice(["Engine", "Server"])
@@ -664,7 +664,7 @@ class TestUpdateWeightsFromDistributed(CustomTestCase):
                 ),
             ]
 
-            if torch.cuda.device_count() >= 4:
+            if torch.rtriton.device_count() >= 4:
                 test_suits.extend(
                     [
                         (
@@ -686,7 +686,7 @@ class TestUpdateWeightsFromDistributed(CustomTestCase):
                     ]
                 )
 
-            if torch.cuda.device_count() >= 5:
+            if torch.rtriton.device_count() >= 5:
                 test_suits.extend(
                     [
                         (
@@ -714,7 +714,7 @@ class TestUpdateWeightsFromDistributed(CustomTestCase):
         for model_name in test_models:
             model = AutoModelForCausalLM.from_pretrained(
                 model_name, torch_dtype="bfloat16"
-            ).to("cuda:0")
+            ).to("rtriton:0")
             state_dict = model.state_dict()
             state_dict_keys = list(state_dict.keys())
             model_state_dict_shapes[model_name] = {
@@ -722,7 +722,7 @@ class TestUpdateWeightsFromDistributed(CustomTestCase):
             }
             del model
             gc.collect()
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
         truncate_size = 10
         checking_parameters = [

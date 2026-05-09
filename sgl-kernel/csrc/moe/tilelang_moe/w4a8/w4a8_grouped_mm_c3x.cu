@@ -1,5 +1,5 @@
-#include <c10/cuda/CUDAGuard.h>
-#include <cudaTypedefs.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <rtritonTypedefs.h>
 #include <torch/all.h>
 
 #include <type_traits>

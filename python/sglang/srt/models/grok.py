@@ -55,7 +55,7 @@ from sglang.srt.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
 )
-from sglang.srt.model_executor.cuda_graph_runner import get_is_capture_mode
+from sglang.srt.model_executor.rtriton_graph_runner import get_is_capture_mode
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
 from sglang.srt.model_loader.loader import DefaultModelLoader
 from sglang.srt.model_loader.weight_utils import default_weight_loader
@@ -307,7 +307,7 @@ class Grok1Attention(nn.Module):
         rope_theta: float = 10000,
         quant_config: Optional[QuantizationConfig] = None,
         reduce_results: bool = True,
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
         load_presharded_attn: bool = False,
         prefix: str = "",
     ) -> None:
@@ -337,7 +337,7 @@ class Grok1Attention(nn.Module):
         self.rope_theta = rope_theta
         rope_scaling = get_rope_scaling(config)
         self.load_presharded_attn = load_presharded_attn
-        self.alt_stream = alt_stream or torch.cuda.Stream()
+        self.alt_stream = alt_stream or torch.rtriton.Stream()
 
         self.qkv_proj = QKVParallelLinear(
             hidden_size,
@@ -442,7 +442,7 @@ class Grok1DecoderLayer(nn.Module):
         load_presharded_moe: bool = False,
         load_presharded_attn: bool = False,
         load_presharded_mlp: bool = False,
-        alt_stream: Optional[torch.cuda.Stream] = None,
+        alt_stream: Optional[torch.rtriton.Stream] = None,
         skip_moe: bool = False,
         prefix: str = "",
     ) -> None:
@@ -451,7 +451,7 @@ class Grok1DecoderLayer(nn.Module):
         self.hidden_size = config.hidden_size
         self.residual_moe = getattr(config, "residual_moe", False)
         self.layer_id = layer_id
-        self.alt_stream = alt_stream or torch.cuda.Stream()
+        self.alt_stream = alt_stream or torch.rtriton.Stream()
 
         rope_theta = getattr(config, "rope_theta", 10000)
         self.self_attn = Grok1Attention(
@@ -583,10 +583,10 @@ class Grok1DecoderLayer(nn.Module):
 
     def moe_with_rmoe(self, x):
         if self.alt_stream is not None and get_is_capture_mode():
-            current_stream = torch.cuda.current_stream()
+            current_stream = torch.rtriton.current_stream()
             self.alt_stream.wait_stream(current_stream)
             mlp_result = self.mlp(x)
-            with torch.cuda.stream(self.alt_stream):
+            with torch.rtriton.stream(self.alt_stream):
                 moe_result = self.block_sparse_moe(x)
             current_stream.wait_stream(self.alt_stream)
         else:
@@ -620,7 +620,7 @@ class Grok1Model(nn.Module):
             prefix=add_prefix("embed_tokens", prefix),
         )
 
-        self.alt_stream = torch.cuda.Stream()
+        self.alt_stream = torch.rtriton.Stream()
         self.layers = nn.ModuleList(
             [
                 Grok1DecoderLayer(

@@ -22,7 +22,7 @@ A streamlined, production-focused Dockerfile optimized for Chimera deployment.
 **Key Features:**
 - Multi-stage build for optimized image size
 - JIT compilation support for DeepGEMM, Triton, FlashInfer
-- CUDA 12.6-13.0 compatibility
+- RTRITON 12.6-13.0 compatibility
 - Hopper and Blackwell architecture support
 - Security-hardened (non-root user)
 - Health check integration
@@ -158,7 +158,7 @@ Comprehensive guide to understanding and using TileLang in Chimera.
 
 1. **What is TileLang?**
    - Domain-specific language for tensor operations
-   - Abstraction over CUDA kernel development
+   - Abstraction over RTRITON kernel development
    - Automatic optimization for GPU architectures
 
 2. **Why TileLang in Chimera?**
@@ -184,7 +184,7 @@ Visual companion with 14 detailed diagrams explaining TileLang concepts.
 
 1. **Kernel Abstraction Layers** - 5-level hierarchy from application to hardware
 2. **Data Flow Sequence** - Python to GPU execution path
-3. **TileLang vs Traditional CUDA** - Comparison of development approaches
+3. **TileLang vs Traditional RTRITON** - Comparison of development approaches
 4. **Kernel Fallback Strategy** - Decision tree for graceful degradation
 5. **FP8 Blockwise GEMM Architecture** - Kernel stage breakdown
 6. **Multi-Stage Pipelining** - Gantt chart of pipeline execution

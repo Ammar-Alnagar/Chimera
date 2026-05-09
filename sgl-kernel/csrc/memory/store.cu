@@ -1,6 +1,6 @@
 #include <ATen/Dispatch.h>
 #include <ATen/core/TensorBody.h>
-#include <c10/cuda/CUDAStream.h>
+#include <c10/rtriton/RTRITONStream.h>
 #include <c10/util/Exception.h>
 
 #include <cstddef>
@@ -78,8 +78,8 @@ auto store_kv_cache(at::Tensor k_cache, at::Tensor v_cache, at::Tensor out_loc, 
   v = v.view({num_tokens, -1});
 
   TORCH_CHECK(
-      k_cache.is_cuda() && v_cache.is_cuda() && out_loc.is_cuda() && k.is_cuda() && v.is_cuda(),
-      "All tensors must be CUDA tensors");
+      k_cache.is_rtriton() && v_cache.is_rtriton() && out_loc.is_rtriton() && k.is_rtriton() && v.is_rtriton(),
+      "All tensors must be RTRITON tensors");
   TORCH_CHECK(k_cache.sizes() == v_cache.sizes(), "k_cache and v_cache must have the same size");
   TORCH_CHECK(k_cache.strides() == v_cache.strides(), "k_cache and v_cache must have the same strides");
   TORCH_CHECK(k.sizes() == v.sizes(), "k and v must have the same size");
@@ -104,7 +104,7 @@ auto store_kv_cache(at::Tensor k_cache, at::Tensor v_cache, at::Tensor out_loc, 
   const auto num_threads = 256;
   const auto num_warps = num_threads / 32;
   const auto num_blocks = (length + num_warps - 1) / num_warps;
-  const auto stream = at::cuda::getCurrentCUDAStream();
+  const auto stream = at::rtriton::getCurrentRTRITONStream();
 
   AT_DISPATCH_INTEGRAL_TYPES(out_loc.scalar_type(), "store_kv_cache", [&] {
     if constexpr (!std::is_same_v<scalar_t, int32_t> && !std::is_same_v<scalar_t, int64_t>) {

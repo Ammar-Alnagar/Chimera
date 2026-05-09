@@ -59,8 +59,8 @@ class SboFlags:
 class CombineOverlapArgs:
     # this "overlap" flag means overlapping with down gemm, not the general two-stream overlap
     overlap: bool
-    stream: torch.cuda.Stream
-    wait_event: torch.cuda.Event
+    stream: torch.rtriton.Stream
+    wait_event: torch.rtriton.Event
     num_sms: Optional[int] = None
     signal: Optional[torch.Tensor] = None
     block_m: Optional[int] = 64
@@ -71,7 +71,7 @@ class CombineOverlapArgs:
 class DownGemmOverlapArgs:
     num_sms: int
     signal: torch.Tensor
-    start_event: torch.cuda.Event
+    start_event: torch.rtriton.Event
 
 
 def compute_overlap_args(dispatch_output, alt_stream):
@@ -85,8 +85,8 @@ def compute_overlap_args(dispatch_output, alt_stream):
 
     num_local_experts, num_tokens_static, hidden_dim = hidden_states.shape
 
-    total_num_sms = torch.cuda.get_device_properties(
-        device="cuda"
+    total_num_sms = torch.rtriton.get_device_properties(
+        device="rtriton"
     ).multi_processor_count
 
     if envs.SGLANG_DEEPEP_LL_COMBINE_SEND_NUM_SMS.is_set():
@@ -96,7 +96,7 @@ def compute_overlap_args(dispatch_output, alt_stream):
     compute_num_sms = total_num_sms - communicate_num_sms
 
     assert alt_stream is not None
-    combine_wait_event = torch.cuda.Event()
+    combine_wait_event = torch.rtriton.Event()
     combine_overlap_args = CombineOverlapArgs(
         overlap=False,
         num_sms=communicate_num_sms,

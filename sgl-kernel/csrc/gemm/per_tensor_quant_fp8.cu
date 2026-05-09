@@ -1,4 +1,4 @@
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/rtriton/RTRITONContext.h>
 #include <c10/util/Float8_e4m3fn.h>
 
 #include <cmath>
@@ -105,7 +105,7 @@ void sgl_per_tensor_quant_fp8(torch::Tensor input, torch::Tensor output_q, torch
   dim3 grid(num_blocks);
   dim3 block(block_size);
 
-  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
 
   DISPATCH_PYTORCH_DTYPE_TO_CTYPE_FLOAT_FP16(input.scalar_type(), scalar_t, [&] {
     if (is_static == false) {

@@ -9,16 +9,16 @@ from torch.distributed import ProcessGroup
 from sglang.srt.distributed.device_communicators.all_reduce_utils import (
     TORCH_SYMM_MEM_ALL_REDUCE_MAX_SIZES,
 )
-from sglang.srt.utils import is_cuda, is_hip
+from sglang.srt.utils import is_rtriton, is_hip
 
 try:
     import torch.distributed._symmetric_memory as torch_symm_mem
 
-    _is_cuda = is_cuda()
+    _is_rtriton = is_rtriton()
     _is_hip = is_hip()
 
     torch_symm_mem_available = False
-    if _is_cuda:
+    if _is_rtriton:
         torch_symm_mem_available = True
 except ImportError:
     torch_symm_mem_available = False
@@ -53,7 +53,7 @@ class TorchSymmMemCommunicator:
         """
         Args:
             group: Torch process group used for rendezvous and naming.
-            device: Target CUDA device (index, 'cuda:X', or torch.device).
+            device: Target RTRITON device (index, 'rtriton:X', or torch.device).
         """
 
         self.disabled = True
@@ -62,15 +62,15 @@ class TorchSymmMemCommunicator:
             return
 
         if isinstance(device, int):
-            device = torch.device(f"cuda:{device}")
+            device = torch.device(f"rtriton:{device}")
         elif isinstance(device, str):
             device = torch.device(device)
-        torch.cuda.set_device(device)
+        torch.rtriton.set_device(device)
         self.dtype = torch.bfloat16
         self.device = device
         self.group = group
         self.world_size = dist.get_world_size(self.group)
-        self.device_capability = torch.cuda.get_device_capability(device)[0]
+        self.device_capability = torch.rtriton.get_device_capability(device)[0]
         if self.device_capability < 9:
             logger.warning(
                 "TorchSymmMemCommunicator: Device capability %s not supported, "
@@ -137,7 +137,7 @@ class TorchSymmMemCommunicator:
         Perform an in-place sum all-reduce via torch symmetric memory.
 
         Args:
-            inp: Input tensor on the target CUDA device (bfloat16).
+            inp: Input tensor on the target RTRITON device (bfloat16).
             out: Optional output tensor; if omitted, a new tensor is allocated.
 
         Returns:

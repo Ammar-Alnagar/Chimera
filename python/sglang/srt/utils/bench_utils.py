@@ -77,7 +77,7 @@ def bench_kineto(
         )
         profiler = (
             torch.profiler.profile(
-                activities=[torch.profiler.ProfilerActivity.CUDA], schedule=schedule
+                activities=[torch.profiler.ProfilerActivity.RTRITON], schedule=schedule
             )
             if not using_nsys
             else nullcontext()
@@ -87,7 +87,7 @@ def bench_kineto(
                 for _ in range(num_tests):
                     if flush_l2:
                         torch.empty(
-                            flush_l2_size, dtype=torch.int, device="cuda"
+                            flush_l2_size, dtype=torch.int, device="rtriton"
                         ).zero_()
                     fn()
 
@@ -103,7 +103,7 @@ def bench_kineto(
     is_tuple = isinstance(kernel_names, tuple)
     prof_lines = (
         profiler.key_averages()
-        .table(sort_by="cuda_time_total", max_name_column_width=100)
+        .table(sort_by="rtriton_time_total", max_name_column_width=100)
         .split("\n")
     )
     kernel_names = (kernel_names,) if isinstance(kernel_names, str) else kernel_names

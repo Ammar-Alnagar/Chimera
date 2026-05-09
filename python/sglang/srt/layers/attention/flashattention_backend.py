@@ -300,11 +300,11 @@ class FlashAttentionBackend(AttentionBackend):
         - FlashAttentionMultiStepBackend will be once for the draft worker
             - It will spawn num_steps FlashAttentionBackend for the draft worker
 
-    Note about CUDA Graph:
-    - We only support CUDA Graph for Decode (Normal Decode and Draft Decode) and Target Verify.
-    - We don't support CUDA Graph for Extend and Draft Extend.
-    - When server init, init_cuda_graph_state will be called first and then init_cuda_graph_capture will be called.
-    - For each forward batch, init_replay_cuda_graph will be called first and then replay the graph.
+    Note about RTRITON Graph:
+    - We only support RTRITON Graph for Decode (Normal Decode and Draft Decode) and Target Verify.
+    - We don't support RTRITON Graph for Extend and Draft Extend.
+    - When server init, init_rtriton_graph_state will be called first and then init_rtriton_graph_capture will be called.
+    - For each forward batch, init_replay_rtriton_graph will be called first and then replay the graph.
     """
 
     def __init__(
@@ -328,7 +328,7 @@ class FlashAttentionBackend(AttentionBackend):
         self.forward_metadata_spec_decode_expand: FlashAttentionMetadata = None
         self.max_context_len = model_runner.model_config.context_len
         self.device = model_runner.device
-        self.decode_cuda_graph_metadata = {}
+        self.decode_rtriton_graph_metadata = {}
         self.target_verify_metadata = {}
         self.req_to_token = model_runner.req_to_token_pool.req_to_token
         self.kv_cache_dtype = model_runner.kv_cache_dtype
@@ -1293,19 +1293,19 @@ class FlashAttentionBackend(AttentionBackend):
 
         return o.view(-1, layer.tp_q_head_num * layer.v_head_dim)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
-        """Initialize CUDA graph state for the attention backend.
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
+        """Initialize RTRITON graph state for the attention backend.
 
         Args:
-            max_bs (int): Maximum batch size to support in CUDA graphs
+            max_bs (int): Maximum batch size to support in RTRITON graphs
 
-        This creates fixed-size tensors that will be reused during CUDA graph replay
+        This creates fixed-size tensors that will be reused during RTRITON graph replay
         to avoid memory allocations.
         """
         max_num_pages = (self.max_context_len + self.page_size - 1) // self.page_size
 
         # This is being used by normal decode and draft decode when topk == 1
-        self.decode_cuda_graph_metadata = {
+        self.decode_rtriton_graph_metadata = {
             "cache_seqlens": torch.zeros(max_bs, dtype=torch.int32, device=self.device),
             "cu_seqlens_q": torch.arange(
                 0, max_bs + 1, dtype=torch.int32, device=self.device
@@ -1335,7 +1335,7 @@ class FlashAttentionBackend(AttentionBackend):
             )
             max_pages_per_block = (attn_chunk_size + page_size - 1) // page_size
 
-            self.decode_cuda_graph_local_attn_metadata = {
+            self.decode_rtriton_graph_local_attn_metadata = {
                 "local_query_start_loc": torch.zeros(
                     max_virtual_batches + 1, dtype=torch.int32, device=self.device
                 ),
@@ -1409,7 +1409,7 @@ class FlashAttentionBackend(AttentionBackend):
             and self.speculative_num_draft_tokens > 0
         ):
             # "page_table_draft_decode" will be set only when spec decoding enabled to save memory
-            self.decode_cuda_graph_metadata["page_table_draft_decode"] = torch.zeros(
+            self.decode_rtriton_graph_metadata["page_table_draft_decode"] = torch.zeros(
                 max_bs,
                 max_num_pages,
                 dtype=torch.int32,
@@ -1553,7 +1553,7 @@ class FlashAttentionBackend(AttentionBackend):
             ),
         }
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         bs: int,
         num_tokens: int,
@@ -1563,7 +1563,7 @@ class FlashAttentionBackend(AttentionBackend):
         forward_mode: ForwardMode,
         spec_info: Optional[SpecInput],
     ):
-        """Initialize forward metadata for capturing CUDA graph."""
+        """Initialize forward metadata for capturing RTRITON graph."""
         metadata = FlashAttentionMetadata()
 
         # metadata_expand is needed for Spec Decoding when top k > 1
@@ -1575,13 +1575,13 @@ class FlashAttentionBackend(AttentionBackend):
                 # Draft Decode
                 if self.topk <= 1:
                     # When topk = 1, we use the normal decode metadata
-                    metadata.cache_seqlens_int32 = self.decode_cuda_graph_metadata[
+                    metadata.cache_seqlens_int32 = self.decode_rtriton_graph_metadata[
                         "cache_seqlens"
                     ][:bs]
                     metadata.max_seq_len_k = seq_lens.max().item() + (
                         self.speculative_step_id + 1
                     )
-                    metadata.cu_seqlens_q = self.decode_cuda_graph_metadata[
+                    metadata.cu_seqlens_q = self.decode_rtriton_graph_metadata[
                         "cu_seqlens_q"
                     ][: bs + 1]
                     metadata.cu_seqlens_k = torch.nn.functional.pad(
@@ -1590,10 +1590,10 @@ class FlashAttentionBackend(AttentionBackend):
                         ),
                         (1, 0),
                     )
-                    metadata.page_table = self.decode_cuda_graph_metadata[
+                    metadata.page_table = self.decode_rtriton_graph_metadata[
                         "page_table_draft_decode"
                     ][:bs, :]
-                    self.decode_cuda_graph_metadata[bs] = metadata
+                    self.decode_rtriton_graph_metadata[bs] = metadata
                 else:
                     # When top k > 1, we need two specific draft decode metadata, and then merge states
                     # 1. The first half of metadata for prefix tokens
@@ -1646,14 +1646,14 @@ class FlashAttentionBackend(AttentionBackend):
                 # Precompute maximum sequence length
                 metadata.max_seq_len_k = seq_lens.max().item()
                 # Precompute page table
-                metadata.page_table = self.decode_cuda_graph_metadata["page_table"][
+                metadata.page_table = self.decode_rtriton_graph_metadata["page_table"][
                     :bs, :
                 ]
                 # Precompute cumulative sequence lengths
                 metadata.cu_seqlens_q = torch.arange(
                     0, batch_size + 1, dtype=torch.int32, device=device
                 )
-                self.decode_cuda_graph_metadata[bs] = metadata
+                self.decode_rtriton_graph_metadata[bs] = metadata
 
                 if self.attention_chunk_size is not None:
                     self._update_local_attn_metadata_for_capture(metadata, batch_size)
@@ -1788,7 +1788,7 @@ class FlashAttentionBackend(AttentionBackend):
         self.forward_metadata = metadata
         self.forward_metadata_spec_decode_expand = metadata_expand
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self,
         bs: int,
         req_pool_indices: torch.Tensor,
@@ -1800,7 +1800,7 @@ class FlashAttentionBackend(AttentionBackend):
         seq_lens_cpu: Optional[torch.Tensor],
         out_cache_loc: Optional[torch.Tensor] = None,
     ):
-        """Initialize forward metadata for replaying CUDA graph."""
+        """Initialize forward metadata for replaying RTRITON graph."""
         seq_lens = seq_lens[:bs]
         seq_lens_cpu = seq_lens_cpu[:bs]
         req_pool_indices = req_pool_indices[:bs]
@@ -1814,7 +1814,7 @@ class FlashAttentionBackend(AttentionBackend):
                 # Draft Decode
                 if self.topk <= 1:
                     # When topk = 1, we use the normal decode metadata
-                    metadata = self.decode_cuda_graph_metadata[bs]
+                    metadata = self.decode_rtriton_graph_metadata[bs]
                     max_len = seq_lens_cpu.max().item()
                     metadata.max_seq_len_k = max_len + self.speculative_step_id + 1
                     max_seq_pages = (
@@ -1827,7 +1827,7 @@ class FlashAttentionBackend(AttentionBackend):
                         metadata.page_table,
                         self.req_to_token,
                         req_pool_indices,
-                        self.decode_cuda_graph_metadata["strided_indices"],
+                        self.decode_rtriton_graph_metadata["strided_indices"],
                         max_seq_pages,
                         seq_lens,
                         self.speculative_step_id + 1,
@@ -1851,7 +1851,7 @@ class FlashAttentionBackend(AttentionBackend):
                     max_seq_pages = (
                         metadata.max_seq_len_k + self.page_size - 1
                     ) // self.page_size
-                    strided_indices = self.decode_cuda_graph_metadata["strided_indices"]
+                    strided_indices = self.decode_rtriton_graph_metadata["strided_indices"]
                     strided_indices = strided_indices[:max_seq_pages]
                     page_table = (
                         self.req_to_token[
@@ -1884,7 +1884,7 @@ class FlashAttentionBackend(AttentionBackend):
                 # TODO: Handle local attention metadata for draft decode when llama4 eagle is supported
             else:
                 # Normal Decode
-                metadata = self.decode_cuda_graph_metadata[bs]
+                metadata = self.decode_rtriton_graph_metadata[bs]
                 max_len = seq_lens_cpu.max().item()
                 max_seq_pages = (max_len + self.page_size - 1) // self.page_size
                 metadata.max_seq_len_k = max_len
@@ -1895,7 +1895,7 @@ class FlashAttentionBackend(AttentionBackend):
                     metadata.page_table,
                     self.req_to_token,
                     req_pool_indices,
-                    self.decode_cuda_graph_metadata["strided_indices"],
+                    self.decode_rtriton_graph_metadata["strided_indices"],
                     max_seq_pages,
                     seq_lens,
                     0,
@@ -1924,7 +1924,7 @@ class FlashAttentionBackend(AttentionBackend):
                 ) // self.page_size
                 page_indices = self.req_to_token[
                     req_pool_indices[:, None],
-                    self.decode_cuda_graph_metadata["strided_indices"][:max_seq_pages],
+                    self.decode_rtriton_graph_metadata["strided_indices"][:max_seq_pages],
                 ]
                 page_indices //= self.page_size
                 metadata.page_table[:, :max_seq_pages].copy_(page_indices)
@@ -1944,7 +1944,7 @@ class FlashAttentionBackend(AttentionBackend):
                 ) // self.page_size
                 page_indices = self.req_to_token[
                     req_pool_indices[:, None],
-                    self.decode_cuda_graph_metadata["strided_indices"][:max_seq_pages],
+                    self.decode_rtriton_graph_metadata["strided_indices"][:max_seq_pages],
                 ]
                 page_indices //= self.page_size
                 metadata.page_table[:, :max_seq_pages].copy_(page_indices)
@@ -2115,8 +2115,8 @@ class FlashAttentionBackend(AttentionBackend):
         self.forward_metadata = metadata
         self.forward_metadata_spec_decode_expand = metadata_expand
 
-    def get_cuda_graph_seq_len_fill_value(self):
-        """Get the fill value for sequence length in CUDA graph."""
+    def get_rtriton_graph_seq_len_fill_value(self):
+        """Get the fill value for sequence length in RTRITON graph."""
         return 1
 
     def _init_local_attn_metadata(
@@ -2166,10 +2166,10 @@ class FlashAttentionBackend(AttentionBackend):
     def _update_local_attn_metadata_for_capture(
         self, metadata: FlashAttentionMetadata, bs: int
     ):
-        """Update local attention metadata during CUDA graph capture phase.
+        """Update local attention metadata during RTRITON graph capture phase.
 
         This method calculates the exact buffer sizes needed for local attention metadata
-        during the CUDA graph capture phase, optimizing memory usage by creating views of
+        during the RTRITON graph capture phase, optimizing memory usage by creating views of
         pre-allocated buffers with exactly the sizes needed.
         """
         seq_lens_capture = metadata.cache_seqlens_int32
@@ -2199,15 +2199,15 @@ class FlashAttentionBackend(AttentionBackend):
 
         # Create views of the pre-allocated buffers with exactly these sizes
         # This is the key optimization - we only use the memory we actually need
-        local_query_start_loc = self.decode_cuda_graph_local_attn_metadata[
+        local_query_start_loc = self.decode_rtriton_graph_local_attn_metadata[
             "local_query_start_loc"
         ][:q_len]
 
-        local_seqused_k = self.decode_cuda_graph_local_attn_metadata["local_seqused_k"][
+        local_seqused_k = self.decode_rtriton_graph_local_attn_metadata["local_seqused_k"][
             :k_len
         ]
 
-        local_block_table = self.decode_cuda_graph_local_attn_metadata[
+        local_block_table = self.decode_rtriton_graph_local_attn_metadata[
             "local_block_table"
         ][:b0, :b1]
 
@@ -2224,19 +2224,19 @@ class FlashAttentionBackend(AttentionBackend):
         metadata: FlashAttentionMetadata,
         bs: int,
     ):
-        """Update preallocated local attention metadata in-place before CUDA graph replay."""
+        """Update preallocated local attention metadata in-place before RTRITON graph replay."""
         if self.attention_chunk_size is None:
             return
 
         # Access preallocated buffers
-        local_q_buf = self.decode_cuda_graph_local_attn_metadata[
+        local_q_buf = self.decode_rtriton_graph_local_attn_metadata[
             "local_query_start_loc"
         ]
-        local_k_buf = self.decode_cuda_graph_local_attn_metadata["local_seqused_k"]
-        local_block_buf = self.decode_cuda_graph_local_attn_metadata[
+        local_k_buf = self.decode_rtriton_graph_local_attn_metadata["local_seqused_k"]
+        local_block_buf = self.decode_rtriton_graph_local_attn_metadata[
             "local_block_table"
         ]
-        cu_seqlens_q = self.decode_cuda_graph_metadata["cu_seqlens_q"]
+        cu_seqlens_q = self.decode_rtriton_graph_metadata["cu_seqlens_q"]
 
         # Create a modified version for local attention that only processes the last token
         # This mimics the normal decode pattern
@@ -2476,11 +2476,11 @@ class FlashAttentionMultiStepBackend:
         for i in range(self.speculative_num_steps - 1):
             self.attn_backends[i].init_forward_metadata(forward_batch)
 
-    def init_cuda_graph_state(self, max_bs: int, max_num_tokens: int):
+    def init_rtriton_graph_state(self, max_bs: int, max_num_tokens: int):
         for i in range(self.speculative_num_steps - 1):
-            self.attn_backends[i].init_cuda_graph_state(max_bs, max_num_tokens)
+            self.attn_backends[i].init_rtriton_graph_state(max_bs, max_num_tokens)
 
-    def init_forward_metadata_capture_cuda_graph(
+    def init_forward_metadata_capture_rtriton_graph(
         self,
         forward_batch: ForwardBatch,
     ):
@@ -2488,7 +2488,7 @@ class FlashAttentionMultiStepBackend:
         assert forward_batch.spec_info.is_draft_input()
 
         for i in range(self.speculative_num_steps - 1):
-            self.attn_backends[i].init_forward_metadata_capture_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_capture_rtriton_graph(
                 forward_batch.batch_size,
                 forward_batch.batch_size * self.topk,
                 forward_batch.req_pool_indices,
@@ -2498,7 +2498,7 @@ class FlashAttentionMultiStepBackend:
                 spec_info=forward_batch.spec_info,
             )
 
-    def init_forward_metadata_replay_cuda_graph(
+    def init_forward_metadata_replay_rtriton_graph(
         self, forward_batch: ForwardBatch, bs: int
     ):
         assert forward_batch.spec_info is not None
@@ -2507,7 +2507,7 @@ class FlashAttentionMultiStepBackend:
         for i in range(self.speculative_num_steps - 1):
             # TODO: incrementally update the metadata for the later steps,
             # so that they do not need to recompute everything from scratch.
-            self.attn_backends[i].init_forward_metadata_replay_cuda_graph(
+            self.attn_backends[i].init_forward_metadata_replay_rtriton_graph(
                 bs,
                 forward_batch.req_pool_indices,
                 forward_batch.seq_lens,

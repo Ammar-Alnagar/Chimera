@@ -10,7 +10,7 @@ from sglang.test.test_utils import CustomTestCase
 
 def _fp8_available() -> bool:
     # requirement：1) GPU；2) ROCm；3) torch support float8_e4m3fn
-    if not torch.cuda.is_available():
+    if not torch.rtriton.is_available():
         return False
     if getattr(torch.version, "hip", None) is None:
         return False
@@ -76,7 +76,7 @@ class TestFusedRMSFP8GroupQuant(CustomTestCase):
     def setUpClass(cls):
         if not _fp8_available():
             raise unittest.SkipTest("Skip: ROCm/FP8 is not available")
-        torch.set_default_device("cuda")
+        torch.set_default_device("rtriton")
 
     def _run_ref(self, x1, w1, eps1, x2, w2, eps2, res1, dtype_quant, group_size):
         s = x1 + (res1 if res1 is not None else 0)
@@ -93,7 +93,7 @@ class TestFusedRMSFP8GroupQuant(CustomTestCase):
     def _case(self, M, N1, N2, group_size, dtype, seed):
         torch.manual_seed(seed)
         fp8 = torch.float8_e4m3fn
-        device = "cuda"
+        device = "rtriton"
 
         x1 = torch.randn(M, N1, dtype=dtype, device=device) / 10
         x2 = torch.randn(M, N2, dtype=dtype, device=device) / 10

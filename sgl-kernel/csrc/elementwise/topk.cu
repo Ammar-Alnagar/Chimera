@@ -2,17 +2,17 @@
  * @NOTE: This file is adapted from
  * https://github.com/tile-ai/tilelang/blob/main/examples/deepseek_v32/topk_selector.py
  * We:
- * 1. adapt from tilelang to pure cuda
+ * 1. adapt from tilelang to pure rtriton
  * 2. optimize the performance a little
  * 3. fix the potential illegal memory access
  */
 #include <ATen/core/TensorBase.h>
 #include <ATen/core/TensorBody.h>
-#include <c10/cuda/CUDAStream.h>
+#include <c10/rtriton/RTRITONStream.h>
 #include <c10/macros/Macros.h>
 #include <c10/util/Exception.h>
-#include <cuda.h>
-#include <cuda_fp16.h>
+#include <rtriton.h>
+#include <rtriton_fp16.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -44,7 +44,7 @@ struct FastTopKParams {
 };
 
 // when length <= TopK, we can directly write the indices
-__device__ void naive_topk_cuda(const float* __restrict__ score, int32_t* __restrict__ indice, int32_t length) {
+__device__ void naive_topk_rtriton(const float* __restrict__ score, int32_t* __restrict__ indice, int32_t length) {
   const auto tid = threadIdx.x;
   for (int i = tid; i < TopK; i += kThreadsPerBlock) {
     indice[i] = (i < length) ? i : -1;
@@ -84,7 +84,7 @@ __device__ __forceinline__ auto convert_to_uint32(float x) -> uint32_t {
   return (bits & 0x80000000u) ? ~bits : (bits | 0x80000000u);
 }
 
-__device__ void fast_topk_cuda_tl(const float* __restrict__ input, int* __restrict__ index, int row_start, int length) {
+__device__ void fast_topk_rtriton_tl(const float* __restrict__ input, int* __restrict__ index, int row_start, int length) {
   // An optimized topk kernel copied from tilelang kernel
   // We assume length > TopK here, or it will crash
   int topk = TopK;
@@ -257,9 +257,9 @@ __global__ __launch_bounds__(kThreadsPerBlock)  // topk
   const auto indice = indices + bid * TopK;
   const auto score = input + bid * input_stride;
   if (length <= TopK) {
-    return naive_topk_cuda(score, indice, length);
+    return naive_topk_rtriton(score, indice, length);
   } else {
-    return fast_topk_cuda_tl(score, indice, row_start, length);
+    return fast_topk_rtriton_tl(score, indice, row_start, length);
   }
 }
 
@@ -281,7 +281,7 @@ __global__ __launch_bounds__(kThreadsPerBlock)  // decode
     return naive_topk_transform(score, length, dst_page_entry, src_page_entry);
   } else {
     __shared__ int s_indices[TopK];
-    fast_topk_cuda_tl(score, s_indices, row_start, length);
+    fast_topk_rtriton_tl(score, s_indices, row_start, length);
     // copy src[s_indices] to dst, we manually unroll here
     static_assert(TopK % kThreadsPerBlock == 0);
     static_assert(TopK / kThreadsPerBlock == 2);
@@ -333,7 +333,7 @@ __global__ __launch_bounds__(kThreadsPerBlock)  // prefill
     return naive_topk_transform(score, length, dst_page_entry, src_page_entry);
   } else {
     __shared__ int s_indices[TopK];
-    fast_topk_cuda_tl(score, s_indices, row_start, length);
+    fast_topk_rtriton_tl(score, s_indices, row_start, length);
     // copy src[s_indices] to dst, we manually unroll here
     static_assert(TopK % kThreadsPerBlock == 0);
     static_assert(TopK / kThreadsPerBlock == 2);
@@ -364,7 +364,7 @@ __global__ __launch_bounds__(kThreadsPerBlock)  // prefill, ragged kv
     return naive_topk_transform_ragged(score, length, dst_indices_entry, offset);
   } else {
     __shared__ int s_indices[TopK];
-    fast_topk_cuda_tl(score, s_indices, row_start, length);
+    fast_topk_rtriton_tl(score, s_indices, row_start, length);
     // copy src[s_indices] to dst, we manually unroll here
     static_assert(TopK % kThreadsPerBlock == 0);
     static_assert(TopK / kThreadsPerBlock == 2);
@@ -414,40 +414,40 @@ void setup_kernel_smem_once() {
   [[maybe_unused]]
   static const auto result = [] {
 #ifdef USE_ROCM
-    // hipify will turn cudaFuncSetAttribute -> hipFuncSetAttribute. On ROCm,
+    // hipify will turn rtritonFuncSetAttribute -> hipFuncSetAttribute. On ROCm,
     // hipFuncSetAttribute expects `const void*` and hipcc does not accept passing
     // a function pointer directly, so cast explicitly.
-    return ::cudaFuncSetAttribute(
-        reinterpret_cast<const void*>(f), ::cudaFuncAttributeMaxDynamicSharedMemorySize, max_dynamic_smem);
+    return ::rtritonFuncSetAttribute(
+        reinterpret_cast<const void*>(f), ::rtritonFuncAttributeMaxDynamicSharedMemorySize, max_dynamic_smem);
 #else
-    // CUDA: keep original behavior (no cast needed).
-    return ::cudaFuncSetAttribute(f, ::cudaFuncAttributeMaxDynamicSharedMemorySize, max_dynamic_smem);
+    // RTRITON: keep original behavior (no cast needed).
+    return ::rtritonFuncSetAttribute(f, ::rtritonFuncAttributeMaxDynamicSharedMemorySize, max_dynamic_smem);
 #endif
   }();
-  TORCH_CHECK(result == cudaSuccess, "set_up_kernel_once failed:", ::cudaGetErrorString(result));
+  TORCH_CHECK(result == rtritonSuccess, "set_up_kernel_once failed:", ::rtritonGetErrorString(result));
 }
 
 }  // namespace
 
-#define CHECK_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_RTRITON(x) TORCH_CHECK(x.is_rtriton(), #x " must be a RTRITON tensor")
 
 void fast_topk_interface(
     const at::Tensor& score, at::Tensor& indices, const at::Tensor& lengths, std::optional<at::Tensor> row_starts_opt) {
-  CHECK_CUDA(score);
-  CHECK_CUDA(indices);
+  CHECK_RTRITON(score);
+  CHECK_RTRITON(indices);
   if (row_starts_opt.has_value()) {
-    CHECK_CUDA(row_starts_opt.value());
+    CHECK_RTRITON(row_starts_opt.value());
   }
-  CHECK_CUDA(lengths);
+  CHECK_RTRITON(lengths);
   const auto params = get_params(score, lengths, row_starts_opt, indices);
   const auto B = score.size(0);
-  const auto stream = at::cuda::getCurrentCUDAStream().stream();
+  const auto stream = at::rtriton::getCurrentRTRITONStream().stream();
   const auto grid = dim3{static_cast<uint32_t>(B)};
   const auto block = dim3{kThreadsPerBlock};
   setup_kernel_smem_once<topk_kernel, kSmem>();
   topk_kernel<<<grid, block, kSmem, stream>>>(params);
-  const auto result = cudaGetLastError();
-  TORCH_CHECK(result == cudaSuccess, "topk kernel failed:", ::cudaGetErrorString(result));
+  const auto result = rtritonGetLastError();
+  TORCH_CHECK(result == rtritonSuccess, "topk kernel failed:", ::rtritonGetErrorString(result));
 }
 
 void fast_topk_transform_interface(
@@ -457,13 +457,13 @@ void fast_topk_transform_interface(
     const at::Tensor& src_page_table,
     const at::Tensor& cu_seqlens_q,
     std::optional<at::Tensor> row_starts_opt) {
-  CHECK_CUDA(score);
-  CHECK_CUDA(lengths);
-  CHECK_CUDA(dst_page_table);
-  CHECK_CUDA(src_page_table);
-  CHECK_CUDA(cu_seqlens_q);
+  CHECK_RTRITON(score);
+  CHECK_RTRITON(lengths);
+  CHECK_RTRITON(dst_page_table);
+  CHECK_RTRITON(src_page_table);
+  CHECK_RTRITON(cu_seqlens_q);
   if (row_starts_opt.has_value()) {
-    CHECK_CUDA(row_starts_opt.value());
+    CHECK_RTRITON(row_starts_opt.value());
   }
   const auto params = get_params(score, lengths, row_starts_opt);
   const auto B = score.size(0);
@@ -477,7 +477,7 @@ void fast_topk_transform_interface(
   TORCH_CHECK(prefill_bs <= B);  // prefill_bs should be smaller than expanded bs
 
   // launch kernel
-  const auto stream = at::cuda::getCurrentCUDAStream().stream();
+  const auto stream = at::rtriton::getCurrentRTRITONStream().stream();
   const auto grid = dim3{static_cast<uint32_t>(B)};
   const auto block = dim3{kThreadsPerBlock};
   const auto src_stride = src_page_table.stride(0);
@@ -502,8 +502,8 @@ void fast_topk_transform_interface(
         prefill_bs);
   }
 
-  const auto result = cudaGetLastError();
-  TORCH_CHECK(result == cudaSuccess, "topk kernel failed:", ::cudaGetErrorString(result));
+  const auto result = rtritonGetLastError();
+  TORCH_CHECK(result == rtritonSuccess, "topk kernel failed:", ::rtritonGetErrorString(result));
 }
 
 void fast_topk_transform_ragged_interface(
@@ -512,12 +512,12 @@ void fast_topk_transform_ragged_interface(
     at::Tensor& topk_indices_ragged,
     const at::Tensor& topk_indices_offset,
     std::optional<at::Tensor> row_starts_opt) {
-  CHECK_CUDA(score);
-  CHECK_CUDA(lengths);
-  CHECK_CUDA(topk_indices_ragged);
-  CHECK_CUDA(topk_indices_offset);
+  CHECK_RTRITON(score);
+  CHECK_RTRITON(lengths);
+  CHECK_RTRITON(topk_indices_ragged);
+  CHECK_RTRITON(topk_indices_offset);
   if (row_starts_opt.has_value()) {
-    CHECK_CUDA(row_starts_opt.value());
+    CHECK_RTRITON(row_starts_opt.value());
   }
 
   const auto params = get_params(score, lengths, row_starts_opt);
@@ -530,7 +530,7 @@ void fast_topk_transform_ragged_interface(
   TORCH_CHECK(topk_indices_offset.size(0) == B);
 
   // launch kernel
-  const auto stream = at::cuda::getCurrentCUDAStream().stream();
+  const auto stream = at::rtriton::getCurrentRTRITONStream().stream();
   const auto grid = dim3{static_cast<uint32_t>(B)};
   const auto block = dim3{kThreadsPerBlock};
 
@@ -538,6 +538,6 @@ void fast_topk_transform_ragged_interface(
   topk_transform_prefill_ragged_kernel<<<grid, block, kSmem, stream>>>(
       params, topk_indices_ragged.data_ptr<int32_t>(), topk_indices_offset.data_ptr<int32_t>());
 
-  const auto result = cudaGetLastError();
-  TORCH_CHECK(result == cudaSuccess, "topk kernel failed:", ::cudaGetErrorString(result));
+  const auto result = rtritonGetLastError();
+  TORCH_CHECK(result == rtritonSuccess, "topk kernel failed:", ::rtritonGetErrorString(result));
 }

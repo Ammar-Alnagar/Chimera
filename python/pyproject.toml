@@ -22,7 +22,7 @@ dependencies = [
   "blobfile==3.0.0",
   "build",
   "compressed-tensors",
-  "cuda-python",
+  "rtriton-python",
   "decord2",
   "datasets",
   "einops",

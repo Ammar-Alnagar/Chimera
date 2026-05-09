@@ -6,7 +6,7 @@ from flashinfer import (
 )
 from sgl_kernel import scaled_fp4_quant, silu_and_mul
 
-skip_condition = torch.cuda.get_device_capability() < (10, 0)
+skip_condition = torch.rtriton.get_device_capability() < (10, 0)
 
 DTYPES = [torch.float16, torch.bfloat16]
 SHAPES = [(128, 64), (128, 128), (256, 64), (256, 128)]
@@ -126,7 +126,7 @@ def test_quantize_to_fp4(
     shape: tuple[int, int],
 ) -> None:
     torch.manual_seed(42)
-    torch.set_default_device("cuda:0")
+    torch.set_default_device("rtriton:0")
 
     m, n = shape
 
@@ -151,7 +151,7 @@ def test_quantize_to_fp4(
 def test_quantize_to_fp4_padded(pad_shape: tuple[int, int]) -> None:
     torch.manual_seed(42)
     dtype = torch.float16
-    torch.set_default_device("cuda:0")
+    torch.set_default_device("rtriton:0")
 
     m, n = pad_shape
 
@@ -176,7 +176,7 @@ def test_quantize_to_fp4_padded(pad_shape: tuple[int, int]) -> None:
 @pytest.mark.parametrize("shape", [(2, 512, 2048), (2, 100, 128), (2, 128, 96)])
 def test_quantize_to_fp4_grouped(shape):
     torch.manual_seed(42)
-    torch.set_default_device("cuda:0")
+    torch.set_default_device("rtriton:0")
 
     l, m, k = shape
     x = torch.randn((l, m, k), dtype=torch.bfloat16)
@@ -213,7 +213,7 @@ def test_quantize_to_fp4_grouped(shape):
 @pytest.mark.parametrize("shape", [(32, 100, 2048), (32, 512, 2048), (6, 6144, 2048)])
 def test_silu_and_mul_quantize_to_fp4_grouped(shape):
     torch.manual_seed(42)
-    torch.set_default_device("cuda:0")
+    torch.set_default_device("rtriton:0")
 
     l, m, k = shape
     x = torch.randn((l, m, k * 2), dtype=torch.bfloat16)

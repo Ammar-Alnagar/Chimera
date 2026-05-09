@@ -176,7 +176,7 @@ def _test_accuracy_once(M, N, K, group_size, out_dtype, device):
 @pytest.mark.parametrize("group_size", [128])
 @pytest.mark.parametrize("out_dtype", [torch.float16])
 def test_accuracy(M, N, K, group_size, out_dtype):
-    _test_accuracy_once(M, N, K, group_size, out_dtype, "cuda")
+    _test_accuracy_once(M, N, K, group_size, out_dtype, "rtriton")
 
 
 if __name__ == "__main__":

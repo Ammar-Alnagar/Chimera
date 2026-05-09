@@ -122,5 +122,5 @@ def segment_packbits(
         output_indptr,
         y,
         batch_size,
-        torch.cuda.current_stream().cuda_stream,
+        torch.rtriton.current_stream().rtriton_stream,
     )

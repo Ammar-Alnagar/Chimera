@@ -53,7 +53,7 @@ def _bmm_fp8_internal(
     A_scale: torch.Tensor,
     B_scale: torch.Tensor,
 ) -> None:
-    cublas_handle = torch.cuda.current_blas_handle()
+    cublas_handle = torch.rtriton.current_blas_handle()
     torch.ops.sgl_kernel.bmm_fp8.default(
         A,
         B,
@@ -189,7 +189,7 @@ def scaled_fp4_quant(
     every 16 consecutive elements, a single dynamically computed scaling factor
     is shared. This scaling factor is quantized using the `input_global_scale`
     and is stored in a swizzled layout (see
-    https://docs.nvidia.com/cuda/parallel-thread-execution/#tcgen05-mma-scale-factor-b-layout-4x).
+    https://docs.nvidia.com/rtriton/parallel-thread-execution/#tcgen05-mma-scale-factor-b-layout-4x).
 
     Args:
         input: The input tensor to be quantized to FP4

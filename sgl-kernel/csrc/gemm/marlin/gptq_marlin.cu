@@ -37,7 +37,7 @@ __global__ void MarlinDefault(MARLIN_KERNEL_PARAMS){};
 
 using MarlinFuncPtr = void (*)(MARLIN_KERNEL_PARAMS);
 
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 800
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ < 800
 
 __global__ void permute_cols_kernel(
     int4 const* __restrict__ a_int4_ptr,
@@ -67,7 +67,7 @@ torch::Tensor gptq_marlin_gemm(
     bool use_atomic_add,
     bool use_fp32_reduce,
     bool is_zp_float) {
-  TORCH_CHECK_NOT_IMPLEMENTED(false, "marlin_gemm(..) requires CUDA_ARCH >= 8.0");
+  TORCH_CHECK_NOT_IMPLEMENTED(false, "marlin_gemm(..) requires RTRITON_ARCH >= 8.0");
   return torch::empty({1, 1});
 }
 
@@ -559,7 +559,7 @@ void marlin_mm(
     int num_groups,
     int group_size,
     int dev,
-    cudaStream_t stream,
+    rtritonStream_t stream,
     int thread_k_init,
     int thread_n_init,
     int sms,
@@ -634,7 +634,7 @@ void marlin_mm(
   }
 
   int max_shared_mem = 0;
-  cudaDeviceGetAttribute(&max_shared_mem, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
+  rtritonDeviceGetAttribute(&max_shared_mem, rtritonDevAttrMaxSharedMemoryPerBlockOptin, dev);
   TORCH_CHECK(max_shared_mem > 0);
 
   int max_par = 16;
@@ -781,7 +781,7 @@ void marlin_mm(
           num_bits);
     }
 
-    cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, max_shared_mem_new);
+    rtritonFuncSetAttribute(kernel, rtritonFuncAttributeMaxDynamicSharedMemorySize, max_shared_mem_new);
 
     bool part_use_atomic_add = use_atomic_add && div_ceil(prob_m_split, 64) * prob_n <= 2048;
 
@@ -851,16 +851,16 @@ torch::Tensor gptq_marlin_gemm(
   TORCH_CHECK(size_n == actual_size_n, "size_n = ", size_n, ", actual_size_n = ", actual_size_n);
 
   // Verify device and strides
-  TORCH_CHECK(a.device().is_cuda(), "A is not on GPU");
+  TORCH_CHECK(a.device().is_rtriton(), "A is not on GPU");
   TORCH_CHECK(a.stride(1) == 1, "A.stride(1) is not 1");
   // We use int4 (16 bytes) to load A, so A must aligned to 16 bytes
   TORCH_CHECK(a.stride(0) % 8 == 0, "A.stride(0) must divisible by 8");
   TORCH_CHECK(((uint64_t)a.data_ptr()) % 16 == 0, "A must aligned to 16 bytes");
 
-  TORCH_CHECK(b_q_weight.device().is_cuda(), "b_q_weight is not on GPU");
+  TORCH_CHECK(b_q_weight.device().is_rtriton(), "b_q_weight is not on GPU");
   TORCH_CHECK(b_q_weight.is_contiguous(), "b_q_weight is not contiguous");
 
-  TORCH_CHECK(b_scales.device().is_cuda(), "b_scales is not on GPU");
+  TORCH_CHECK(b_scales.device().is_rtriton(), "b_scales is not on GPU");
   TORCH_CHECK(b_scales.is_contiguous(), "b_scales is not contiguous");
 
   // thread_k: `k` size of a thread_tile in `weights` (can usually be left as
@@ -871,15 +871,15 @@ torch::Tensor gptq_marlin_gemm(
   int thread_n = -1;
   // sms: number of SMs to use for the kernel
   int sms = -1;
-  cudaDeviceGetAttribute(&sms, cudaDevAttrMultiProcessorCount, a.get_device());
+  rtritonDeviceGetAttribute(&sms, rtritonDevAttrMultiProcessorCount, a.get_device());
 
   // Alloc buffers
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(a));
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(a));
   auto options = torch::TensorOptions().dtype(a.dtype()).device(a.device());
   torch::Tensor c;
   if (c_or_none.has_value()) {
     c = c_or_none.value();
-    TORCH_CHECK(c.device().is_cuda(), "c is not on GPU");
+    TORCH_CHECK(c.device().is_rtriton(), "c is not on GPU");
     TORCH_CHECK(c.is_contiguous(), "c is not contiguous");
     TORCH_CHECK(c.size(0) == size_m, "Shape mismatch: c.size(0) = ", c.size(0), ", size_m = ", size_m);
     TORCH_CHECK(c.size(1) == size_n, "Shape mismatch: c.size(1) = ", c.size(1), ", size_n = ", size_n);
@@ -914,9 +914,9 @@ torch::Tensor gptq_marlin_gemm(
     g_idx = g_idx_or_none.value();
     perm = perm_or_none.value();
 
-    TORCH_CHECK(g_idx.device().is_cuda(), "g_idx is not on GPU");
+    TORCH_CHECK(g_idx.device().is_rtriton(), "g_idx is not on GPU");
     TORCH_CHECK(g_idx.is_contiguous(), "g_idx is not contiguous");
-    TORCH_CHECK(perm.device().is_cuda(), "perm is not on GPU");
+    TORCH_CHECK(perm.device().is_rtriton(), "perm is not on GPU");
     TORCH_CHECK(perm.is_contiguous(), "perm is not contiguous");
 
     // Verify g_idx and perm
@@ -968,7 +968,7 @@ torch::Tensor gptq_marlin_gemm(
   torch::Tensor b_zeros;
   if (b_zeros_or_none.has_value()) {
     b_zeros = b_zeros_or_none.value();
-    TORCH_CHECK(b_zeros.device().is_cuda(), "b_zeros is not on GPU");
+    TORCH_CHECK(b_zeros.device().is_rtriton(), "b_zeros is not on GPU");
     TORCH_CHECK(b_zeros.is_contiguous(), "b_zeros is not contiguous");
   } else {
     b_zeros = torch::empty({0}, options);
@@ -1065,7 +1065,7 @@ torch::Tensor gptq_marlin_gemm(
         num_groups,
         group_size,
         dev,
-        at::cuda::getCurrentCUDAStream(dev),
+        at::rtriton::getCurrentRTRITONStream(dev),
         thread_k,
         thread_n,
         sms,
@@ -1103,7 +1103,7 @@ torch::Tensor gptq_marlin_gemm(
         num_groups,
         group_size,
         dev,
-        at::cuda::getCurrentCUDAStream(dev),
+        at::rtriton::getCurrentRTRITONStream(dev),
         thread_k,
         thread_n,
         sms,

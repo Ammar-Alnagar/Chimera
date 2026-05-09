@@ -22,8 +22,8 @@ def _jit_norm_module(head_dims: int) -> Module:
     return load_jit(
         "norm",
         *args,
-        cuda_files=["norm.cuh"],
-        cuda_wrappers=[("qknorm", f"QKNormKernel<{args}>::run")],
+        rtriton_files=["norm.cuh"],
+        rtriton_wrappers=[("qknorm", f"QKNormKernel<{args}>::run")],
     )
 
 

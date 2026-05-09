@@ -27,14 +27,14 @@ class GenerationBatchResult:
     next_token_ids: Optional[torch.Tensor] = None
     num_accepted_tokens: int = 0
     accept_length_per_req_cpu: Optional[List[int]] = None
-    can_run_cuda_graph: bool = False
+    can_run_rtriton_graph: bool = False
 
     # For output processing
     extend_input_len_per_req: Optional[List[int]] = None
     extend_logprob_start_len_per_req: Optional[List[int]] = None
 
     # For overlap scheduling
-    copy_done: Optional[torch.cuda.Event] = None
+    copy_done: Optional[torch.rtriton.Event] = None
     delay_sample_func: Optional[callable] = None
     future_indices: Optional[FutureIndices] = None
 
@@ -78,7 +78,7 @@ class GenerationBatchResult:
 
     @classmethod
     def from_pp_proxy(
-        cls, logits_output, next_pp_outputs: PPProxyTensors, can_run_cuda_graph
+        cls, logits_output, next_pp_outputs: PPProxyTensors, can_run_rtriton_graph
     ):
         # TODO(lsyin): refactor PP and avoid using dict
         proxy_dict = next_pp_outputs.tensors
@@ -90,7 +90,7 @@ class GenerationBatchResult:
             extend_logprob_start_len_per_req=proxy_dict.get(
                 "extend_logprob_start_len_per_req", None
             ),
-            can_run_cuda_graph=can_run_cuda_graph,
+            can_run_rtriton_graph=can_run_rtriton_graph,
         )
 
 

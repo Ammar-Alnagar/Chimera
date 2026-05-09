@@ -8,10 +8,10 @@ import torch
 import triton
 import triton.language as tl
 
-from sglang.srt.utils import get_device_name, is_cuda
+from sglang.srt.utils import get_device_name, is_rtriton
 
-_is_cuda = is_cuda()
-if _is_cuda:
+_is_rtriton = is_rtriton()
+if _is_rtriton:
     # Temporary
     try:
         from sgl_kernel import sgl_per_token_group_quant_8bit
@@ -37,7 +37,7 @@ def _per_token_quant_int8(
     CAL_SUM: tl.constexpr,
     BLOCK: tl.constexpr,
 ):
-    # Adapted from https://github.com/InternLM/lmdeploy/blob/086481ed84b59bee3b8e4274e5fc69620040c048/lmdeploy/pytorch/kernels/cuda/w8a8_triton_kernels.py#L282
+    # Adapted from https://github.com/InternLM/lmdeploy/blob/086481ed84b59bee3b8e4274e5fc69620040c048/lmdeploy/pytorch/kernels/rtriton/w8a8_triton_kernels.py#L282
     row_id = tl.program_id(0)
 
     cols = tl.arange(0, BLOCK)
@@ -47,7 +47,7 @@ def _per_token_quant_int8(
     absmax = tl.maximum(tl.max(tl.abs(x)), 1e-10)
     scale_x = absmax / 127
     x_q = x * (127 / absmax)
-    x_q = tl.extra.cuda.libdevice.round(x_q).to(tl.int8)
+    x_q = tl.extra.rtriton.libdevice.round(x_q).to(tl.int8)
     if CAL_SUM:
         x_sum = tl.sum(x, axis=0)
         tl.store(x_sum_ptr + row_id, x_sum.to(x_sum_ptr.dtype.element_ty))

@@ -243,7 +243,7 @@ class KTEPWrapperMethod(FusedMoEMethodBase):
 
         # 2. Load CPU weights using KT wrapper
         if self.tp_rank == 0 and self.wrapper is not None:
-            torch.cuda.synchronize()
+            torch.rtriton.synchronize()
 
             # Get expert location metadata for CPU expert mapping
             from sglang.srt.eplb.expert_location_dispatch import (
@@ -299,7 +299,7 @@ class KTEPWrapperMethod(FusedMoEMethodBase):
 
         # Submit forward task to CPU (non-blocking)
         self.wrapper.submit_forward(
-            x, topk_ids, topk_weights, torch.cuda.current_stream(x.device).cuda_stream
+            x, topk_ids, topk_weights, torch.rtriton.current_stream(x.device).rtriton_stream
         )
 
     def sync(self, x: torch.Tensor) -> torch.Tensor:
@@ -318,7 +318,7 @@ class KTEPWrapperMethod(FusedMoEMethodBase):
 
         # Wait for CPU computation and retrieve results
         return self.wrapper.sync_forward(
-            x, torch.cuda.current_stream(x.device).cuda_stream
+            x, torch.rtriton.current_stream(x.device).rtriton_stream
         )
 
     def apply(

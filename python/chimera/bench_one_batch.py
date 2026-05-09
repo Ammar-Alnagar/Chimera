@@ -14,8 +14,8 @@ python -m sglang.bench_one_batch --model-path meta-llama/Meta-Llama-3-8B-Instruc
 ## run with profiling to custom directory:
 export SGLANG_TORCH_PROFILER_DIR=/root/sglang/profile_log
 python -m sglang.bench_one_batch --model-path meta-llama/Meta-Llama-3-8B-Instruct --batch 1 --input-len 256 --profile
-## run with CUDA profiler (nsys):
-nsys profile --force-overwrite=true -o bench_one_batch python -m sglang.bench_one_batch --model-path meta-llama/Meta-Llama-3-8B-Instruct --batch 1 --input-len 256 --profile --profile-activities CUDA_PROFILER
+## run with RTRITON profiler (nsys):
+nsys profile --force-overwrite=true -o bench_one_batch python -m sglang.bench_one_batch --model-path meta-llama/Meta-Llama-3-8B-Instruct --batch 1 --input-len 256 --profile --profile-activities RTRITON_PROFILER
 # Usage (correctness test):
 python -m sglang.bench_one_batch --model-path TinyLlama/TinyLlama-1.1B-Chat-v0.4 --correct
 
@@ -25,12 +25,12 @@ input_ids=[[1, 450, 7483, 310, 3444, 338], [1, 450, 7483, 310, 278, 3303, 13187,
 prefill logits (first half): tensor([[-10.0312,  -9.5000,   0.8931,  ...,  -4.9414,  -3.2422,  -3.3633],
         [-10.0312,  -9.5000,   0.8931,  ...,  -4.9414,  -3.2422,  -3.3633],
         [ -9.1875, -10.2500,   2.7129,  ...,  -4.3359,  -4.0664,  -4.1328]],
-       device='cuda:0')
+       device='rtriton:0')
 
 prefill logits (final): tensor([[-8.3125, -7.1172,  3.3457,  ..., -4.9570, -4.1328, -3.4141],
         [-8.9141, -9.0156,  4.1445,  ..., -4.9922, -4.4961, -4.0781],
         [-9.6328, -9.0547,  4.0195,  ..., -5.3047, -4.7148, -4.4570]],
-       device='cuda:0')
+       device='rtriton:0')
 
 ========== Prompt 0 ==========
 <s> The capital of France is Paris.
@@ -78,7 +78,7 @@ from chimera.srt.speculative.spec_info import SpeculativeAlgorithm
 from chimera.srt.utils import (
     configure_logger,
     get_bool_env_var,
-    is_cuda_alike,
+    is_rtriton_alike,
     is_xpu,
     kill_process_tree,
     maybe_reindex_device_id,
@@ -92,7 +92,7 @@ from chimera.srt.utils.hf_transformers_utils import get_tokenizer
 profile_activities = [torch.profiler.ProfilerActivity.CPU] + [
     profiler_activity
     for available, profiler_activity in [
-        (is_cuda_alike(), torch.profiler.ProfilerActivity.CUDA),
+        (is_rtriton_alike(), torch.profiler.ProfilerActivity.RTRITON),
         (is_xpu(), torch.profiler.ProfilerActivity.XPU),
     ]
     if available
@@ -104,19 +104,19 @@ def start_profile(profile_activities, profile_record_shapes=False, rank_print=pr
     Abstracted function to start profiling based on profile_activities.
     Returns profiler object (or None).
     """
-    if "CUDA_PROFILER" in profile_activities:
+    if "RTRITON_PROFILER" in profile_activities:
         try:
-            torch.cuda.cudart().cudaProfilerStart()
-            rank_print("CUDA Profiler started (nsys will begin capturing)")
+            torch.rtriton.rtritonrt().rtritonProfilerStart()
+            rank_print("RTRITON Profiler started (nsys will begin capturing)")
         except Exception as e:
-            rank_print(f"Failed to start CUDA profiler: {e}")
+            rank_print(f"Failed to start RTRITON profiler: {e}")
         return None
     else:
         activities = []
         if "CPU" in profile_activities:
             activities.append(torch.profiler.ProfilerActivity.CPU)
         if "GPU" in profile_activities:
-            activities.append(torch.profiler.ProfilerActivity.CUDA)
+            activities.append(torch.profiler.ProfilerActivity.RTRITON)
         if activities:
             profiler = torch.profiler.profile(
                 activities=activities,
@@ -140,12 +140,12 @@ def stop_profile(
     Abstracted function to stop profiling based on profile_activities.
     Optionally saves trace results and prints completion messages.
     """
-    if "CUDA_PROFILER" in profile_activities:
+    if "RTRITON_PROFILER" in profile_activities:
         try:
-            torch.cuda.cudart().cudaProfilerStop()
-            rank_print("CUDA Profiler stopped (nsys should dump traces)")
+            torch.rtriton.rtritonrt().rtritonProfilerStop()
+            rank_print("RTRITON Profiler stopped (nsys should dump traces)")
         except Exception as e:
-            rank_print(f"Failed to stop CUDA profiler: {e}")
+            rank_print(f"Failed to stop RTRITON profiler: {e}")
     elif profiler is not None:
         profiler.stop()
 
@@ -157,8 +157,8 @@ def stop_profile(
                 rank_print(
                     f"torch profiler chrome trace {stage_desc} saved to {trace_filename}"
                 )
-        if "CUDA_PROFILER" in profile_activities:
-            rank_print(f"CUDA profiler trace for {stage} completed")
+        if "RTRITON_PROFILER" in profile_activities:
+            rank_print(f"RTRITON profiler trace for {stage} completed")
 
 
 @dataclasses.dataclass
@@ -216,8 +216,8 @@ class BenchArgs:
             type=str,
             nargs="+",
             default=["CPU", "GPU"],
-            choices=["CPU", "GPU", "CUDA_PROFILER"],
-            help="Profiler activities: CPU, GPU, CUDA_PROFILER. If CPU/GPU, use torch profiler. If CUDA_PROFILER, use CUDA profiler.",
+            choices=["CPU", "GPU", "RTRITON_PROFILER"],
+            help="Profiler activities: CPU, GPU, RTRITON_PROFILER. If CPU/GPU, use torch profiler. If RTRITON_PROFILER, use RTRITON profiler.",
         )
         parser.add_argument(
             "--profile-stage",
@@ -398,7 +398,7 @@ def _maybe_prepare_mlp_sync_batch(batch: ScheduleBatch, model_runner):
             attn_tp_size=1,
             tp_group=model_runner.tp_group,
             get_idle_batch=None,
-            disable_cuda_graph=model_runner.server_args.disable_cuda_graph,
+            disable_rtriton_graph=model_runner.server_args.disable_rtriton_graph,
             require_mlp_tp_gather=require_mlp_tp_gather(model_runner.server_args),
             disable_overlap_schedule=model_runner.server_args.disable_overlap_schedule,
             offload_tags=set(),
@@ -735,7 +735,7 @@ def latency_test(
 
 
 def main(server_args, bench_args):
-    server_args.cuda_graph_max_bs = max(bench_args.batch_size)
+    server_args.rtriton_graph_max_bs = max(bench_args.batch_size)
 
     _set_envs_and_config(server_args)
 

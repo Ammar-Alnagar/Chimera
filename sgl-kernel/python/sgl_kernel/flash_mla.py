@@ -10,7 +10,7 @@ else:
     _flashmla_import_error = None
 
 _IMPORT_ERROR = ImportError(
-    "Failed to load sgl_kernel.flashmla_ops extension. Ensure CUDA Driver >= 12.4"
+    "Failed to load sgl_kernel.flashmla_ops extension. Ensure RTRITON Driver >= 12.4"
 )
 
 

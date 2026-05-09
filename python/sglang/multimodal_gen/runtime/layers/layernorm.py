@@ -51,7 +51,7 @@ class RMSNorm(CustomOp):
             x, self.weight, bias=None, residual=residual, eps=self.variance_epsilon
         )
 
-    def forward_cuda(
+    def forward_rtriton(
         self,
         x: torch.Tensor,
         residual: Optional[torch.Tensor] = None,
@@ -186,7 +186,7 @@ class LayerNorm(CustomOp):
             is_rms_norm=False,
         ).view(x.shape)
 
-    def forward_cuda(
+    def forward_rtriton(
         self,
         x: torch.Tensor,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
@@ -441,9 +441,9 @@ def apply_qk_norm(
     batch_size = q.size(0)
     q_eps = q_norm.variance_epsilon
     k_eps = k_norm.variance_epsilon
-    # Only try fused path on CUDA and when it won't introduce implicit copies.
+    # Only try fused path on RTRITON and when it won't introduce implicit copies.
     if (
-        q.is_cuda
+        q.is_rtriton
         and allow_inplace
         and (q_eps == k_eps)
         and can_use_fused_inplace_qknorm(head_dim)
@@ -460,5 +460,5 @@ def apply_qk_norm(
 
     raise RuntimeError(
         "apply_qk_norm: fused inplace QK-norm is not applicable "
-        "(expected CUDA, contiguous q/k, matching eps, and supported head_dim)"
+        "(expected RTRITON, contiguous q/k, matching eps, and supported head_dim)"
     )

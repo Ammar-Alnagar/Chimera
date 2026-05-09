@@ -51,7 +51,7 @@ make build MAX_JOBS=2 CMAKE_ARGS="-DSGL_KERNEL_COMPILE_THREADS=1"
 1. Implement the kernel in [csrc](https://github.com/sgl-project/sglang/tree/main/sgl-kernel/csrc)
 2. Expose the interface in [include/sgl_kernel_ops.h](https://github.com/sgl-project/sglang/blob/main/sgl-kernel/include/sgl_kernel_ops.h)
 3. Create torch extension in [csrc/common_extension.cc](https://github.com/sgl-project/sglang/blob/main/sgl-kernel/csrc/common_extension.cc)
-4. Update [CMakeLists.txt](https://github.com/sgl-project/sglang/blob/main/sgl-kernel/CMakeLists.txt) to include new CUDA source
+4. Update [CMakeLists.txt](https://github.com/sgl-project/sglang/blob/main/sgl-kernel/CMakeLists.txt) to include new RTRITON source
 5. Expose Python interface in [python](https://github.com/sgl-project/sglang/blob/main/sgl-kernel/python/sgl_kernel)
 6. Add test and benchmark
 
@@ -66,7 +66,7 @@ make build MAX_JOBS=2 CMAKE_ARGS="-DSGL_KERNEL_COMPILE_THREADS=1"
    m.def(
     "bmm_fp8(Tensor A, Tensor B, Tensor! D, Tensor A_scale, Tensor B_scale, Tensor workspace_buffer, "
     "int cublas_handle) -> ()");
-   m.impl("bmm_fp8", torch::kCUDA, &bmm_fp8);
+   m.impl("bmm_fp8", torch::kRTRITON, &bmm_fp8);
    ```
 
 ### Adapting C++ Native Types for Torch Compatibility
@@ -90,7 +90,7 @@ struct pytorch_library_compatible_type<int> {
 ```
 ```cpp
 // Wrap your function
-m.impl("fwd", torch::kCUDA, make_pytorch_shim(&mha_fwd));
+m.impl("fwd", torch::kRTRITON, make_pytorch_shim(&mha_fwd));
 ```
 
 ### Testing & Benchmarking
@@ -105,9 +105,9 @@ m.impl("fwd", torch::kCUDA, make_pytorch_shim(&mha_fwd));
 
 2. Add benchmarks using [triton benchmark](https://triton-lang.org/main/python-api/generated/triton.testing.Benchmark.html) in [benchmark/](https://github.com/sgl-project/sglang/tree/main/sgl-kernel/benchmark)
 
-   **We recommend using `triton.testing.do_bench_cudagraph` for kernel benchmarking**:
+   **We recommend using `triton.testing.do_bench_rtritongraph` for kernel benchmarking**:
 
-   Compared to `triton.testing.do_bench`, `do_bench_cudagraph` provides:
+   Compared to `triton.testing.do_bench`, `do_bench_rtritongraph` provides:
    - Reduced CPU overhead impact for more accurate kernel performance measurements
    - Incorporation of PDL (Programmatic Dependent Launch) effects into individual kernel results
    - More realistic performance data on PDL-supported architectures (SM >= 90)
@@ -116,7 +116,7 @@ m.impl("fwd", torch::kCUDA, make_pytorch_shim(&mha_fwd));
 
 ## Kernel Size Analysis
 
-Analyze CUDA kernel sizes in compiled wheel files to identify oversized kernels and template-instantiation bloat:
+Analyze RTRITON kernel sizes in compiled wheel files to identify oversized kernels and template-instantiation bloat:
 
 This tool requires `cubloaty` (install with `pip install cubloaty`) to work.
 
@@ -139,5 +139,5 @@ The tool generates:
 Use this to identify large kernels and potential template instantiation bloat.
 
 ## FAQ
-- Q: Segmentation fault with CUDA 12.6
+- Q: Segmentation fault with RTRITON 12.6
 - A: Update ptxas to 12.8, reference: [segment fault error](https://github.com/Dao-AILab/flash-attention/issues/1453)

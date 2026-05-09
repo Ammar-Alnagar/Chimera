@@ -267,7 +267,7 @@ def run_lora_test_one_by_one(
     torch_dtype: torch.dtype,
     max_new_tokens: int,
     backend: str = "csgmv",
-    disable_cuda_graph: bool = False,
+    disable_rtriton_graph: bool = False,
     disable_radix_cache: bool = False,
     mem_fraction_static: float = 0.88,
     test_tag: str = "",
@@ -287,7 +287,7 @@ def run_lora_test_one_by_one(
         torch_dtype (torch.dtype): The torch dtype to use.
         max_new_tokens (int): The maximum number of new tokens to generate.
         backend (str): The lora backend to use.
-        disable_cuda_graph (bool, optional): Whether to disable CUDA graph. Defaults to False.
+        disable_rtriton_graph (bool, optional): Whether to disable RTRITON graph. Defaults to False.
         disable_radix_cache (bool, optional): Whether to disable radix cache. Defaults to False.
         mem_fraction_static (float, optional): The fraction of memory to use. Defaults to 0.88.
         test_tag (str, optional): The tag to use for the test. Defaults to "".
@@ -315,7 +315,7 @@ def run_lora_test_one_by_one(
         ],
         max_loras_per_batch=model_case.max_loras_per_batch,
         lora_backend=backend,
-        disable_cuda_graph=disable_cuda_graph,
+        disable_rtriton_graph=disable_rtriton_graph,
         disable_radix_cache=disable_radix_cache,
         mem_fraction_static=mem_fraction_static,
     ) as srt_runner:
@@ -415,7 +415,7 @@ def run_lora_test_by_batch(
     torch_dtype: torch.dtype,
     max_new_tokens: int,
     backend: str = "csgmv",
-    disable_cuda_graph: bool = False,
+    disable_rtriton_graph: bool = False,
     disable_radix_cache: bool = False,
     mem_fraction_static: float = 0.88,
     test_tag: str = "",
@@ -434,7 +434,7 @@ def run_lora_test_by_batch(
         torch_dtype (torch.dtype): The torch dtype to use.
         max_new_tokens (int): The maximum number of new tokens to generate.
         backend (str): The lora backend to use.
-        disable_cuda_graph (bool, optional): Whether to disable CUDA graph. Defaults to False.
+        disable_rtriton_graph (bool, optional): Whether to disable RTRITON graph. Defaults to False.
         disable_radix_cache (bool, optional): Whether to disable radix cache. Defaults to False.
         mem_fraction_static (float, optional): The fraction of memory to use. Defaults to 0.88.
         test_tag (str, optional): The tag to use for the test. Defaults to "".
@@ -462,7 +462,7 @@ def run_lora_test_by_batch(
         ],
         max_loras_per_batch=model_case.max_loras_per_batch,
         lora_backend=backend,
-        disable_cuda_graph=disable_cuda_graph,
+        disable_rtriton_graph=disable_rtriton_graph,
         disable_radix_cache=disable_radix_cache,
         mem_fraction_static=mem_fraction_static,
     ) as srt_runner:
@@ -524,7 +524,7 @@ def ensure_reproducibility():
     seed = 42
     random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    torch.rtriton.manual_seed_all(seed)
     torch.use_deterministic_algorithms(True)
 
 
@@ -614,7 +614,7 @@ def run_lora_multiple_batch_on_model_cases(
     model_cases: List[LoRAModelCase],
     use_spec_decoding: bool = False,
     attention_backend: str = "torch_native",
-    disable_cuda_graph: bool = True,
+    disable_rtriton_graph: bool = True,
     enable_deterministic_inference: bool = False,
     disable_radix_cache: bool = True,
 ):
@@ -654,7 +654,7 @@ def run_lora_multiple_batch_on_model_cases(
                 sleep_on_idle=True,  # Eliminate non-determinism by forcing all requests to be processed in one batch.
                 attention_backend=attention_backend,
                 enable_deterministic_inference=enable_deterministic_inference,
-                disable_cuda_graph=disable_cuda_graph,
+                disable_rtriton_graph=disable_rtriton_graph,
                 disable_radix_cache=disable_radix_cache,
                 **spec_args,
             )

@@ -1,4 +1,4 @@
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/rtriton/RTRITONContext.h>
 #include <c10/util/Float8_e4m3fn.h>
 
 #include <cmath>
@@ -30,7 +30,7 @@ __device__ __forceinline__ float GroupReduceMax(float val, const int tid) {
 }
 
 __device__ __forceinline__ float silu(const float& val) {
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
   float half = 0.5f * val;
   float t = __tanhf(half);
   return half * (1.0f + t);
@@ -40,7 +40,7 @@ __device__ __forceinline__ float silu(const float& val) {
 }
 
 __device__ float2 fmul2_rn(float2 a, float2 b) {
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if defined(__RTRITON_ARCH__) && (__RTRITON_ARCH__ >= 1000)
   return __fmul2_rn(a, b);
 #else
   float2 result;
@@ -419,7 +419,7 @@ void sgl_per_token_group_quant_8bit_v2(
 
   const int num_local_experts = masked_layout ? input.size(0) : 1;
 
-  cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
 
   auto dst_type = output_q.scalar_type();
 

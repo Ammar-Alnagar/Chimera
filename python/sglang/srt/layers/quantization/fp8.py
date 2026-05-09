@@ -63,7 +63,7 @@ from sglang.srt.utils import (
     cpu_has_amx_support,
     get_bool_env_var,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     is_hip,
     is_npu,
     is_sm90_supported,
@@ -85,7 +85,7 @@ if TYPE_CHECKING:
     from sglang.srt.layers.quantization.w4afp8 import W4AFp8Config
 
 _is_hip = is_hip()
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_npu = is_npu()
 _is_cpu_amx_available = cpu_has_amx_support()
 _is_cpu = is_cpu()
@@ -204,7 +204,7 @@ class Fp8LinearMethod(LinearMethodBase):
     Limitations:
     1. Only support per-tensor quantization due to torch._scaled_mm support.
     2. Only support float8_e4m3fn data type due to the limitation of
-       torch._scaled_mm (https://github.com/pytorch/pytorch/blob/2e48b39603411a41c5025efbe52f89560b827825/aten/src/ATen/native/cuda/Blas.cpp#L854-L856)
+       torch._scaled_mm (https://github.com/pytorch/pytorch/blob/2e48b39603411a41c5025efbe52f89560b827825/aten/src/ATen/native/rtriton/Blas.cpp#L854-L856)
 
     Args:
         quant_config: The quantization config.
@@ -217,7 +217,7 @@ class Fp8LinearMethod(LinearMethodBase):
         # For GPUs that lack FP8 hardware support, we can leverage the Marlin
         # kernel for fast weight-only FP8 quantization
         self.use_marlin = False
-        if _is_cuda:
+        if _is_rtriton:
             force_marlin = get_bool_env_var("SGLANG_FORCE_FP8_MARLIN")
             auto_enable = can_auto_enable_marlin_fp8()
             self.use_marlin = force_marlin or auto_enable
@@ -560,7 +560,7 @@ class Fp8MoEMethod(FusedMoEMethodBase):
         if get_moe_runner_backend().is_tilelang():
             assert (
                 tilelang_fp8_supported()
-            ), "tilelang_fp8 MoE requires CUDA 12.0+ with SM90 or CUDA 12.4+ with SM89"
+            ), "tilelang_fp8 MoE requires RTRITON 12.0+ with SM90 or RTRITON 12.4+ with SM89"
             assert self.block_quant, "tilelang_fp8 MoE requires block quantization"
             assert is_sm100_supported() or is_sm90_supported()
 
@@ -1034,12 +1034,12 @@ class Fp8MoEMethod(FusedMoEMethodBase):
             shuffle_weight(layer.w13_weight.data, (16, 16)),
             requires_grad=False,
         )
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
         layer.w2_weight = torch.nn.Parameter(
             shuffle_weight(layer.w2_weight.data, (16, 16)),
             requires_grad=False,
         )
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
         # INT4-FP8 : offset INT4 w13_weight_scale1 to single w13_weight_scale
         # Fp8 moe kernel needs single fp8 w13_weight_scale for w13 per expert.
@@ -1079,12 +1079,12 @@ class Fp8MoEMethod(FusedMoEMethodBase):
                 shuffle_weight(layer.w13_weight.data, (16, 16)),
                 requires_grad=False,
             )
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
             layer.w2_weight = torch.nn.Parameter(
                 shuffle_weight(layer.w2_weight.data, (16, 16)),
                 requires_grad=False,
             )
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
             # ROCm (_use_aiter): using column-wise scaling
             layer.w13_weight_scale1 *= layer.w13_weight_scale.unsqueeze(-1)
@@ -1095,12 +1095,12 @@ class Fp8MoEMethod(FusedMoEMethodBase):
                 F.pad(layer.w13_weight.data, (0, padding_size), "constant", 0),
                 requires_grad=False,
             )
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
             layer.w2_weight = torch.nn.Parameter(
                 F.pad(layer.w2_weight.data, (0, padding_size), "constant", 0),
                 requires_grad=False,
             )
-            torch.cuda.empty_cache()
+            torch.rtriton.empty_cache()
 
     def create_moe_runner(
         self, layer: torch.nn.Module, moe_runner_config: MoeRunnerConfig

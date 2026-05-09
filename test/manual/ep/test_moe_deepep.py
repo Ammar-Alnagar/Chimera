@@ -29,7 +29,7 @@ class TestPureTP(CustomTestCase):
                 "2",
                 "--moe-a2a-backend",
                 "deepep",
-                "--disable-cuda-graph",
+                "--disable-rtriton-graph",
             ],
         )
 
@@ -71,7 +71,7 @@ class TestDPAttn(unittest.TestCase):
                     "deepep",
                     "--deepep-mode",
                     "normal",
-                    "--disable-cuda-graph",
+                    "--disable-rtriton-graph",
                     # Test custom config
                     "--deepep-config",
                     json.dumps(

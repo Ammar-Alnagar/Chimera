@@ -16,9 +16,9 @@ from sglang.jit_kernel.hicache import (
     transfer_hicache_one_layer as jit_transfer_hicache_one_layer,
 )
 from sglang.srt.mem_cache.memory_pool import KVCache, MHATokenToKVPool, MLATokenToKVPool
-from sglang.srt.utils import is_cuda, is_npu, is_xpu
+from sglang.srt.utils import is_rtriton, is_npu, is_xpu
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_npu = is_npu()
 _is_xpu = is_xpu()
 if not (_is_npu or _is_xpu):
@@ -93,12 +93,12 @@ def alloc_with_host_register(
     allocator: HostTensorAllocator,
 ) -> torch.Tensor:
     """
-    Allocate tensor and register host memory with cudaHostRegister.
-    CudaHostRegister only applies when pin_memory=True.
+    Allocate tensor and register host memory with rtritonHostRegister.
+    RtritonHostRegister only applies when pin_memory=True.
     """
     buffer = allocator.allocate(dims, dtype=dtype, device=device)
     if pin_memory:
-        torch.cuda.cudart().cudaHostRegister(
+        torch.rtriton.rtritonrt().rtritonHostRegister(
             buffer.data_ptr(), buffer.numel() * buffer.element_size(), 0
         )
     return buffer
@@ -289,7 +289,7 @@ class MHATokenToKVPoolHost(HostKVCache):
             allocator_type,
         )
         self.element_dim = self.device_pool.head_num * self.device_pool.head_dim
-        self.can_use_jit = _is_cuda and can_use_hicache_jit_kernel(
+        self.can_use_jit = _is_rtriton and can_use_hicache_jit_kernel(
             element_size=self.element_dim * self.dtype.itemsize
         )
 

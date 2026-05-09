@@ -17,11 +17,11 @@ typedef __hip_bfloat16 nv_bfloat16;
 #include <unordered_map>
 #include <vector>
 
-#define CUDACHECK(cmd)                                                                     \
+#define RTRITONCHECK(cmd)                                                                     \
   do {                                                                                     \
     hipError_t e = cmd;                                                                    \
     if (e != hipSuccess) {                                                                 \
-      printf("Failed: Cuda error %s:%d '%s'\n", __FILE__, __LINE__, hipGetErrorString(e)); \
+      printf("Failed: Rtriton error %s:%d '%s'\n", __FILE__, __LINE__, hipGetErrorString(e)); \
       exit(EXIT_FAILURE);                                                                  \
     }                                                                                      \
   } while (0)
@@ -97,7 +97,7 @@ DINLINE float& assign_add(float& a, float b) {
   return a += b;
 }
 
-#if (__CUDA_ARCH__ >= 800 || !defined(__CUDA_ARCH__))
+#if (__RTRITON_ARCH__ >= 800 || !defined(__RTRITON_ARCH__))
 DINLINE float upcast_s(nv_bfloat16 val) {
   return __bfloat162float(val);
 }
@@ -403,7 +403,7 @@ class CustomAllreduce {
     auto [it, new_handle] = ipc_handles_.insert({*((IPC_KEY*)ipc_handle), nullptr});
     if (new_handle) {
       char* ipc_ptr;
-      CUDACHECK(hipIpcOpenMemHandle(
+      RTRITONCHECK(hipIpcOpenMemHandle(
           (void**)&ipc_ptr, *((const hipIpcMemHandle_t*)ipc_handle), hipIpcMemLazyEnablePeerAccess));
       it->second = ipc_ptr;
     }
@@ -429,7 +429,7 @@ class CustomAllreduce {
 #endif
               (hipDeviceptr_t)ptr) != hipSuccess)
         throw std::runtime_error("failed to get pointer attr");
-      CUDACHECK(hipIpcGetMemHandle((hipIpcMemHandle_t*)&handles[i * handle_sz], base_ptr));
+      RTRITONCHECK(hipIpcGetMemHandle((hipIpcMemHandle_t*)&handles[i * handle_sz], base_ptr));
       offsets[i] = ((char*)ptr) - ((char*)base_ptr);
     }
     return std::make_pair(handles, offsets);
@@ -454,7 +454,7 @@ class CustomAllreduce {
       }
     }
     auto d_data = d_rank_data_base_++;
-    CUDACHECK(hipMemcpy(d_data, &data, sizeof(RankData), hipMemcpyHostToDevice));
+    RTRITONCHECK(hipMemcpy(d_data, &data, sizeof(RankData), hipMemcpyHostToDevice));
     buffers_[self] = d_data;
   }
 
@@ -483,7 +483,7 @@ class CustomAllreduce {
         }
       }
     }
-    CUDACHECK(hipMemcpy(d_rank_data_base_, rank_data.data(), sizeof(RankData) * num_buffers, hipMemcpyHostToDevice));
+    RTRITONCHECK(hipMemcpy(d_rank_data_base_, rank_data.data(), sizeof(RankData) * num_buffers, hipMemcpyHostToDevice));
     d_rank_data_base_ += num_buffers;
     graph_unreg_buffers_.clear();
   }
@@ -520,7 +520,7 @@ class CustomAllreduce {
 
   RankData* ptrs;
   hipStreamCaptureStatus status;
-  CUDACHECK(hipStreamIsCapturing(stream, &status));
+  RTRITONCHECK(hipStreamIsCapturing(stream, &status));
   if (status == hipStreamCaptureStatusActive) {
     ptrs = d_rank_data_base_ + graph_unreg_buffers_.size();
     graph_unreg_buffers_.push_back(input);
@@ -569,7 +569,7 @@ class CustomAllreduce {
 
 ~CustomAllreduce() {
   for (auto [_, ptr] : ipc_handles_) {
-    CUDACHECK(hipIpcCloseMemHandle(ptr));
+    RTRITONCHECK(hipIpcCloseMemHandle(ptr));
   }
 }
 };  // namespace sglang

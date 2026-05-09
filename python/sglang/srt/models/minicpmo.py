@@ -1513,7 +1513,7 @@ class MiniCPMO(MiniCPMBaseModel):
                 prefix=prefix,
             )
 
-        return resampler.to(device="cuda", dtype=torch.get_default_dtype())
+        return resampler.to(device="rtriton", dtype=torch.get_default_dtype())
 
     def pad_input_ids(self, input_ids: List[int], mm_input: MultimodalInputs):
         # Get all special token IDs
@@ -1630,7 +1630,7 @@ class MiniCPMO(MiniCPMBaseModel):
             num_left_chunks (int): number of left chunks
                 <0: use full chunk
                 >=0: use num_left_chunks
-            device (torch.device): "cpu" or "cuda" or torch.Tensor.device
+            device (torch.device): "cpu" or "rtriton" or torch.Tensor.device
 
         Returns:
             torch.Tensor: mask

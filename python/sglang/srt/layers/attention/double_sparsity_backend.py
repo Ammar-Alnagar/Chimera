@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 class DoubleSparseAttnBackend(AttentionBackend):
     def __init__(self, model_runner: ModelRunner):
-        # Lazy import to avoid the initialization of cuda context
+        # Lazy import to avoid the initialization of rtriton context
         from sglang.srt.layers.attention.triton_ops.double_sparsity_attention import (
             extend_attention_fwd,
             flash_decode_attention_fwd,
@@ -60,7 +60,7 @@ class DoubleSparseAttnBackend(AttentionBackend):
             attn_logits = torch.empty(
                 (self.num_head, total_num_tokens),
                 dtype=self.reduce_dtype,
-                device="cuda",
+                device="rtriton",
             )
 
             max_seq_len = torch.max(forward_batch.seq_lens).item()
@@ -76,7 +76,7 @@ class DoubleSparseAttnBackend(AttentionBackend):
             att_out_approx = torch.empty(
                 [self.num_head, bsz, max_seq_len],
                 dtype=self.reduce_dtype,
-                device="cuda",
+                device="rtriton",
             )
 
             block_seq_num = (
@@ -86,10 +86,10 @@ class DoubleSparseAttnBackend(AttentionBackend):
             mid_out = torch.empty(
                 [bsz, self.num_head, block_seq_num, self.head_dim],
                 dtype=torch.float32,
-                device="cuda",
+                device="rtriton",
             )
             mid_o_logexpsum = torch.empty(
-                [bsz, self.num_head, block_seq_num], dtype=torch.float32, device="cuda"
+                [bsz, self.num_head, block_seq_num], dtype=torch.float32, device="rtriton"
             )
             self.att_out_approx = att_out_approx
             self.mid_out = mid_out

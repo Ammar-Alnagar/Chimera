@@ -104,8 +104,8 @@ def benchmark(batch_size, provider, N, K):
     run_step = 100
     dtype = torch.float16 if "fp16" in provider else torch.bfloat16
     M = batch_size
-    a = torch.randn((M, K), dtype=dtype, device="cuda")
-    b = torch.randn((N, K), dtype=dtype, device="cuda")
+    a = torch.randn((M, K), dtype=dtype, device="rtriton")
+    b = torch.randn((N, K), dtype=dtype, device="rtriton")
     a_global_scale = (
         (FLOAT8_E4M3_MAX * FLOAT4_E2M1_MAX) / torch.amax(a.flatten(), dim=-1)
     ).to(torch.float32)
@@ -116,8 +116,8 @@ def benchmark(batch_size, provider, N, K):
     a_fp4, a_scale_interleaved = scaled_fp4_quant(a, a_global_scale)
     b_fp4, b_scale_interleaved = scaled_fp4_quant(b, b_global_scale)
 
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
+    start_event = torch.rtriton.Event(enable_timing=True)
+    end_event = torch.rtriton.Event(enable_timing=True)
 
     # Bridging the gap between CPU and GPU
     for _ in range(25):
@@ -134,7 +134,7 @@ def benchmark(batch_size, provider, N, K):
         )
     end_event.record()
     end_event.synchronize()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
     ms = start_event.elapsed_time(end_event) / run_step
 
     tflops = lambda ms: (2 * M * N * K) * 1e-9 / ms

@@ -19,8 +19,8 @@ class TestTritonAttentionMLA(CustomTestCase):
         """Set all random seeds for reproducibility."""
         random.seed(seed)
         torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
+        torch.rtriton.manual_seed(seed)
+        torch.rtriton.manual_seed_all(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
@@ -73,7 +73,7 @@ class TestTritonAttentionMLA(CustomTestCase):
             rope_scaling,
             q.dtype,
             device="cpu",
-        ).cuda()
+        ).rtriton()
         positions = torch.tensor([S], device=device).unsqueeze(0).repeat(B, 1)
 
         return kv_indptr, kv_indices, q, kv_cache, attn_logits, rotary_emb, positions
@@ -92,7 +92,7 @@ class TestTritonAttentionMLA(CustomTestCase):
         rotary_emb,
         positions,
         use_rope,
-        device="cuda",
+        device="rtriton",
     ):
 
         B, H = q.shape[0], q.shape[1]
@@ -152,7 +152,7 @@ class TestTritonAttentionMLA(CustomTestCase):
         num_kv_splits=2,
         sm_scale=1.0,
         logit_cap=0.0,
-        device="cuda",
+        device="rtriton",
     ):
         kv_indptr, kv_indices, q, kv_cache, attn_logits, rotary_emb, positions = (
             self.input_helper(
@@ -211,7 +211,7 @@ class TestTritonAttentionMLA(CustomTestCase):
             rotary_emb,
             positions,
             use_rope,
-            device="cuda",
+            device="rtriton",
         )
 
         if use_rope:

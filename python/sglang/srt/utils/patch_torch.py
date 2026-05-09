@@ -45,10 +45,10 @@ def monkey_patch_torch_reductions():
         if hasattr(reductions, "_reduce_tensor_original"):
             return
         reductions._reduce_tensor_original = reductions.reduce_tensor
-        reductions._rebuild_cuda_tensor_original = reductions.rebuild_cuda_tensor
+        reductions._rebuild_rtriton_tensor_original = reductions.rebuild_rtriton_tensor
 
         reductions.reduce_tensor = _reduce_tensor_modified
-        reductions.rebuild_cuda_tensor = _rebuild_cuda_tensor_modified
+        reductions.rebuild_rtriton_tensor = _rebuild_rtriton_tensor_modified
         reductions.init_reductions()
     else:
         # FIXME: This is a temp patch for npu as HDK does not support device uuid for now
@@ -77,13 +77,13 @@ def _reduce_tensor_modified(*args, **kwargs):
     return output_fn, output_args
 
 
-def _rebuild_cuda_tensor_modified(*args):
+def _rebuild_rtriton_tensor_modified(*args):
     args = _modify_tuple(args, _REDUCE_TENSOR_ARG_DEVICE_INDEX, _device_from_maybe_uuid)
-    return reductions._rebuild_cuda_tensor_original(*args)
+    return reductions._rebuild_rtriton_tensor_original(*args)
 
 
 def _device_to_uuid(device: int) -> str:
-    return str(torch.cuda.get_device_properties(device).uuid)
+    return str(torch.rtriton.get_device_properties(device).uuid)
 
 
 def _device_from_maybe_uuid(device_maybe_uuid: Union[int, str]) -> int:
@@ -91,8 +91,8 @@ def _device_from_maybe_uuid(device_maybe_uuid: Union[int, str]) -> int:
         return device_maybe_uuid
 
     if isinstance(device_maybe_uuid, str):
-        for device in range(torch.cuda.device_count()):
-            if str(torch.cuda.get_device_properties(device).uuid) == device_maybe_uuid:
+        for device in range(torch.rtriton.device_count()):
+            if str(torch.rtriton.get_device_properties(device).uuid) == device_maybe_uuid:
                 return device
         raise Exception("Invalid device_uuid=" + device_maybe_uuid)
 

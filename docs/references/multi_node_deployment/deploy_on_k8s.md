@@ -232,7 +232,7 @@ You can use the command `kubectl logs -f sglang-0` to view the logs of the leade
 Once successful, you should see output like this:
 
 ```text
-[2025-02-17 05:27:24 TP1] Capture cuda graph end. Time elapsed: 84.89 s
+[2025-02-17 05:27:24 TP1] Capture rtriton graph end. Time elapsed: 84.89 s
 [2025-02-17 05:27:24 TP6] max_total_num_tokens=712400, chunked_prefill_size=8192, max_prefill_tokens=16384, max_running_requests=50, context_len=163840
 [2025-02-17 05:27:24 TP0] max_total_num_tokens=712400, chunked_prefill_size=8192, max_prefill_tokens=16384, max_running_requests=50, context_len=163840
 [2025-02-17 05:27:24 TP7] max_total_num_tokens=712400, chunked_prefill_size=8192, max_prefill_tokens=16384, max_running_requests=50, context_len=163840

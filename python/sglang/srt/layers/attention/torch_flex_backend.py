@@ -27,7 +27,7 @@ class TorchFlexAttnBackend(AttentionBackend):
         """Init the metadata for a forward pass."""
         # TODO: find a more elegant way to save memory
         # Currently maintain the same memory as torch_native_backend
-        torch.cuda.empty_cache()
+        torch.rtriton.empty_cache()
 
         # Provide two block_mask Lists per seq_idx for lower latency, later will support per layer level mask generation
         self.extend_block_masks = []

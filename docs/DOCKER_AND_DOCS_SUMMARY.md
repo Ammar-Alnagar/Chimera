@@ -28,7 +28,7 @@ Production-ready Dockerfile for Chimera deployment.
 **Features:**
 - Multi-stage build for optimization
 - JIT compilation support
-- CUDA 12.6-13.0 compatibility
+- RTRITON 12.6-13.0 compatibility
 - Hopper/Blackwell architecture support
 - Security hardening (non-root user)
 - Health check integration
@@ -90,7 +90,7 @@ docker compose -f docker/compose.chimera.yaml up -d
 **Diagrams:**
 1. Kernel Abstraction Layers (5-level hierarchy)
 2. Data Flow: Python to GPU (sequence diagram)
-3. TileLang vs Traditional CUDA (comparison)
+3. TileLang vs Traditional RTRITON (comparison)
 4. Kernel Fallback Strategy (decision tree)
 5. FP8 Blockwise GEMM Architecture
 6. Multi-Stage Pipelining (Gantt chart)

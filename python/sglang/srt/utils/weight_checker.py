@@ -76,8 +76,8 @@ def _check_tensors(
         name = expect_name
         should_compare = expect_should_compare
 
-        expect = expect.cuda()
-        actual = actual.cuda()
+        expect = expect.rtriton()
+        actual = actual.rtriton()
 
         if torch.all(expect == actual):
             good_names.append(name)

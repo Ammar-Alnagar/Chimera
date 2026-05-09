@@ -13,7 +13,7 @@ from sglang.test.test_utils import (
 MODEL_PATH = "nvidia/Llama-3.1-8B-Instruct-FP4"
 
 
-@unittest.skipIf(get_device_sm() < 100, "Test requires CUDA SM 100 or higher")
+@unittest.skipIf(get_device_sm() < 100, "Test requires RTRITON SM 100 or higher")
 class TestLlama31FP4(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

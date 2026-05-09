@@ -12,9 +12,9 @@ from sglang.srt.server_args import ServerArgs
 from sglang.srt.speculative.eagle_worker import EAGLEWorker
 from sglang.srt.speculative.spec_info import SpeculativeAlgorithm
 from sglang.srt.speculative.spec_utils import draft_tp_context, load_token_map
-from sglang.srt.utils import empty_context, get_bool_env_var, is_cuda
+from sglang.srt.utils import empty_context, get_bool_env_var, is_rtriton
 
-if is_cuda():
+if is_rtriton():
     from sgl_kernel import segment_packbits  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -50,10 +50,10 @@ class StandaloneWorker(EAGLEWorker):
         # Override the context length of the draft model to be the same as the target model.
         server_args.context_length = target_worker.model_runner.model_config.context_len
 
-        # Do not capture cuda graph in `super().__init__()`
+        # Do not capture rtriton graph in `super().__init__()`
         # It will be captured later.
-        backup_disable_cuda_graph = server_args.disable_cuda_graph
-        server_args.disable_cuda_graph = True
+        backup_disable_rtriton_graph = server_args.disable_rtriton_graph
+        server_args.disable_rtriton_graph = True
         # Share the allocator with a target worker.
         # Draft and target worker own their own KV cache pools.
         self.req_to_token_pool, self.token_to_kv_pool_allocator = (
@@ -85,9 +85,9 @@ class StandaloneWorker(EAGLEWorker):
                 token_to_kv_pool_allocator=self.token_to_kv_pool_allocator,
             )
 
-        # Init attention backend and cuda graphs
-        self.draft_model_runner.server_args.disable_cuda_graph = (
-            backup_disable_cuda_graph
+        # Init attention backend and rtriton graphs
+        self.draft_model_runner.server_args.disable_rtriton_graph = (
+            backup_disable_rtriton_graph
         )
         self.draft_tp_context = (
             draft_tp_context if server_args.enable_dp_attention else empty_context
@@ -96,7 +96,7 @@ class StandaloneWorker(EAGLEWorker):
             self.draft_model_runner.tp_group
         ), speculative_moe_backend_context(), speculative_moe_a2a_backend_context():
             self.init_attention_backend()
-            self.init_cuda_graphs()
+            self.init_rtriton_graphs()
 
         # Some dummy tensors
         self.num_new_pages_per_topk = torch.empty(

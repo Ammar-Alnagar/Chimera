@@ -6,7 +6,7 @@ import requests
 
 from sglang.srt.environ import envs
 from sglang.srt.utils import kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_eval_few_shot_gsm8k
 from sglang.test.test_utils import (
     DEFAULT_DRAFT_MODEL_STANDALONE,
@@ -18,7 +18,7 @@ from sglang.test.test_utils import (
 )
 
 # Standalone speculative decoding tests (FA3, Triton, FlashInfer backends)
-register_cuda_ci(est_time=150, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=150, suite="stage-b-test-small-1-gpu")
 
 GSM_DATASET_PATH = None
 
@@ -26,7 +26,7 @@ GSM_DATASET_PATH = None
 # Default server arguments shared across all tests
 DEFAULT_SERVER_ARGS = [
     "--trust-remote-code",
-    "--cuda-graph-max-bs",
+    "--rtriton-graph-max-bs",
     "8",
     "--speculative-algorithm",
     "STANDALONE",
@@ -45,7 +45,7 @@ DEFAULT_SERVER_ARGS = [
 # Default server arguments for V2 tests
 DEFAULT_SERVER_ARGS_V2 = [
     "--trust-remote-code",
-    "--cuda-graph-max-bs",
+    "--rtriton-graph-max-bs",
     "8",
     "--speculative-algorithm",
     "STANDALONE",

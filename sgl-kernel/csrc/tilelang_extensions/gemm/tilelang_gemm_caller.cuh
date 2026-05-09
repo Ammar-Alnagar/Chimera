@@ -7,8 +7,8 @@
 // clang-format off
 #include <torch/all.h>
 
-#include <ATen/cuda/CUDAContext.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <c10/rtriton/RTRITONGuard.h>
 
 #include "tilelang/tilelang.h"
 
@@ -41,8 +41,8 @@ void tilelang_gemm_caller(
     typename GemmKernel::EpilogueArguments epilogue_args,
     typename GemmKernel::TileSchedulerArguments scheduler = {}) {
   tilelang::KernelHardwareInfo hw_info;
-  hw_info.device_id = c10::cuda::current_device();
-  hw_info.sm_count = at::cuda::getCurrentDeviceProperties()->multiProcessorCount;
+  hw_info.device_id = c10::rtriton::current_device();
+  hw_info.sm_count = at::rtriton::getCurrentDeviceProperties()->multiProcessorCount;
   typename GemmKernel::Arguments args{
       tilelang::gemm::GemmUniversalMode::kGemm, prob_shape, mainloop_args, epilogue_args, hw_info, scheduler};
 
@@ -55,7 +55,7 @@ void tilelang_gemm_caller(
   auto const workspace_options = torch::TensorOptions().dtype(torch::kUInt8).device(device);
   auto workspace = torch::empty(workspace_size, workspace_options);
 
-  auto stream = at::cuda::getCurrentCUDAStream(device.index());
+  auto stream = at::rtriton::getCurrentRTRITONStream(device.index());
 
   tilelang::Status status = gemm_op.run(args, workspace.data_ptr(), stream);
   TILELANG_CHECK(status);

@@ -11,7 +11,7 @@ import torch.distributed as dist
 from torch.distributed import ProcessGroup
 
 import sglang.srt.distributed.device_communicators.custom_all_reduce_ops as ops
-from sglang.srt.distributed.device_communicators.cuda_wrapper import CudaRTLibrary
+from sglang.srt.distributed.device_communicators.rtriton_wrapper import RtritonRTLibrary
 from sglang.srt.distributed.device_communicators.custom_all_reduce_utils import (
     gpu_p2p_access_check,
     is_full_nvlink,
@@ -19,9 +19,9 @@ from sglang.srt.distributed.device_communicators.custom_all_reduce_utils import 
 )
 from sglang.srt.distributed.parallel_state import in_the_same_node_as
 from sglang.srt.environ import envs
-from sglang.srt.utils import get_bool_env_var, is_cuda, is_hip, log_info_on_rank0
+from sglang.srt.utils import get_bool_env_var, is_rtriton, is_hip, log_info_on_rank0
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_hip = is_hip()
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ def _can_p2p(rank: int, world_size: int) -> bool:
             continue
         if SGLANG_SKIP_P2P_CHECK:
             logger.info("Skipping P2P check and trusting the driver's P2P report.")
-            return torch.cuda.can_device_access_peer(rank, i)
+            return torch.rtriton.can_device_access_peer(rank, i)
         if not gpu_p2p_access_check(rank, i):
             return False
     return True
@@ -60,18 +60,18 @@ class CustomAllreduce:
             group: the process group to work on. If None, it will use the
                 default process group.
             device: the device to bind the CustomAllreduce to. If None,
-                it will be bind to f"cuda:{local_rank}".
+                it will be bind to f"rtriton:{local_rank}".
         It is the caller's responsibility to make sure each communicator
         is bind to a unique device, and all communicators in this group
         are in the same node.
         """
         self._IS_CAPTURING = False
-        self.disabled = True  # This can be modified in-place by context manager in piecewise cuda graph runner
+        self.disabled = True  # This can be modified in-place by context manager in piecewise rtriton graph runner
         self.original_disabled = True  # To store the original state
 
         if not ops.IS_CUSTOM_AR_AVAILABLE:
             # disable because of missing custom allreduce library
-            # e.g. in a non-cuda environment
+            # e.g. in a non-rtriton environment
             return
 
         self.group = group
@@ -105,18 +105,18 @@ class CustomAllreduce:
             return
 
         if isinstance(device, int):
-            device = torch.device(f"cuda:{device}")
+            device = torch.device(f"rtriton:{device}")
         elif isinstance(device, str):
             device = torch.device(device)
         # now `device` is a `torch.device` object
         assert isinstance(device, torch.device)
         self.device = device
 
-        cuda_visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", None)
-        if cuda_visible_devices:
-            device_ids = list(map(int, cuda_visible_devices.split(",")))
+        rtriton_visible_devices = os.environ.get("RTRITON_VISIBLE_DEVICES", None)
+        if rtriton_visible_devices:
+            device_ids = list(map(int, rtriton_visible_devices.split(",")))
         else:
-            device_ids = list(range(torch.cuda.device_count()))
+            device_ids = list(range(torch.rtriton.device_count()))
 
         physical_device_id = device_ids[device.index]
         tensor = torch.tensor([physical_device_id], dtype=torch.int, device="cpu")
@@ -129,7 +129,7 @@ class CustomAllreduce:
         # test nvlink first, this will filter out most of the cases
         # where custom allreduce is not supported
         # this checks hardware and driver support for NVLink
-        if _is_cuda or _is_hip:
+        if _is_rtriton or _is_hip:
             full_nvlink = is_full_nvlink(physical_device_ids, world_size)
 
         if world_size > 2 and not full_nvlink:
@@ -139,7 +139,7 @@ class CustomAllreduce:
                 "specify disable_custom_all_reduce=True explicitly."
             )
             return
-        # test P2P capability, this checks software/cudaruntime support
+        # test P2P capability, this checks software/rtritonruntime support
         # this is expensive to compute at the first time
         # then we cache the result
         # On AMD GPU, p2p is always enabled between XGMI connected GPUs
@@ -198,7 +198,7 @@ class CustomAllreduce:
 
         self.disabled = False
         self.original_disabled = False  # Ensure original_disabled == disabled
-        self.tms_cudagraph = envs.SGLANG_MEMORY_SAVER_CUDA_GRAPH.get()
+        self.tms_rtritongraph = envs.SGLANG_MEMORY_SAVER_RTRITON_GRAPH.get()
 
     @staticmethod
     def create_shared_buffer(
@@ -208,9 +208,9 @@ class CustomAllreduce:
         Creates a shared buffer and returns a list of pointers
         representing the buffer on all processes in the group.
         """
-        lib = CudaRTLibrary()
-        pointer = lib.cudaMalloc(size_in_bytes)
-        handle = lib.cudaIpcGetMemHandle(pointer)
+        lib = RtritonRTLibrary()
+        pointer = lib.rtritonMalloc(size_in_bytes)
+        handle = lib.rtritonIpcGetMemHandle(pointer)
         world_size = dist.get_world_size(group=group)
         rank = dist.get_rank(group=group)
         handles = [None] * world_size
@@ -221,7 +221,7 @@ class CustomAllreduce:
             if i == rank:
                 pointers.append(pointer.value)  # type: ignore
             else:
-                pointers.append(lib.cudaIpcOpenMemHandle(h).value)  # type: ignore
+                pointers.append(lib.rtritonIpcOpenMemHandle(h).value)  # type: ignore
 
         return pointers
 
@@ -230,15 +230,15 @@ class CustomAllreduce:
         pointers: List[int], group: Optional[ProcessGroup] = None
     ) -> None:
         rank = dist.get_rank(group=group)
-        lib = CudaRTLibrary()
-        lib.cudaFree(ctypes.c_void_p(pointers[rank]))
+        lib = RtritonRTLibrary()
+        lib.rtritonFree(ctypes.c_void_p(pointers[rank]))
 
     @contextmanager
     def capture(self):
         """
         The main responsibility of this context manager is the
         `register_graph_buffers` call at the end of the context.
-        It records all the buffer addresses used in the CUDA graph.
+        It records all the buffer addresses used in the RTRITON graph.
         """
         try:
             self._IS_CAPTURING = True
@@ -249,7 +249,7 @@ class CustomAllreduce:
                 self.register_graph_buffers()
 
     def _get_ipc_meta(self, inp: torch.Tensor):
-        # _share_cuda_() doesn't accept meta buffer not allocated from
+        # _share_rtriton_() doesn't accept meta buffer not allocated from
         # PyTorch cache allocator, use direct HIP call to get IPC handle
         handle = ops.get_meta_buffer_ipc_handle(inp)
         shard_data = (
@@ -290,11 +290,11 @@ class CustomAllreduce:
         if _is_hip:
             handle, offset = ops.get_graph_buffer_ipc_meta(self._ptr)
             handles, offsets = self._gather_ipc_meta((bytes(handle), offset))
-            log_info_on_rank0(logger, f"Registering {len(offset)} cuda graph addresses")
+            log_info_on_rank0(logger, f"Registering {len(offset)} rtriton graph addresses")
             ops.register_graph_buffers(self._ptr, handles, offsets)
         else:
             handle, offset = ops.get_graph_buffer_ipc_meta(self._ptr)
-            log_info_on_rank0(logger, f"Registering {len(offset)} cuda graph addresses")
+            log_info_on_rank0(logger, f"Registering {len(offset)} rtriton graph addresses")
             # We cannot directly use `dist.all_gather_object` here
             # because it is incompatible with `gloo` backend under inference mode.
             # see https://github.com/pytorch/pytorch/issues/126032 for details.
@@ -336,7 +336,7 @@ class CustomAllreduce:
         return False
 
     # all reduce, assuming inp tensor is IPC registered with register_buffer,
-    # or, in the context of cuda graphs, register_graph_buffers
+    # or, in the context of rtriton graphs, register_graph_buffers
     def all_reduce_reg(self, inp: torch.Tensor, out: torch.Tensor = None):
         if out is None:
             out = torch.empty_like(inp)
@@ -391,24 +391,24 @@ class CustomAllreduce:
         return out
 
     def custom_all_reduce(self, input: torch.Tensor) -> Optional[torch.Tensor]:
-        """The main allreduce API that provides support for cuda graph."""
+        """The main allreduce API that provides support for rtriton graph."""
         # When custom allreduce is disabled, this will be None.
         if self.disabled or not self.should_custom_ar(input):
             return None
         if self._IS_CAPTURING:
-            if torch.cuda.is_current_stream_capturing():
+            if torch.rtriton.is_current_stream_capturing():
                 if _is_hip:
                     return self.all_reduce_reg(input)
                 else:
-                    return self.all_reduce(input, registered=not self.tms_cudagraph)
+                    return self.all_reduce(input, registered=not self.tms_rtritongraph)
             else:
                 # If warm up, mimic the allocation pattern since custom
                 # allreduce is out-of-place.
                 return torch.zeros_like(input)
         else:
             if _is_hip:
-                # note: outside of cuda graph context,
-                # custom allreduce incurs a cost of cudaMemcpy, which should
+                # note: outside of rtriton graph context,
+                # custom allreduce incurs a cost of rtritonMemcpy, which should
                 # be small(<=1% of overall latency) compared to the performance
                 # gains of using custom kernels
                 return self.all_reduce_unreg(input)
@@ -418,7 +418,7 @@ class CustomAllreduce:
     def close(self):
         if not self.disabled and self._ptr:
             ops.dispose(self._ptr)
-            if _is_cuda:
+            if _is_rtriton:
                 self.free_shared_buffer(self.meta_ptrs)
                 self.free_shared_buffer(self.buffer_ptrs)
             self._ptr = 0
@@ -433,7 +433,7 @@ def dispatch_custom_allreduce():
     On AMD with 1-stage AR enabled, use sglang's CustomAllreduce (has deterministic_all_reduce method).
     Otherwise use AiterCustomAllreduce if available.
     """
-    if _is_cuda:
+    if _is_rtriton:
         return CustomAllreduce
 
     assert _is_hip

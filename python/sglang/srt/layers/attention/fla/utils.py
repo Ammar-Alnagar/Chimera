@@ -240,7 +240,7 @@ def get_available_device() -> str:
 @lru_cache(maxsize=None)
 def _check_platform() -> Literal["nvidia", "amd", "intel", "musa"]:
     device = get_available_device()
-    if device == "cuda":
+    if device == "rtriton":
         return "nvidia"
     elif device == "hip":
         return "amd"
@@ -250,10 +250,10 @@ def _check_platform() -> Literal["nvidia", "amd", "intel", "musa"]:
         return device
 
 
-# For AMD GPUs, the triton backend is 'hip', while for Nvidia GPUs, the triton backend is 'cuda'.
-# However, the torch backend is 'cuda' for both Nvidia and AMD GPUs.
+# For AMD GPUs, the triton backend is 'hip', while for Nvidia GPUs, the triton backend is 'rtriton'.
+# However, the torch backend is 'rtriton' for both Nvidia and AMD GPUs.
 # Therefore, we need to check the triton backend to determine the actual GPU vendor.
-device = get_available_device() if get_available_device() != "hip" else "cuda"
+device = get_available_device() if get_available_device() != "hip" else "rtriton"
 device_torch_lib = getattr(torch, device)
 device_platform = _check_platform()
 
@@ -262,13 +262,13 @@ is_intel = device_platform == "intel"
 is_nvidia = device_platform == "nvidia"
 is_intel_alchemist = is_intel and "Intel(R) Arc(TM) A" in torch.xpu.get_device_name(0)
 is_nvidia_hopper = is_nvidia and (
-    "NVIDIA H" in torch.cuda.get_device_name(0)
-    or torch.cuda.get_device_capability()[0] >= 9
+    "NVIDIA H" in torch.rtriton.get_device_name(0)
+    or torch.rtriton.get_device_capability()[0] >= 9
 )
-use_cuda_graph = is_nvidia and os.environ.get("FLA_USE_CUDA_GRAPH", "0") == "1"
+use_rtriton_graph = is_nvidia and os.environ.get("FLA_USE_RTRITON_GRAPH", "0") == "1"
 
 # Nvidia Ampere or newer, haven't check AMD and intel yet.
-is_tf32_supported = is_nvidia and torch.cuda.get_device_capability(0)[0] >= 8
+is_tf32_supported = is_nvidia and torch.rtriton.get_device_capability(0)[0] >= 8
 is_gather_supported = hasattr(triton.language, "gather")
 
 
@@ -310,7 +310,7 @@ def check_shared_mem(arch: str = "none", tensor_idx: int = 0) -> bool:
 
 
 if check_pytorch_version("2.4"):
-    device = "cuda" if device == "cpu" else device
+    device = "rtriton" if device == "cpu" else device
     autocast_custom_fwd = functools.partial(torch.amp.custom_fwd, device_type=device)
     autocast_custom_bwd = functools.partial(torch.amp.custom_bwd, device_type=device)
 
@@ -319,10 +319,10 @@ if check_pytorch_version("2.4"):
 
 else:
     assert (
-        device == "cuda"
-    ), "Only cuda device is supported for PyTorch version < 2.4.0."
+        device == "rtriton"
+    ), "Only rtriton device is supported for PyTorch version < 2.4.0."
     autocast_custom_fwd = device_torch_lib.amp.custom_fwd
     autocast_custom_bwd = device_torch_lib.amp.custom_bwd
 
     def custom_device_ctx(index: int):
-        return torch.cuda.device(index)
+        return torch.rtriton.device(index)

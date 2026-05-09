@@ -40,8 +40,8 @@ class SGLDiffusionProfiler:
             pass
 
         activities = [torch.profiler.ProfilerActivity.CPU]
-        if torch.cuda.is_available():
-            activities.append(torch.profiler.ProfilerActivity.CUDA)
+        if torch.rtriton.is_available():
+            activities.append(torch.profiler.ProfilerActivity.RTRITON)
 
         common_torch_profiler_args = dict(
             activities=activities,
@@ -106,8 +106,8 @@ class SGLDiffusionProfiler:
             return
         self.has_stopped = True
         logger.info("Stopping Profiler...")
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
+        if torch.rtriton.is_available():
+            torch.rtriton.synchronize()
         self.profiler.stop()
 
         if export_trace:

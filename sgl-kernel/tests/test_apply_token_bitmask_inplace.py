@@ -1,6 +1,6 @@
 import pytest
 import torch
-from sgl_kernel import apply_token_bitmask_inplace_cuda
+from sgl_kernel import apply_token_bitmask_inplace_rtriton
 
 
 def test_apply_token_bitmask_inplace_kernel():
@@ -11,11 +11,11 @@ def test_apply_token_bitmask_inplace_kernel():
     )
     expected = torch.where(bool_mask, logits, neginf)
 
-    logits_gpu = logits.to("cuda")
-    bitmask = torch.tensor([0b1010101010], dtype=torch.int32).to("cuda")
-    apply_token_bitmask_inplace_cuda(logits_gpu, bitmask)
-    torch.cuda.synchronize()
-    torch.testing.assert_close(logits_gpu, expected.to("cuda"))
+    logits_gpu = logits.to("rtriton")
+    bitmask = torch.tensor([0b1010101010], dtype=torch.int32).to("rtriton")
+    apply_token_bitmask_inplace_rtriton(logits_gpu, bitmask)
+    torch.rtriton.synchronize()
+    torch.testing.assert_close(logits_gpu, expected.to("rtriton"))
 
 
 if __name__ == "__main__":

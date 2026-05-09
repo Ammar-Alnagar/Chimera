@@ -1,5 +1,5 @@
 // Adapted from
-// https://github.com/mlc-ai/xgrammar/blob/v0.1.18/python/xgrammar/kernels/apply_token_bitmask_inplace_cuda.cu
+// https://github.com/mlc-ai/xgrammar/blob/v0.1.18/python/xgrammar/kernels/apply_token_bitmask_inplace_rtriton.cu
 
 /*
  * SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
@@ -19,28 +19,28 @@
  */
 
 // clang-format off
-#include <cuda_bf16.h>
-#include <cuda_fp16.h>
-#include <cuda_runtime.h>
+#include <rtriton_bf16.h>
+#include <rtriton_fp16.h>
+#include <rtriton_runtime.h>
 #include <torch/all.h>
-#include <ATen/cuda/CUDAContext.h>
+#include <ATen/rtriton/RTRITONContext.h>
 
 
-#if !defined(USE_ROCM) && (!defined(CUDA_VERSION) || CUDA_VERSION < 12040)
+#if !defined(USE_ROCM) && (!defined(RTRITON_VERSION) || RTRITON_VERSION < 12040)
 void ApplyTokenBitmaskInplace(at::Tensor logits, at::Tensor bitmask, at::optional<at::Tensor> indices = at::nullopt) {
-  TORCH_CHECK(false, "CUDA version must be >= 12.4 for ApplyTokenBitmaskInplace");
+  TORCH_CHECK(false, "RTRITON version must be >= 12.4 for ApplyTokenBitmaskInplace");
 }
 #else
 
-#ifndef CUDART_INF_FP16
+#ifndef RTRITONRT_INF_FP16
 #ifndef USE_ROCM
-#define CUDART_INF_FP16 __ushort_as_half((unsigned short)0x7C00U)
+#define RTRITONRT_INF_FP16 __ushort_as_half((unsigned short)0x7C00U)
 #endif
 #endif
 
-#ifndef CUDART_INF_BF16
+#ifndef RTRITONRT_INF_BF16
 #ifndef USE_ROCM
-#define CUDART_INF_BF16 __ushort_as_bfloat16((unsigned short)0x7F80U)
+#define RTRITONRT_INF_BF16 __ushort_as_bfloat16((unsigned short)0x7F80U)
 #endif
 #endif
 
@@ -57,7 +57,7 @@ __device__ __half NegativeInfinity<__half>() {
 #ifdef USE_ROCM
   return __float2half(-INFINITY);
 #else
-  return -CUDART_INF_FP16;
+  return -RTRITONRT_INF_FP16;
 #endif
 }
 
@@ -66,7 +66,7 @@ __device__ __nv_bfloat16 NegativeInfinity<__nv_bfloat16>() {
 #ifdef USE_ROCM
   return __nv_bfloat16(-INFINITY);
 #else
-  return -CUDART_INF_BF16;
+  return -RTRITONRT_INF_BF16;
 #endif
 }
 
@@ -149,7 +149,7 @@ void ApplyTokenBitmaskInplaceDispatchToBitsPerThread(
   const int32_t num_bits_per_thread = CeilDiv(vocab_size, THREADS_PER_THREAD_BLOCK * num_blocks_per_row);
 
   const dim3 block(THREADS_PER_THREAD_BLOCK);
-  cudaStream_t stream = at::cuda::getCurrentCUDAStream().stream();
+  rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream().stream();
 
   if (num_bits_per_thread <= 4 && kAlignment <= 4) {
     const dim3 grid(CeilDiv(vocab_size, THREADS_PER_THREAD_BLOCK * 4), num_rows);
@@ -189,14 +189,14 @@ void ApplyTokenBitmaskInplaceDispatchToPackedT(
 }
 
 void ApplyTokenBitmaskInplace(at::Tensor logits, at::Tensor bitmask, at::optional<at::Tensor> indices = at::nullopt) {
-  TORCH_CHECK(logits.is_cuda(), "logits must be a CUDA tensor.");
+  TORCH_CHECK(logits.is_rtriton(), "logits must be a RTRITON tensor.");
   TORCH_CHECK(logits.is_contiguous(), "logits must be contiguous.");
   TORCH_CHECK(logits.dim() == 1 || logits.dim() == 2, "logits must be a 1D or 2D tensor.");
   std::pair<int32_t, int32_t> logits_shape =
       logits.dim() == 2 ? std::make_pair(static_cast<int32_t>(logits.size(0)), static_cast<int32_t>(logits.size(1)))
                         : std::make_pair(1, static_cast<int32_t>(logits.size(0)));
 
-  TORCH_CHECK(bitmask.is_cuda(), "bitmask must be a CUDA tensor.");
+  TORCH_CHECK(bitmask.is_rtriton(), "bitmask must be a RTRITON tensor.");
   TORCH_CHECK(bitmask.is_contiguous(), "bitmask must be contiguous.");
   TORCH_CHECK(bitmask.dim() == 1 || bitmask.dim() == 2, "bitmask must be a 1D or 2D tensor.");
   std::pair<int32_t, int32_t> bitmask_shape =
@@ -218,7 +218,7 @@ void ApplyTokenBitmaskInplace(at::Tensor logits, at::Tensor bitmask, at::optiona
   int32_t num_rows = logits_shape.first;
   int32_t* indices_ptr = nullptr;
   if (indices) {
-    TORCH_CHECK(indices->is_cuda(), "indices must be a CUDA tensor.");
+    TORCH_CHECK(indices->is_rtriton(), "indices must be a RTRITON tensor.");
     TORCH_CHECK(indices->is_contiguous(), "indices must be contiguous.");
     TORCH_CHECK(indices->dim() == 1, "indices must be a 1D tensor.");
     TORCH_CHECK(indices->dtype() == torch::kInt32, "indices must be of type int32.");

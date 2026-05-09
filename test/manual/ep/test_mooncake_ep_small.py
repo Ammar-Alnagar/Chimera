@@ -40,7 +40,7 @@ class TestTP(CustomTestCase):
                 "low_latency",
                 "--chunked-prefill-size",
                 "512",
-                "--cuda-graph-max-bs",
+                "--rtriton-graph-max-bs",
                 "128",
                 "--max-running-requests",
                 "512",

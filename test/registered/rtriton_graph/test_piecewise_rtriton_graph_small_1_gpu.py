@@ -5,7 +5,7 @@ import torch
 from sglang import Engine
 from sglang.lang.chat_template import get_chat_template_by_model_path
 from sglang.srt.utils import get_device_sm, kill_process_tree
-from sglang.test.ci.ci_register import register_cuda_ci
+from sglang.test.ci.ci_register import register_rtriton_ci
 from sglang.test.few_shot_gsm8k import run_eval as run_eval_few_shot_gsm8k
 from sglang.test.run_eval import run_eval
 from sglang.test.test_utils import (
@@ -21,10 +21,10 @@ from sglang.test.test_utils import (
 )
 
 # CI Registration - Small 1-GPU tests (24GB GPU sufficient)
-register_cuda_ci(est_time=460, suite="stage-b-test-small-1-gpu")
+register_rtriton_ci(est_time=460, suite="stage-b-test-small-1-gpu")
 
 
-class TestPiecewiseCudaGraphCorrectness(CustomTestCase):
+class TestPiecewiseRtritonGraphCorrectness(CustomTestCase):
     @classmethod
     def setUpClass(cls):
         cls.model = DEFAULT_MODEL_NAME_FOR_TEST
@@ -33,7 +33,7 @@ class TestPiecewiseCudaGraphCorrectness(CustomTestCase):
             cls.model,
             cls.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
-            other_args=["--enable-piecewise-cuda-graph"],
+            other_args=["--enable-piecewise-rtriton-graph"],
         )
 
     @classmethod
@@ -53,19 +53,19 @@ class TestPiecewiseCudaGraphCorrectness(CustomTestCase):
         self.assertGreaterEqual(metrics["score"], 0.65)
 
 
-class TestPiecewiseCudaGraphBenchmark(CustomTestCase):
+class TestPiecewiseRtritonGraphBenchmark(CustomTestCase):
 
     def test_latency(self):
         prefill_latency, _, _ = run_bench_one_batch(
             DEFAULT_MODEL_NAME_FOR_TEST,
-            other_args=["--enable-piecewise-cuda-graph"],
+            other_args=["--enable-piecewise-rtriton-graph"],
         )
         self.assertLess(prefill_latency, 0.015)
 
 
-@unittest.skipIf(get_device_sm() < 100, "Test requires CUDA SM 100 or higher")
-class TestPiecewiseCudaGraphLlama31FP4(CustomTestCase):
-    """MGSM test: piecewise CUDA graph with NVFP4 Llama3.1 8B on Blackwell."""
+@unittest.skipIf(get_device_sm() < 100, "Test requires RTRITON SM 100 or higher")
+class TestPiecewiseRtritonGraphLlama31FP4(CustomTestCase):
+    """MGSM test: piecewise RTRITON graph with NVFP4 Llama3.1 8B on Blackwell."""
 
     @classmethod
     def setUpClass(cls):
@@ -76,7 +76,7 @@ class TestPiecewiseCudaGraphLlama31FP4(CustomTestCase):
             cls.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
             other_args=[
-                "--enable-piecewise-cuda-graph",
+                "--enable-piecewise-rtriton-graph",
                 "--quantization",
                 "modelopt_fp4",
                 "--mem-fraction-static",
@@ -102,7 +102,7 @@ class TestPiecewiseCudaGraphLlama31FP4(CustomTestCase):
         self.assertGreaterEqual(metrics["score"], 0.78)
 
 
-class TestPiecewiseCudaGraphDeepSeek(CustomTestCase):
+class TestPiecewiseRtritonGraphDeepSeek(CustomTestCase):
     @classmethod
     def setUpClass(cls):
         cls.model = DEFAULT_MODEL_NAME_FOR_TEST_MLA
@@ -112,10 +112,10 @@ class TestPiecewiseCudaGraphDeepSeek(CustomTestCase):
             cls.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
             other_args=[
-                "--enable-piecewise-cuda-graph",
-                "--piecewise-cuda-graph-compiler",
+                "--enable-piecewise-rtriton-graph",
+                "--piecewise-rtriton-graph-compiler",
                 "eager",
-                "--piecewise-cuda-graph-max-tokens",
+                "--piecewise-rtriton-graph-max-tokens",
                 "4096",  # should less than max_context_len
             ],
         )
@@ -140,8 +140,8 @@ class TestPiecewiseCudaGraphDeepSeek(CustomTestCase):
         self.assertGreater(metrics["accuracy"], 0.62)
 
 
-class TestPiecewiseCudaGraphFP8(CustomTestCase):
-    """Test piecewise CUDA graph with FP8 quantized model"""
+class TestPiecewiseRtritonGraphFP8(CustomTestCase):
+    """Test piecewise RTRITON graph with FP8 quantized model"""
 
     @classmethod
     def setUpClass(cls):
@@ -152,7 +152,7 @@ class TestPiecewiseCudaGraphFP8(CustomTestCase):
             cls.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
             other_args=[
-                "--enable-piecewise-cuda-graph",
+                "--enable-piecewise-rtriton-graph",
                 "--quantization",
                 "modelopt_fp8",
                 "--kv-cache-dtype",
@@ -179,8 +179,8 @@ class TestPiecewiseCudaGraphFP8(CustomTestCase):
         print(f"MGSM Accuracy: {metrics['score']:.3f}")
 
 
-class TestPiecewiseCudaGraphQwen25VL(CustomTestCase):
-    """Test piecewise CUDA graph with Qwen2.5-VL-7B-Instruct model"""
+class TestPiecewiseRtritonGraphQwen25VL(CustomTestCase):
+    """Test piecewise RTRITON graph with Qwen2.5-VL-7B-Instruct model"""
 
     @classmethod
     def setUpClass(cls):
@@ -191,8 +191,8 @@ class TestPiecewiseCudaGraphQwen25VL(CustomTestCase):
             cls.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
             other_args=[
-                "--enable-piecewise-cuda-graph",
-                "--piecewise-cuda-graph-compiler",
+                "--enable-piecewise-rtriton-graph",
+                "--piecewise-rtriton-graph-compiler",
                 "eager",
                 "--disable-radix-cache",
             ],
@@ -220,8 +220,8 @@ class TestPiecewiseCudaGraphQwen25VL(CustomTestCase):
         self.assertGreaterEqual(metrics["score"], 0.70)
 
 
-class TestPiecewiseCudaGraphInternVL25(CustomTestCase):
-    """Test piecewise CUDA graph with InternVL2.5-8B-Instruct model"""
+class TestPiecewiseRtritonGraphInternVL25(CustomTestCase):
+    """Test piecewise RTRITON graph with InternVL2.5-8B-Instruct model"""
 
     @classmethod
     def setUpClass(cls):
@@ -232,8 +232,8 @@ class TestPiecewiseCudaGraphInternVL25(CustomTestCase):
             cls.base_url,
             timeout=DEFAULT_TIMEOUT_FOR_SERVER_LAUNCH,
             other_args=[
-                "--enable-piecewise-cuda-graph",
-                "--piecewise-cuda-graph-compiler",
+                "--enable-piecewise-rtriton-graph",
+                "--piecewise-rtriton-graph-compiler",
                 "eager",
                 "--disable-radix-cache",
             ],
@@ -261,8 +261,8 @@ class TestPiecewiseCudaGraphInternVL25(CustomTestCase):
         self.assertGreaterEqual(metrics["score"], 0.70)
 
 
-class TestPiecewiseCudaGraphQwen25VLEmbedding(CustomTestCase):
-    """Test piecewise CUDA graph with Qwen2.5-VL-3B-Instruct embedding model"""
+class TestPiecewiseRtritonGraphQwen25VLEmbedding(CustomTestCase):
+    """Test piecewise RTRITON graph with Qwen2.5-VL-3B-Instruct embedding model"""
 
     def test_embedding(self):
         model_path = "Qwen/Qwen2.5-VL-3B-Instruct"
@@ -273,8 +273,8 @@ class TestPiecewiseCudaGraphQwen25VLEmbedding(CustomTestCase):
             model_path=model_path,
             enable_multimodal=True,
             is_embedding=True,
-            enable_piecewise_cuda_graph=True,
-            piecewise_cuda_graph_compiler="eager",
+            enable_piecewise_rtriton_graph=True,
+            piecewise_rtriton_graph_compiler="eager",
         )
         out = engine.encode([text], image_data=[DEFAULT_IMAGE_URL])[0]["embedding"]
         engine.shutdown()
@@ -284,7 +284,7 @@ class TestPiecewiseCudaGraphQwen25VLEmbedding(CustomTestCase):
             model_path=model_path,
             enable_multimodal=True,
             is_embedding=True,
-            enable_piecewise_cuda_graph=False,
+            enable_piecewise_rtriton_graph=False,
         )
         out_without_pcg = engine.encode([text], image_data=[DEFAULT_IMAGE_URL])[0][
             "embedding"

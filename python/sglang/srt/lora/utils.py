@@ -10,8 +10,8 @@ from sglang.srt.utils.hf_transformers_utils import AutoConfig
 
 @dataclass
 class LoRABatchInfo:
-    # The forward mode is using CUDA Graph.
-    use_cuda_graph: bool
+    # The forward mode is using RTRITON Graph.
+    use_rtriton_graph: bool
 
     # Batch size
     bs: int

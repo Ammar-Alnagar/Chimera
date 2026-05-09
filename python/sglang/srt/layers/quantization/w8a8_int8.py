@@ -24,7 +24,7 @@ from sglang.srt.layers.quantization.unquant import UnquantizedLinearMethod
 from sglang.srt.utils import (
     cpu_has_amx_support,
     is_cpu,
-    is_cuda,
+    is_rtriton,
     set_weight_attrs,
     use_intel_amx_backend,
 )
@@ -33,11 +33,11 @@ from sglang.srt.utils.patch_torch import register_fake_if_exists
 if TYPE_CHECKING:
     from sglang.srt.layers.moe.token_dispatcher import StandardDispatchOutput
 
-_is_cuda = is_cuda()
+_is_rtriton = is_rtriton()
 _is_cpu_amx_available = cpu_has_amx_support()
 _is_cpu = is_cpu()
 
-if _is_cuda:
+if _is_rtriton:
     from sgl_kernel import int8_scaled_mm
 
     @register_fake_if_exists("sgl_kernel::int8_scaled_mm")

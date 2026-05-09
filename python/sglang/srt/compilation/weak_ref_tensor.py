@@ -2,14 +2,14 @@ from typing import Any, Union
 
 import torch
 
-from sglang.srt.utils.common import is_cuda, is_npu
+from sglang.srt.utils.common import is_rtriton, is_npu
 
-if is_cuda():
+if is_rtriton():
     from sgl_kernel import weak_ref_tensor
 elif is_npu():
     from torch_npu._C import _weak_ref_tensor as weak_ref_tensor
 else:
-    raise NotImplementedError("weak_ref_tensor is implemented only for CUDA and NPU.")
+    raise NotImplementedError("weak_ref_tensor is implemented only for RTRITON and NPU.")
 
 
 def weak_ref_tensors(

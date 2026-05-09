@@ -1,11 +1,11 @@
 // Adapted from
 // https://github.com/vllm-project/vllm/blob/eb59b5a6cba6727d3727c0372258db9002f687c1/csrc/quantization/awq/gemm_kernels.cu#L350
-#include <c10/cuda/CUDAGuard.h>
-#include <cuda.h>
-#include <cuda_fp16.h>
+#include <c10/rtriton/RTRITONGuard.h>
+#include <rtriton.h>
+#include <rtriton_fp16.h>
 #include <torch/all.h>
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
-#include <cuda_bf16.h>
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 800
+#include <rtriton_bf16.h>
 #endif
 
 template <int lut>
@@ -16,7 +16,7 @@ __device__ inline int lop3(int a, int b, int c) {
 }
 
 __device__ uint4 dequantize_s4_to_fp16x2(uint32_t const& source) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 750
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 750
   uint4 result;
 
   uint32_t* h = reinterpret_cast<uint32_t*>(&result);
@@ -80,8 +80,8 @@ __device__ uint4 dequantize_s4_to_fp16x2(uint32_t const& source) {
 }
 
 __device__ uint4 dequantize_s4_to_bf16x2(uint32_t const& source) {
-#if CUDA_VERSION >= 12000
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+#if RTRITON_VERSION >= 12000
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 800
   uint4 result;
   uint32_t* h = reinterpret_cast<uint32_t*>(&result);
   uint32_t const i4s = source;
@@ -132,7 +132,7 @@ __global__ void __launch_bounds__(256) dequantize_weights(
     int group_size,
     int qweight_cols,
     int qweight_rows) {
-#if CUDA_VERSION >= 12000
+#if RTRITON_VERSION >= 12000
   int col = blockIdx.x * blockDim.x + threadIdx.x;
   int row = blockIdx.y * blockDim.y + threadIdx.y;
   if (col >= qweight_cols || row >= qweight_rows) return;
@@ -193,7 +193,7 @@ torch::Tensor awq_dequantize(torch::Tensor qweight, torch::Tensor scales, torch:
   int x_blocks = (qweight_cols + x_num_threads - 1) / x_num_threads;
   int y_blocks = (qweight_rows + y_num_threads - 1) / y_num_threads;
 
-  const at::cuda::OptionalCUDAGuard device_guard(device_of(qweight));
+  const at::rtriton::OptionalRTRITONGuard device_guard(device_of(qweight));
 
   auto output_tensor_options = torch::TensorOptions().dtype(scales.dtype()).device(scales.device());
   at::Tensor output = torch::empty({qweight_rows, qweight_cols * 8}, output_tensor_options);
@@ -203,7 +203,7 @@ torch::Tensor awq_dequantize(torch::Tensor qweight, torch::Tensor scales, torch:
 
   dim3 num_blocks(x_blocks, y_blocks);
   dim3 threads_per_block(x_num_threads, y_num_threads);
-  const cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+  const rtritonStream_t stream = at::rtriton::getCurrentRTRITONStream();
 
   if (scales.scalar_type() == at::ScalarType::Half) {
     auto _scales = reinterpret_cast<half*>(scales.data_ptr<at::Half>());

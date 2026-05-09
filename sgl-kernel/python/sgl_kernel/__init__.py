@@ -1,7 +1,7 @@
 import os
 
 import torch
-from sgl_kernel.load_utils import _load_architecture_specific_ops, _preload_cuda_library
+from sgl_kernel.load_utils import _load_architecture_specific_ops, _preload_rtriton_library
 
 # Pure-Python mode is the default in Chimera.
 # Set SGL_KERNEL_USE_CPP_OPS=1 to opt into loading compiled extension ops.
@@ -9,9 +9,9 @@ common_ops = None
 if os.environ.get("SGL_KERNEL_USE_CPP_OPS", "0") == "1":
     # Initialize the ops library based on current GPU.
     common_ops = _load_architecture_specific_ops()
-    # Preload the CUDA runtime library to avoid libcudart.so.12 not found.
-    if torch.version.cuda is not None:
-        _preload_cuda_library()
+    # Preload the RTRITON runtime library to avoid librtritonrt.so.12 not found.
+    if torch.version.rtriton is not None:
+        _preload_rtriton_library()
 
 
 from sgl_kernel.allreduce import *
@@ -74,7 +74,7 @@ from sgl_kernel.gemm import (
 )
 from sgl_kernel.tilelang_gemm import tilelang_fp8_blockwise_scaled_mm
 from sgl_kernel.tilelang_gemm import tilelang_fp8_blockwise_scaled_mm  # backward compat
-from sgl_kernel.grammar import apply_token_bitmask_inplace_cuda
+from sgl_kernel.grammar import apply_token_bitmask_inplace_rtriton
 from sgl_kernel.hadamard import (
     hadamard_transform,
     hadamard_transform_12n,

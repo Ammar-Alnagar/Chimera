@@ -24,8 +24,8 @@ def init_dist(local_rank: int, num_local_ranks: int):
         rank=node_rank * num_local_ranks + local_rank,
     )
     torch.set_default_dtype(torch.bfloat16)
-    torch.set_default_device("cuda")
-    torch.cuda.set_device(local_rank)
+    torch.set_default_device("rtriton")
+    torch.rtriton.set_device(local_rank)
 
     return (
         dist.get_rank(),
@@ -84,8 +84,8 @@ def create_grouped_scores(
 
 def bench(fn, num_warmups: int = 20, num_tests: int = 30, post_fn=None):
     # Flush L2 cache with 256 MB data
-    torch.cuda.synchronize()
-    cache = torch.empty(int(256e6 // 4), dtype=torch.int, device="cuda")
+    torch.rtriton.synchronize()
+    cache = torch.empty(int(256e6 // 4), dtype=torch.int, device="rtriton")
 
     # Warmup
     for _ in range(num_warmups):
@@ -95,8 +95,8 @@ def bench(fn, num_warmups: int = 20, num_tests: int = 30, post_fn=None):
     cache.zero_()
 
     # Testing
-    start_events = [torch.cuda.Event(enable_timing=True) for _ in range(num_tests)]
-    end_events = [torch.cuda.Event(enable_timing=True) for _ in range(num_tests)]
+    start_events = [torch.rtriton.Event(enable_timing=True) for _ in range(num_tests)]
+    end_events = [torch.rtriton.Event(enable_timing=True) for _ in range(num_tests)]
     for i in range(num_tests):
         # Record
         start_events[i].record()
@@ -104,7 +104,7 @@ def bench(fn, num_warmups: int = 20, num_tests: int = 30, post_fn=None):
         end_events[i].record()
         if post_fn is not None:
             post_fn()
-    torch.cuda.synchronize()
+    torch.rtriton.synchronize()
 
     times = np.array(
         [s.elapsed_time(e) / 1e3 for s, e in zip(start_events, end_events)]
@@ -168,15 +168,15 @@ def bench_kineto(
     with suppress():
         schedule = torch.profiler.schedule(wait=0, warmup=1, active=1, repeat=1)
         with torch.profiler.profile(
-            activities=[torch.profiler.ProfilerActivity.CUDA], schedule=schedule
+            activities=[torch.profiler.ProfilerActivity.RTRITON], schedule=schedule
         ) as prof:
             for i in range(2):
                 # NOTES: use a large kernel and a barrier to eliminate the unbalanced CPU launch overhead
                 if barrier_comm_profiling:
-                    lhs = torch.randn((8192, 8192), dtype=torch.float, device="cuda")
-                    rhs = torch.randn((8192, 8192), dtype=torch.float, device="cuda")
+                    lhs = torch.randn((8192, 8192), dtype=torch.float, device="rtriton")
+                    rhs = torch.randn((8192, 8192), dtype=torch.float, device="rtriton")
                     lhs @ rhs
-                    dist.all_reduce(torch.ones(1, dtype=torch.float, device="cuda"))
+                    dist.all_reduce(torch.ones(1, dtype=torch.float, device="rtriton"))
                 for _ in range(num_tests):
                     fn()
                 prof.step()
@@ -186,7 +186,7 @@ def bench_kineto(
     is_tupled = isinstance(kernel_names, tuple)
     prof_lines = (
         prof.key_averages()
-        .table(sort_by="cuda_time_total", max_name_column_width=100)
+        .table(sort_by="rtriton_time_total", max_name_column_width=100)
         .split("\n")
     )
     kernel_names = (kernel_names,) if isinstance(kernel_names, str) else kernel_names

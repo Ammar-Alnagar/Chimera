@@ -10,7 +10,7 @@ from sglang.srt.batch_overlap.single_batch_overlap import DownGemmOverlapArgs
 from sglang.srt.batch_overlap.two_batch_overlap import MaybeTboDeepEPDispatcher
 from sglang.srt.compilation.piecewise_context_manager import (
     get_forward_context,
-    is_in_piecewise_cuda_graph,
+    is_in_piecewise_rtriton_graph,
 )
 from sglang.srt.distributed import (
     get_moe_expert_parallel_rank,
@@ -905,11 +905,11 @@ class FusedMoE(torch.nn.Module):
             )
 
     def forward(self, hidden_states: torch.Tensor, topk_output: TopKOutput):
-        if is_in_piecewise_cuda_graph():
+        if is_in_piecewise_rtriton_graph():
             assert TopKOutputChecker.format_is_standard(
                 topk_output
-            ), "Only standard topk output is supported for piecewise cuda graph"
-            return moe_forward_piecewise_cuda_graph_impl(
+            ), "Only standard topk output is supported for piecewise rtriton graph"
+            return moe_forward_piecewise_rtriton_graph_impl(
                 hidden_states,
                 topk_output.topk_weights,
                 topk_output.topk_ids,
@@ -933,7 +933,7 @@ class FusedMoE(torch.nn.Module):
                     & (self.dispatcher.local_expert_mapping < self.num_local_experts)
                 )
                 .to(torch.int32)
-                .to(device="cuda")
+                .to(device="rtriton")
             )
 
         combine_input = self.run_moe_core(
@@ -1077,11 +1077,11 @@ class FlashInferFusedMoE(FusedMoE):
         super().__init__(*args, **kwargs)
 
     def forward(self, hidden_states: torch.Tensor, topk_output: TopKOutput):
-        if is_in_piecewise_cuda_graph():
+        if is_in_piecewise_rtriton_graph():
             assert TopKOutputChecker.format_is_standard(
                 topk_output
-            ), "Only standard topk output is supported for piecewise cuda graph"
-            return moe_forward_piecewise_cuda_graph_impl(
+            ), "Only standard topk output is supported for piecewise rtriton graph"
+            return moe_forward_piecewise_rtriton_graph_impl(
                 hidden_states,
                 topk_output.topk_weights,
                 topk_output.topk_ids,
@@ -1209,8 +1209,8 @@ class FlashInferFP4MoE(FusedMoE):
             topk_output
         ), "Only bypassed topk output is supported for flashinfer fp4 moe"
 
-        if is_in_piecewise_cuda_graph():
-            return flashinfer_fp4_moe_forward_piecewise_cuda_graph_impl(
+        if is_in_piecewise_rtriton_graph():
+            return flashinfer_fp4_moe_forward_piecewise_rtriton_graph_impl(
                 hidden_states,
                 topk_output.router_logits,
                 topk_output.topk_config.top_k,
@@ -1316,14 +1316,14 @@ class FlashInferFP4MoE(FusedMoE):
 
 
 @register_custom_op(out_shape="hidden_states")
-def moe_forward_piecewise_cuda_graph_impl(
+def moe_forward_piecewise_rtriton_graph_impl(
     hidden_states: torch.Tensor,
     topk_weights: torch.Tensor,
     topk_ids: torch.Tensor,
     router_logits: torch.Tensor,
     layer_id: int,
 ) -> torch.Tensor:
-    # only standard topk output is supported for piecewise cuda graph
+    # only standard topk output is supported for piecewise rtriton graph
     topk_output = StandardTopKOutput(
         topk_weights=topk_weights, topk_ids=topk_ids, router_logits=router_logits
     )
@@ -1333,7 +1333,7 @@ def moe_forward_piecewise_cuda_graph_impl(
 
 
 @register_custom_op(out_shape="hidden_states")
-def flashinfer_fp4_moe_forward_piecewise_cuda_graph_impl(
+def flashinfer_fp4_moe_forward_piecewise_rtriton_graph_impl(
     hidden_states: torch.Tensor,
     router_logits: torch.Tensor,
     top_k: int,

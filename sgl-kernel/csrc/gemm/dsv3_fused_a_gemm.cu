@@ -19,9 +19,9 @@
  */
 
 #include <ATen/ATen.h>
-#include <ATen/cuda/CUDAContext.h>
-#include <cuda_bf16.h>
-#include <cuda_runtime.h>
+#include <ATen/rtriton/RTRITONContext.h>
+#include <rtriton_bf16.h>
+#include <rtriton_runtime.h>
 
 #include "utils.h"
 
@@ -29,7 +29,7 @@ using bf16_t = __nv_bfloat16;
 
 __device__ void hmma_16_8_16_f32acc_bf16ab(
     float (&d_reg)[4], const bf16_t (&a_reg)[8], const bf16_t (&b_reg)[4], float const (&c_reg)[4]) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
   uint32_t a0 = *reinterpret_cast<uint32_t const*>(a_reg + 0);
   uint32_t a1 = *reinterpret_cast<uint32_t const*>(a_reg + 2);
   uint32_t a2 = *reinterpret_cast<uint32_t const*>(a_reg + 4);
@@ -61,7 +61,7 @@ __device__ uint32_t __nvvm_get_smem_pointer(void*);
 }
 
 __device__ void ldgsts_128(void const* gPtr, void* sPtr, uint32_t pred) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
   if (pred) {
     uint32_t smemPtrAsUint32 = __nvvm_get_smem_pointer(sPtr);
     asm volatile("cp.async.cg.shared.global.L2::128B [%0], [%1], %2;\n" ::"r"(smemPtrAsUint32), "l"(gPtr), "n"(16));
@@ -70,7 +70,7 @@ __device__ void ldgsts_128(void const* gPtr, void* sPtr, uint32_t pred) {
 }
 
 __device__ void ldsm_x4(void* smem_ptr, uint32_t* reg_ptr) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
   asm volatile("ldmatrix.sync.aligned.x4.m8n8.shared.b16 {%0, %1, %2, %3}, [%4];\n"
                : "=r"(reg_ptr[0]), "=r"(reg_ptr[1]), "=r"(reg_ptr[2]), "=r"(reg_ptr[3])
                : "r"(__nvvm_get_smem_pointer(smem_ptr)));
@@ -91,7 +91,7 @@ __device__ void initialize_barrier(
     uint64_t* smem_barrier,  // 64 bits user-manged barrier in smem
     int thread_count = 1)    // Thread count expected to arrive/wait on this barrier
 {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
   uint32_t smem_int_ptr = __nvvm_get_smem_pointer(smem_barrier);
   asm volatile("mbarrier.init.shared::cta.b64 [%0], %1;\n" ::"r"(smem_int_ptr), "r"(thread_count));
 #endif
@@ -102,7 +102,7 @@ __device__ void wait_barrier(
     uint64_t* smem_barrier,  // 64 bits user-manged barrier in smem
     int phase_bit)           // Current phase bit the barrier waiting to flip
 {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
   uint32_t smem_int_ptr = __nvvm_get_smem_pointer(smem_barrier);
   asm volatile(
       "{\n"
@@ -118,7 +118,7 @@ __device__ void wait_barrier(
 }
 
 __device__ bool try_wait_barrier(uint64_t* smem_ptr, int phase_bit) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
   uint32_t wait_complete;
   uint32_t smem_int_ptr = __nvvm_get_smem_pointer(smem_ptr);
   asm volatile(
@@ -137,7 +137,7 @@ __device__ bool try_wait_barrier(uint64_t* smem_ptr, int phase_bit) {
 // Barrier arrive
 __device__ void arrive_barrier(uint64_t* smem_barrier)  // 64 bits user-manged barrier in smem
 {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
   uint32_t smem_int_ptr = __nvvm_get_smem_pointer(smem_barrier);
   asm volatile(
       "{\n"
@@ -148,7 +148,7 @@ __device__ void arrive_barrier(uint64_t* smem_barrier)  // 64 bits user-manged b
 }
 
 __device__ void ldgsts_arrive(uint64_t* smem_barrier) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
   uint32_t smem_int_ptr = __nvvm_get_smem_pointer(smem_barrier);
   asm volatile("cp.async.mbarrier.arrive.noinc.shared.b64 [%0];" : : "r"(smem_int_ptr));
 #endif
@@ -180,7 +180,7 @@ struct GmemLoaderA {
       : gmem_a(gmem_a_local_), smem_a(smem_a_), smem_barrier(smem_barrier_), local_tid(threadIdx.x % thread_cnt) {}
 
   __device__ void prepare() {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
 // swizzle, that's what we want.
 #pragma unroll
     for (int i = 0; i < a_inst_cnt_per_iter; i++) {
@@ -194,7 +194,7 @@ struct GmemLoaderA {
   }
 
   __device__ void issue_mainloop() {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
 #pragma unroll 1
     for (int loop_idx = 0; loop_idx < k_iter_cnt; loop_idx++) {
       if (need_wait) {
@@ -269,7 +269,7 @@ struct GmemLoaderB {
         local_tid(threadIdx.x % thread_cnt) {}
 
   __device__ void prepare() {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
 // swizzle, that's what we want.
 #pragma unroll
     for (int i = 0; i < b_inst_cnt_per_iter; i++) {
@@ -284,7 +284,7 @@ struct GmemLoaderB {
   }
 
   __device__ void issue_mainloop() {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
     asm volatile("griddepcontrol.wait;");
 #pragma unroll 1
     for (int loop_idx = 0; loop_idx < k_iter_cnt; loop_idx++) {
@@ -365,7 +365,7 @@ struct MmaComputer {
 
  public:
   __device__ void prepare() {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
 #pragma unroll
     for (int i = 0; i < k_phase_cnt; i++) {
       int linear_idx = (lane_idx % 16) + (lane_idx / 16) * 128 + i * 256;
@@ -389,7 +389,7 @@ struct MmaComputer {
   }
 
   __device__ void issue_mainloop() {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
 #pragma unroll 1
     for (int loop_idx = 0; loop_idx < k_iter_cnt; loop_idx++) {
       wait_barrier(smem_barrier + 0 + stage_idx * 2, phase_bit);
@@ -428,7 +428,7 @@ struct MmaComputer {
   }
 
   __device__ void epi() {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
     asm volatile("bar.sync %0, %1;" : : "r"(1), "r"(thread_cnt));
     // reorganize the acc_reg
     constexpr int thread_m = 2;
@@ -515,7 +515,7 @@ struct MmaComputer {
 template <int batch_size, int gemm_m, int gemm_k, int tile_m, int tile_n, int tile_k, int stage_cnt>
 __global__ __launch_bounds__(256, 1) void fused_a_gemm_kernel(
     bf16_t* output, bf16_t const* mat_a, bf16_t const* mat_b, int gemm_n) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
+#if defined(__RTRITON_ARCH__) && __RTRITON_ARCH__ >= 900
   constexpr int load_thread_cnt = 128;
   constexpr int compute_thread_cnt = 128;
   constexpr int thread_cnt = load_thread_cnt + compute_thread_cnt;
@@ -576,7 +576,7 @@ __global__ __launch_bounds__(256, 1) void fused_a_gemm_kernel(
 }
 
 template <typename T, int kHdIn, int kHdOut, int kTileN>
-void invokeFusedAGemm(T* output, T const* mat_a, T const* mat_b, int num_tokens, cudaStream_t const stream) {
+void invokeFusedAGemm(T* output, T const* mat_a, T const* mat_b, int num_tokens, rtritonStream_t const stream) {
   constexpr int gemm_m = kHdOut;  // 2112
   int const gemm_n = num_tokens;  // 16
   constexpr int gemm_k = kHdIn;   // 7168
@@ -596,23 +596,23 @@ void invokeFusedAGemm(T* output, T const* mat_a, T const* mat_b, int num_tokens,
 
   dim3 grid(cta_m_cnt, cta_n_cnt, 1);
   dim3 block_size(256);
-  cudaLaunchConfig_t config;
+  rtritonLaunchConfig_t config;
   config.gridDim = grid;
   config.blockDim = block_size;
   config.dynamicSmemBytes = smem_bytes;
   config.stream = stream;
-  cudaLaunchAttribute attrs[1];
-  attrs[0].id = cudaLaunchAttributeProgrammaticStreamSerialization;
+  rtritonLaunchAttribute attrs[1];
+  attrs[0].id = rtritonLaunchAttributeProgrammaticStreamSerialization;
   attrs[0].val.programmaticStreamSerializationAllowed = getEnvEnablePDL();
   config.numAttrs = 1;
   config.attrs = attrs;
   if (smem_bytes >= (48 * 1024)) {
-    cudaFuncSetAttribute(
+    rtritonFuncSetAttribute(
         fused_a_gemm_kernel<batch_size, gemm_m, gemm_k, tile_m, tile_n, tile_k, stage_cnt>,
-        cudaFuncAttributeMaxDynamicSharedMemorySize,
+        rtritonFuncAttributeMaxDynamicSharedMemorySize,
         smem_bytes);
   }
-  cudaLaunchKernelEx(
+  rtritonLaunchKernelEx(
       &config,
       fused_a_gemm_kernel<batch_size, gemm_m, gemm_k, tile_m, tile_n, tile_k, stage_cnt>,
       output,
@@ -622,10 +622,10 @@ void invokeFusedAGemm(T* output, T const* mat_a, T const* mat_b, int num_tokens,
 }
 
 template void invokeFusedAGemm<__nv_bfloat16, 7168, 2112, 8>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, int num_tokens, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, int num_tokens, rtritonStream_t);
 
 template void invokeFusedAGemm<__nv_bfloat16, 7168, 2112, 16>(
-    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, int num_tokens, cudaStream_t);
+    __nv_bfloat16*, __nv_bfloat16 const*, __nv_bfloat16 const*, int num_tokens, rtritonStream_t);
 
 void dsv3_fused_a_gemm(torch::Tensor& output, torch::Tensor const& mat_a, torch::Tensor const& mat_b) {
   TORCH_CHECK(mat_a.dim() == 2 && mat_b.dim() == 2 && output.dim() == 2);
@@ -652,9 +652,9 @@ void dsv3_fused_a_gemm(torch::Tensor& output, torch::Tensor const& mat_a, torch:
   TORCH_CHECK(output.scalar_type() == torch::kBFloat16, "Only BFloat16 output dtype is supported")
 
   auto const sm = getSMVersion();
-  TORCH_CHECK(sm >= 90, "required CUDA ARCH >= SM_90");
+  TORCH_CHECK(sm >= 90, "required RTRITON ARCH >= SM_90");
 
-  auto stream = at::cuda::getCurrentCUDAStream(mat_a.get_device());
+  auto stream = at::rtriton::getCurrentRTRITONStream(mat_a.get_device());
   if (num_tokens <= 8) {
     invokeFusedAGemm<__nv_bfloat16, kHdIn, kHdOut, 8>(
         reinterpret_cast<__nv_bfloat16*>(output.mutable_data_ptr()),
